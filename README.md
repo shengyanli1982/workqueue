@@ -25,7 +25,7 @@ WorkQueue is a simple, fast, reliable work queue written in Go. It supports mult
 
 # Benchmark
 
-## Structure
+## 1. Structure
 
 All Queue types are based on `Queue`, which mean will use `channel` to store elements and use `set` to track the state of the queue.
 
@@ -50,7 +50,7 @@ BenchmarkSetHas-12           	12831529	       136.4 ns/op	       0 B/op	       0
 
 ```
 
-## Queue
+## 2. Queue
 
 Compare to [kubernetes/client-go](https://github.com/kubernetes/client-go) workqueue, WorkQueue has better performance and lower memory usage.
 
@@ -84,7 +84,7 @@ go get github.com/shengyanli1982/workqueue
 
 Here are some examples of how to use WorkQueue. but you can also refer to the [examples](examples) directory for more examples.
 
-## Queue
+## 1. Queue
 
 `Queue` is a simple queue in project, all queues are based on it. It is a FIFO queue and has `dirty` and `processing` set to track the state of the queue. If you want to `Add` an exist element to the queue, unfortunately, it will not be added to the queue again.
 
@@ -146,7 +146,7 @@ func main() {
 }
 ```
 
-## Delaying Queue
+## 2. Delaying Queue
 
 `Delaying Queue` is a queue that supports delaying execution. It is based on `Queue` and uses a `heap` to maintain the expiration time of the element. When you add an element to the queue, you can specify the delay time, and the element will be executed after the delay time.
 
@@ -213,7 +213,7 @@ func main() {
 }
 ```
 
-## Priority Queue
+## 3. Priority Queue
 
 `Priority Queue` is a queue that supports priority execution. It is based on `Queue` and uses a `heap` to maintain the priority of the element. When you add an element to the queue, you can specify the priority of the element, and the element will be executed according to the priority.
 
@@ -276,7 +276,7 @@ func main() {
 }
 ```
 
-## RateLimiting Queue
+## 4. RateLimiting Queue
 
 `RateLimiting Queue` is a queue that supports rate limiting execution. It is based on `Queue` and uses a `heap` to maintain the expiration time of the element. When you add an element to the queue, you can specify the rate limit of the element, and the element will be executed according to the rate limit.
 
@@ -339,7 +339,7 @@ func main() {
 
 `WorkQueue` also has interesting properties. It is designed to be easily extensible which mean you can easily write a new queue type and use it with WorkQueue.
 
-## Callback
+## 1. Callback
 
 `WorkQueue` supports action callback function. Specify a callback functions when create a queue, and the callback function will be called when do some action.
 
@@ -422,7 +422,7 @@ The queue callback functions are loosely used and can be easily extended, you ca
 -   `OnForget` will be called when forget an element from the rate limiting queue
 -   `OnGetTimes` will be called when get the number of times an element has been limited from the rate limiting queue
 
-## Capacity
+## 2. Capacity
 
 Queue capacity is a very important parameter, it determines the maximum number of elements that can be stored in the queue. If the capacity is `-1`, which mean the queue is unlimited. Default capacity is `2048`.
 
@@ -468,7 +468,7 @@ func main() {
 }
 ```
 
-## Limiter
+## 3. Limiter
 
 The limiter only works for `RateLimiting Queue`, it determines the rate limit of the element. Default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `RateLimiter` interface.
 
