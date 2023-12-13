@@ -118,6 +118,8 @@ func (q *Q) prepare(element any) {
 	q.lock.Unlock()
 }
 
+// 判断元素是否已经被标记
+// Determine if an element has been marked.
 func (q *Q) isElementMarked(element any) bool {
 	q.lock.Lock()
 	defer q.lock.Unlock()
