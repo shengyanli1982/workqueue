@@ -33,6 +33,12 @@ func NewBucketRateLimiter(r float64, b int) *BucketRateLimiter {
 	return &BucketRateLimiter{rate.NewLimiter(rate.Limit(r), b)}
 }
 
+// 创建一个基于令牌桶 RateLimiter, 拥有默认值
+// DefaultBucketRateLimiter returns a new instance of a bucket rate limiter with default values.
+func DefaultBucketRateLimiter() RateLimiter {
+	return NewBucketRateLimiter(defaultQueueRateLimit, defaultQueueRateBurst)
+}
+
 // 获取一个元素，并决定该元素应该等待多长时间。这里是 BucketRateLimiter 的核心逻辑。 等待时间：limiter.Reserve().Delay()
 // When gets an element and gets to decide how long that element should wait
 func (r *BucketRateLimiter) When(element any) time.Duration {
@@ -81,7 +87,7 @@ func NewExponentialFailureRateLimiter(base time.Duration, max time.Duration) Rat
 // 创建一个基于指数退避的 RateLimiter, 拥有默认值
 // DefaultExponentialFailureRateLimiter returns a new instance of an exponential failure rate limiter with default values.
 func DefaultExponentialFailureRateLimiter() RateLimiter {
-	return NewExponentialFailureRateLimiter(time.Millisecond, 1000*time.Second)
+	return NewExponentialFailureRateLimiter(defaultQueueExpFailureBase, defaultQueueExpFailureMax)
 }
 
 // 获取一个元素，并决定该元素应该等待多长时间。这里是 ExponentialFailureRateLimiter 的核心逻辑。等待时间：2^exp * base
@@ -91,20 +97,17 @@ func (r *ExponentialFailureRateLimiter) When(item any) time.Duration {
 	defer r.lock.Unlock()
 
 	exp := r.failures[item]
-	r.failures[item] += 1
+	r.failures[item]++
 
-	// The backoff is capped such that 'calculated' value never overflows.
-	backoff := float64(r.basedelay.Nanoseconds()) * math.Pow(2, float64(exp)) // 2^exp * base
-	if backoff > math.MaxInt64 {
+	// Calculate the backoff using exponential formula
+	backoff := r.basedelay * time.Duration(math.Pow(2, float64(exp))) // 2^exp * base
+
+	// Cap the backoff to avoid overflow
+	if backoff > r.maxdelay {
 		return r.maxdelay
 	}
 
-	calculated := time.Duration(backoff)
-	if calculated > r.maxdelay {
-		return r.maxdelay
-	}
-
-	return calculated
+	return backoff
 }
 
 // 返回一个元素被限速的次数

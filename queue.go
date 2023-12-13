@@ -7,7 +7,7 @@ import (
 	st "github.com/shengyanli1982/workqueue/pkg/structs"
 )
 
-// Queue 方法接口
+// 队列方法接口
 // Queue interface
 type Interface interface {
 	Add(element any) error
@@ -19,7 +19,7 @@ type Interface interface {
 	IsClosed() bool
 }
 
-// Queue 的回调接口
+// 队列的回调接口
 // Callback interface
 type Callback interface {
 	OnAdd(any)
@@ -27,27 +27,27 @@ type Callback interface {
 	OnDone(any)
 }
 
-// Queue 的配置
+// 队列的配置
 // Queue config
 type QConfig struct {
 	cb  Callback
 	cap int
 }
 
-// 创建一个 Queue 的配置
+// 创建一个队列的配置
 // Create a new Queue config
 func NewQConfig() *QConfig {
 	return &QConfig{}
 }
 
-// 设置 Queue 的回调接口
+// 设置队列的回调接口
 // Set Queue callback
 func (c *QConfig) WithCallback(cb Callback) *QConfig {
 	c.cb = cb
 	return c
 }
 
-// 设置 Queue 的容量
+// 设置队列的容量
 // Set Queue capacity
 func (c *QConfig) WithCap(cap int) *QConfig {
 	c.cap = cap
@@ -89,15 +89,16 @@ func (q *Q) isConfigValid() {
 		q.config = &QConfig{}
 		q.config.WithCallback(emptyCallback{})
 		q.config.WithCap(defaultQueueCap)
-	}
-	if q.config.cb == nil {
-		q.config.cb = emptyCallback{}
-	}
-	if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
-		q.config.cap = defaultQueueCap
-	}
-	if q.config.cap < 0 {
-		q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
+	} else {
+		if q.config.cb == nil {
+			q.config.cb = emptyCallback{}
+		}
+		if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
+			q.config.cap = defaultQueueCap
+		}
+		if q.config.cap < 0 {
+			q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
+		}
 	}
 }
 

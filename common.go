@@ -12,10 +12,10 @@ const defaultQueueSortWin = 500 // ms
 
 // Queue 限速设置
 // Queue rate limit setting
-const defaultQueueRateLimit = 100 // per second
-const defaultQueueRateBurst = 100 // per second
-// const defaultQueueExpFailureBase = 100 // milliseconds
-// const defaultQueueExpFailureMax = 500  // seconds
+const defaultQueueRateLimit = 100      // per second
+const defaultQueueRateBurst = 100      // per second
+const defaultQueueExpFailureBase = 100 // milliseconds
+const defaultQueueExpFailureMax = 500  // seconds
 
 // 空实现
 // empty implementation

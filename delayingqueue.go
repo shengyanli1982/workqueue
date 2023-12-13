@@ -10,17 +10,17 @@ import (
 	st "github.com/shengyanli1982/workqueue/pkg/structs"
 )
 
-// Queue 方法接口
-// Queue interface
+// DelayingInterface 是 Queue 方法接口的延迟版本
+// DelayingInterface is the delayed version of the Queue method interface
 type DelayingInterface interface {
 	Interface
 	// AddAfter 添加一个元素，延迟一段时间后再执行
-	// Add an element, add it after a delay
+	// Add an element, execute it after a delay
 	AddAfter(element any, delay time.Duration) error
 }
 
-// Queue 的回调接口
-// Callback interface
+// DelayingCallback 是 Queue 的回调接口的延迟版本
+// DelayingCallback is the delayed version of the Queue callback interface
 type DelayingCallback interface {
 	Callback
 	// OnAfter 添加元素后的回调
@@ -28,26 +28,28 @@ type DelayingCallback interface {
 	OnAfter(any, time.Duration)
 }
 
-// Queue 的配置
-// Queue config
+// DelayingQConfig 是 Queue 的配置的延迟版本
+// DelayingQConfig is the delayed version of the Queue config
 type DelayingQConfig struct {
 	QConfig
 	cb DelayingCallback
 }
 
-// 创建一个 Queue 的配置
-// Create a new Queue config
+// NewDelayingQConfig 创建一个 DelayingQConfig 实例
+// Create a new DelayingQConfig instance
 func NewDelayingQConfig() *DelayingQConfig {
 	return &DelayingQConfig{}
 }
 
-// 设置 Queue 的回调接口
+// WithCallback 设置 Queue 的回调接口
 // Set Queue callback
 func (c *DelayingQConfig) WithCallback(cb DelayingCallback) *DelayingQConfig {
 	c.cb = cb
 	return c
 }
 
+// DelayingQ 是 DelayingQueue 的实现
+// DelayingQ is the implementation of DelayingQueue
 type DelayingQ struct {
 	*Q
 	waiting *st.Heap
@@ -60,8 +62,8 @@ type DelayingQ struct {
 	config  *DelayingQConfig
 }
 
-// 创建一个 DelayingQueue 实例
-// Create a new DelayingQueue config
+// NewDelayingQueue 创建一个 DelayingQueue 实例
+// Create a new DelayingQueue instance
 func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
 	q := &DelayingQ{
 		waiting: st.NewHeap(),
@@ -85,26 +87,27 @@ func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
 	return q
 }
 
-// 判断 config 是否为空，如果为空，设置默认值
-// Check if config is nil, if it is, set default value
+// isConfigValid 检查配置是否有效，如果为空则设置默认值
+// Check if the config is valid, if it is nil, set default values
 func (q *DelayingQ) isConfigValid() {
 	if q.config == nil {
 		q.config = &DelayingQConfig{}
 		q.config.WithCallback(emptyCallback{}).WithCap(defaultQueueCap)
-	}
-	if q.config.cb == nil {
-		q.config.cb = emptyCallback{}
-	}
-	if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
-		q.config.cap = defaultQueueCap
-	}
-	if q.config.cap < 0 {
-		q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
+	} else {
+		if q.config.cb == nil {
+			q.config.cb = emptyCallback{}
+		}
+		if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
+			q.config.cap = defaultQueueCap
+		}
+		if q.config.cap < 0 {
+			q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
+		}
 	}
 }
 
-// 添加元素到队列, 延迟一段时间后再处理
-// Add an element to the queue, process it after a specified delay
+// AddAfter 将元素添加到队列中，在延迟一段时间后处理
+// Add an element to the queue and process it after a specified delay
 func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
 	if q.IsClosed() {
 		return ErrorQueueClosed
@@ -131,7 +134,6 @@ func (q *DelayingQ) syncNow() {
 	defer func() {
 		q.wg.Done()
 		heartbeat.Stop()
-		// fmt.Println("DelayingQ syncNow stop")
 	}()
 
 	for {
@@ -152,10 +154,7 @@ func (q *DelayingQ) loop() {
 	defer func() {
 		q.wg.Done()
 		heartbeat.Stop()
-		// fmt.Println("DelayingQ loop stop")
 	}()
-
-	var ele *st.Element
 
 	for {
 		select {
@@ -163,27 +162,32 @@ func (q *DelayingQ) loop() {
 			return
 		default:
 			q.lock.Lock()
+			// 如果堆中有元素 If there are elements in the heap
 			if q.waiting.Len() > 0 {
-				ele = q.waiting.Head()           // 获取堆顶元素
-				if ele.Value() <= q.now.Load() { // 如果堆顶元素的时间小于当前时间, 意味对象已经超时
-					_ = q.waiting.Pop() // 弹出堆顶元素
-				} else {
-					ele = nil
-				}
-				q.lock.Unlock()
-			} else {
-				q.lock.Unlock()
-				<-heartbeat.C // 500ms 后再次尝试
-				break         // 跳出 select
-			}
+				// 获取堆顶元素
+				ele := q.waiting.Head()
+				// 如果堆顶元素的时间小于当前时间, 意味对象已经超时
+				if ele.Value() <= q.now.Load() {
+					// 弹出堆顶元素
+					_ = q.waiting.Pop()
+					q.lock.Unlock()
 
-			if ele != nil {
-				if err := q.Add(ele.Data()); err != nil {
-					q.lock.Lock()
-					ele.ResetValue(q.now.Load() + 1500) // 重置元素的值
-					q.waiting.Push(ele)
+					// 添加到队列中
+					if err := q.Add(ele.Data()); err != nil {
+						q.lock.Lock()
+						// 重置元素的值 Reset the value of the element
+						ele.ResetValue(q.now.Load() + 1500)
+						// 将元素重新添加到堆中 Re-add the element to the heap
+						q.waiting.Push(ele)
+						q.lock.Unlock()
+					}
+				} else {
 					q.lock.Unlock()
 				}
+			} else {
+				q.lock.Unlock()
+				// 500ms 后再次检查堆中的元素 Check the elements in the heap again after 500ms
+				<-heartbeat.C
 			}
 		}
 	}

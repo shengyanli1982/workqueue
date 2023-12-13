@@ -9,47 +9,47 @@ import (
 	st "github.com/shengyanli1982/workqueue/pkg/structs"
 )
 
-// Queue 方法接口
-// Queue interface
+// 优先级队列方法接口
+// Priority queue interface
 type PriorityInterface interface {
 	Interface
 	// AddWeight 添加一个元素，指定权重，并在一段时间内排序
-	// Add an element, add it use weight and sort it in a period of time
+	// Add an element with specified weight and sort it within a period of time
 	AddWeight(element any, weight int) error
 }
 
-// Queue 的回调接口
-// Callback interface
+// 优先级队列的回调接口
+// Priority queue callback interface
 type PriorityCallback interface {
 	Callback
 	// OnWeight 添加元素后的回调
-	// Callback after adding element
+	// Callback after adding an element
 	OnWeight(element any, weight int)
 }
 
-// Queue 的配置
-// Queue config
+// 优先级队列的配置
+// Priority queue configuration
 type PriorityQConfig struct {
 	QConfig
 	cb  PriorityCallback
 	win int64
 }
 
-// 创建一个 Queue 的配置
-// Create a new Queue config
+// 创建一个优先级队列的配置
+// Create a new priority queue configuration
 func NewPriorityQConfig() *PriorityQConfig {
 	return &PriorityQConfig{}
 }
 
-// 设置 Queue 的回调接口
-// Set Queue callback
+// 设置优先级队列的回调接口
+// Set the callback interface for the priority queue
 func (c *PriorityQConfig) WithCallback(cb PriorityCallback) *PriorityQConfig {
 	c.cb = cb
 	return c
 }
 
-// 设置 Queue 的排序窗口大小
-// Set Queue sort window size
+// 设置优先级队列的排序窗口大小
+// Set the sort window size for the priority queue
 func (c *PriorityQConfig) WithWindow(win int64) *PriorityQConfig {
 	c.win = win
 	return c
@@ -96,18 +96,19 @@ func (q *PriorityQ) isConfigValid() {
 	if q.config == nil {
 		q.config = NewPriorityQConfig()
 		q.config.WithCallback(emptyCallback{}).WithWindow(defaultQueueSortWin).WithCap(defaultQueueCap)
-	}
-	if q.config.cb == nil {
-		q.config.cb = emptyCallback{}
-	}
-	if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
-		q.config.cap = defaultQueueCap
-	}
-	if q.config.cap < 0 {
-		q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
-	}
-	if q.config.win <= defaultQueueSortWin {
-		q.config.win = defaultQueueSortWin
+	} else {
+		if q.config.cb == nil {
+			q.config.cb = emptyCallback{}
+		}
+		if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
+			q.config.cap = defaultQueueCap
+		}
+		if q.config.cap < 0 {
+			q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
+		}
+		if q.config.win <= defaultQueueSortWin {
+			q.config.win = defaultQueueSortWin
+		}
 	}
 }
 
@@ -145,26 +146,29 @@ func (q *PriorityQ) loop() {
 		select {
 		case <-q.stopCtx.Done():
 			return
-		case <-heartbeat.C: // 每隔一段时间，处理一次 Heap 中的元素。 Process the elements in the Heap every once in a while.
-			var s0 []*st.Element // 用于存储 Heap 中的元素。 Used to store elements in Heap.
 
+		// 每隔一段时间，处理一次 Heap 中的元素。 Process the elements in the Heap every once in a while.
+		case <-heartbeat.C:
 			q.lock.Lock()
-			if q.waiting.Len() > 0 { // 如果 Heap 中有元素，则将元素复制到 s0 中。 If there are elements in the Heap, copy the elements to s0.
-				s0 = make([]*st.Element, q.waiting.Len())
-				copy(s0, q.waiting.Slice())
-			}
+			// 获取 Heap 中的元素。 Get the elements in the Heap.
+			s0 := q.waiting.Slice()
+			// 重置 Heap。 Reset the Heap.
+			q.waiting.Reset()
 			q.lock.Unlock()
 
-			if s0 != nil {
-				for i := 0; i < len(s0); i++ { // 将 s0 中的元素添加到 Queue 中。 Add the elements in s0 to the Queue.
+			// 将 Heap 中的元素添加到 Queue 中。 Add the elements in the Heap to the Queue.
+			if len(s0) > 0 {
+				// 将 s0 中的元素添加到 Queue 中。 Add the elements in s0 to the Queue.
+				for i := 0; i < len(s0); i++ {
 					ele := s0[i]
-					if err := q.Add(ele.Data()); err != nil { // 如果添加失败，则将元素重新添加到 Heap 中。 If the addition fails, the element is re-added to the Heap.
+					// 如果添加失败，则将元素重新添加到 Heap 中。 If the addition fails, the element is re-added to the Heap.
+					if err := q.Add(ele.Data()); err != nil {
 						q.lock.Lock()
-						q.waiting.Push(ele) // 将元素重新添加到 Heap 中。 Re-add the element to the Heap.
+						// 将元素重新添加到 Heap 中。 Re-add the element to the Heap.
+						q.waiting.Push(ele)
 						q.lock.Unlock()
 					}
 				}
-				s0 = nil // 清空 s0。 Empty s0.
 			}
 		}
 	}
