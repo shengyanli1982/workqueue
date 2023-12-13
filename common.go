@@ -28,4 +28,4 @@ func (emptyCallback) OnAfter(_ any, _ time.Duration) {}
 func (emptyCallback) OnWeight(_ any, _ int)          {}
 func (emptyCallback) OnLimited(_ any)                {}
 func (emptyCallback) OnForget(_ any)                 {}
-func (emptyCallback) OnRequeues(_ any, _ int)        {}
+func (emptyCallback) OnGetTimes(_ any, _ int)        {}

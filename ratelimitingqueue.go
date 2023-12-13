@@ -34,9 +34,9 @@ type RateLimitingCallback interface {
 	// Callback after forgetting element
 	OnForget(any)
 
-	// OnRequeues 返回一个元素被限速的次数
+	// OnGetTimes 返回一个元素被限速的次数
 	// Return the number of times an element is limited
-	OnRequeues(any, int)
+	OnGetTimes(any, int)
 }
 
 // Queue 的配置
@@ -137,7 +137,7 @@ func (q *RateLimitingQ) Forget(element any) {
 // Return the number of times an element is limited
 func (q *RateLimitingQ) NumLimitTimes(element any) int {
 	count := q.limiter.NumLimitTimes(element)
-	q.config.cb.OnRequeues(element, count)
+	q.config.cb.OnGetTimes(element, count)
 	return count
 }
 

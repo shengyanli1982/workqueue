@@ -416,6 +416,12 @@ The queue callback functions are loosely used and can be easily extended, you ca
 
 -   `OnWeight` will be called when add an specified priority element to the priority queue
 
+#### RateLimiting Queue
+
+-   `OnLimited` will be called when add an specified rate limit element to the rate limiting queue
+-   `OnForget` will be called when forget an element from the rate limiting queue
+-   `OnGetTimes` will be called when get the number of times an element has been limited from the rate limiting queue
+
 ## Capacity
 
 Queue capacity is a very important parameter, it determines the maximum number of elements that can be stored in the queue. If the capacity is `-1`, which mean the queue is unlimited. Default capacity is `2048`.

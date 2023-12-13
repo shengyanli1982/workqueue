@@ -35,7 +35,7 @@ func (c *rateLimitingcallback) OnForget(item any) {
 	c.f0 = append(c.f0, item)
 }
 
-func (c *rateLimitingcallback) OnRequeues(item any, _ int) {
+func (c *rateLimitingcallback) OnGetTimes(item any, _ int) {
 	c.r0 = append(c.r0, item)
 }
 
