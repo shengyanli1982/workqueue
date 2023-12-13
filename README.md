@@ -202,10 +202,10 @@ func main() {
 		}
 	}()
 
-	q.Add("hello")
-	q.Add("world")
-	q.AddAfter("delay 1 sec", time.Second)
-	q.AddAfter("delay 2 sec", time.Second*2)
+	_ = q.Add("hello")
+	_ = q.Add("world")
+	_ = q.AddAfter("delay 1 sec", time.Second)
+	_ = q.AddAfter("delay 2 sec", time.Second*2)
 
 	time.Sleep(time.Second * 4) // wait for element to be executed
 
@@ -265,10 +265,10 @@ func main() {
 		}
 	}()
 
-	q.Add("hello")
-	q.Add("world")
-	q.AddWeight("priority: 1", 1)
-	q.AddWeight("priority: 2", 2)
+	_ = q.Add("hello")
+	_ = q.Add("world")
+	_ = q.AddWeight("priority: 1", 1)
+	_ = q.AddWeight("priority: 2", 2)
 
 	time.Sleep(time.Second * 2) // wait for element to be executed
 
@@ -325,8 +325,8 @@ func main() {
 		}
 	}()
 
-	q.AddLimited("hello", time.Second)
-	q.AddLimited("world", time.Second)
+	_ = q.AddLimited("hello", time.Second)
+	_ = q.AddLimited("world", time.Second)
 
 	time.Sleep(time.Second * 2) // wait for element to be executed
 
@@ -389,8 +389,8 @@ func main() {
 		}
 	}()
 
-	q.Add("hello")
-	q.Add("world")
+	_ = q.Add("hello")
+	_ = q.Add("world")
 
 	time.Sleep(time.Second * 2) // wait for element to be executed
 
@@ -502,8 +502,8 @@ func main() {
 		}
 	}()
 
-	q.AddLimited("hello", time.Second)
-	q.AddLimited("world", time.Second)
+	_ = q.AddLimited("hello", time.Second)
+	_ = q.AddLimited("world", time.Second)
 
 	time.Sleep(time.Second * 2) // wait for element to be executed
 
