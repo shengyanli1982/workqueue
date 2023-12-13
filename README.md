@@ -123,7 +123,7 @@ import (
 )
 
 func main() {
-	q := workqueue.NewQueue(nil) // nil, no callback functions
+	q := workqueue.NewQueue(nil) // create a queue
 
 	go func() {
 		for {
@@ -251,7 +251,7 @@ import (
 )
 
 func main() {
-	q := workqueue.NewPriorityQueue(workqueue.DeafultQueueSortWindows, nil)
+	q := workqueue.NewPriorityQueue(nil)
 
 	go func() {
 		for {
