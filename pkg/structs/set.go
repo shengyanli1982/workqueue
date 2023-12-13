@@ -1,39 +1,44 @@
 package workqueue
 
-// 用 map 实现一个 map[any]struct{} 的 set
+// 使用 map 实现一个 map[any]struct{} 的 set
 
-// set is a set of any type.
-type empty struct{}
+// Set 是任意类型的集合。
+// Set is a set of any type.
+type Set map[interface{}]struct{}
 
-// Set is a Set of any type.
-type Set map[any]empty
-
+// NewSet 返回一个新的集合。
 // NewSet returns a new set.
 func NewSet() Set {
 	return make(Set)
 }
 
-// object in the set.
-func (s Set) Has(i any) bool {
+// Has 判断集合中是否存在指定对象。
+// Has returns true if the set contains the specified object.
+func (s Set) Has(i interface{}) bool {
 	_, exists := s[i]
 	return exists
 }
 
-// Add object in the set.
-func (s Set) Add(i any) {
-	s[i] = empty{}
+// Add 向集合中添加对象。
+// Add adds an object to the set.
+func (s Set) Add(i interface{}) {
+	s[i] = struct{}{}
 }
 
-// Delete object in the set.
-func (s Set) Delete(i any) {
+// Delete 从集合中删除对象。
+// Delete removes an object from the set.
+func (s Set) Delete(i interface{}) {
 	delete(s, i)
 }
 
+// Len 返回集合中对象的数量。
 // Len returns the number of objects in the set.
 func (s Set) Len() int {
 	return len(s)
 }
 
+// Cleanup 清空集合。
+// Cleanup empties the set.
 func (s Set) Cleanup() {
 	for k := range s {
 		delete(s, k)

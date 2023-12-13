@@ -12,6 +12,7 @@ func NewNode(data any) *Node {
 }
 
 // 重置节点
+// Reset resets the node
 func (n *Node) Reset() {
 	n.prev = nil
 	n.next = nil
@@ -19,11 +20,13 @@ func (n *Node) Reset() {
 }
 
 // 获取节点的数据
+// Data returns the data of the node
 func (n *Node) Data() any {
 	return n.data
 }
 
 // 双向链表
+// Deque is a doubly linked list
 type Deque struct {
 	head   *Node
 	tail   *Node
@@ -35,6 +38,7 @@ func NewDeque() *Deque {
 }
 
 // 重置链表
+// Reset resets the list
 func (l *Deque) Reset() {
 	l.head = nil
 	l.tail = nil
@@ -42,6 +46,7 @@ func (l *Deque) Reset() {
 }
 
 // 将节点 n 添加在链表尾部
+// Push adds a node to the tail of the list
 func (l *Deque) Push(n *Node) {
 	l.length++
 	if l.head == nil {
@@ -55,6 +60,7 @@ func (l *Deque) Push(n *Node) {
 }
 
 // 将节点 n 从头部弹出
+// Pop removes a node from the head of the list
 func (l *Deque) Pop() *Node {
 	if l.head == nil {
 		return nil
@@ -72,6 +78,7 @@ func (l *Deque) Pop() *Node {
 }
 
 // 将节点 n 添加在链表头部
+// PushFront adds a node to the head of the list
 func (l *Deque) PushFront(n *Node) {
 	l.length++
 	if l.tail == nil {
@@ -85,6 +92,7 @@ func (l *Deque) PushFront(n *Node) {
 }
 
 // 将节点 n 从尾部弹出
+// PopBack removes a node from the tail of the list
 func (l *Deque) PopBack() *Node {
 	if l.tail == nil {
 		return nil
@@ -102,6 +110,7 @@ func (l *Deque) PopBack() *Node {
 }
 
 // 删除节点 n
+// Delete removes a node from the list
 func (l *Deque) Delete(n *Node) {
 	if n.prev == nil {
 		l.head = n.next
@@ -119,16 +128,19 @@ func (l *Deque) Delete(n *Node) {
 }
 
 // 链表的长度
+// Len returns the length of the list
 func (l *Deque) Len() int {
 	return l.length
 }
 
 // 链表的头部
+// Head returns the head of the list
 func (l *Deque) Head() *Node {
 	return l.head
 }
 
 // 链表的尾部
+// Tail returns the tail of the list
 func (l *Deque) Tail() *Node {
 	return l.tail
 }
