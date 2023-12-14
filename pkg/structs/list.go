@@ -1,4 +1,4 @@
-package workqueue
+package structs
 
 // 用双向链表实现一个队列
 // 双向链表的节点
@@ -40,6 +40,10 @@ func NewDeque() *Deque {
 // 重置链表
 // Reset resets the list
 func (l *Deque) Reset() {
+	for n := l.head; n != nil; {
+		n = n.next
+		l.Pop()
+	}
 	l.head = nil
 	l.tail = nil
 	l.length = 0

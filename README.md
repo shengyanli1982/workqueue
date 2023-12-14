@@ -10,6 +10,7 @@ WorkQueue is a simple, fast, reliable work queue written in Go. It supports mult
 # Queue Types
 
 -   [x] Queue
+-   [x] Simple Queue
 -   [x] Delaying Queue
 -   [x] Priority Queue
 -   [x] RateLimiting Queue
@@ -27,9 +28,11 @@ WorkQueue is a simple, fast, reliable work queue written in Go. It supports mult
 
 ## 1. Structure
 
-All Queue types are based on `Queue`, which mean will use `channel` to store elements and use `set` to track the state of the queue.
+All Queue types are based on `Queue`(exclude `Simple Queue`), which mean will use `channel` to store elements and use `set` to track the state of the queue.
 
 `Delaying Queue` and `Priority Queue` will use `heap` to maintain the expiration time and priority of the element.
+
+`Simple Queue` is a simple queue, it is based on `channel` to store elements. No `set` and `heap` are used, so no element state is tracked and no element priority is maintained.
 
 ```bash
 # go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/pkg/structs
@@ -38,15 +41,17 @@ goos: darwin
 goarch: amd64
 pkg: github.com/shengyanli1982/workqueue/pkg/structs
 cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
-BenchmarkHeapPush-12         	10738350	       115.7 ns/op	      85 B/op	       1 allocs/op
-BenchmarkHeapPop-12          	10416264	       135.4 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLinkPush-12         	15639480	       104.6 ns/op	      39 B/op	       1 allocs/op
-BenchmarkLinkPushFront-12    	13275211	        78.84 ns/op	      39 B/op	       1 allocs/op
-BenchmarkLinkPop-12          	240192596	         5.943 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLinkPopBack-12      	252412587	         4.869 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSetDelete-12        	 9711955	       165.1 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSetInsert-12        	 3651292	       386.5 ns/op	     101 B/op	       1 allocs/op
-BenchmarkSetHas-12           	12831529	       136.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeapPush-12         	10202862	       117.9 ns/op	      88 B/op	       1 allocs/op
+BenchmarkHeapPop-12          	11791902	       118.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLinkPush-12         	16013065	        81.63 ns/op	      39 B/op	       1 allocs/op
+BenchmarkLinkPushFront-12    	14881771	        80.47 ns/op	      39 B/op	       1 allocs/op
+BenchmarkLinkPop-12          	244934114	         4.494 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLinkPopBack-12      	275577670	         4.408 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSetDelete-12        	11674332	       150.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSetInsert-12        	 4378489	       347.3 ns/op	      86 B/op	       1 allocs/op
+BenchmarkSetHas-12           	14812819	       156.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStackPush-12        	13127522	        84.95 ns/op	      39 B/op	       1 allocs/op
+BenchmarkStackPop-12         	270568515	         4.433 ns/op	       0 B/op	       0 allocs/op
 
 ```
 
@@ -146,7 +151,69 @@ func main() {
 }
 ```
 
-## 2. Delaying Queue
+## 2. Simple Queue
+
+`Simple Queue` is a simple queue that does not track the state of the element. It is simple version of `Queue`, which mean it is a FIFO queue and has no `dirty` and `processing` set to track the state of the queue. If you want to `Add` an exist element to the queue, it will be added to the queue again.
+
+> [!TIP]
+> The `Simple Queue`  have no `dirty` and `processing` set to track the state of the queue, so `Done` method is not required after `Get` method. 
+>
+> The `Done` method is left for compatibility
+
+### Config
+
+The `Queue` has some config options, you can set it when create a queue.
+
+-   `WithCallback` set callback functions
+-   `WithCap` set the capacity of the queue, default is `2048`. If the capacity is `-1`, which mean the queue is unlimited.
+
+### Methods
+
+-   `Add` adds an element to the workqueue. If the element is already in the queue, it will not be added again.
+-   `Get` gets an element from the workqueue. If the workqueue is empty, it will **`nonblock`** and return immediately.
+-   `GetWithBlock` gets an element from the workqueue. If the workqueue is empty, it will **`blocking`** and waiting new element be added into queue.
+-   `Done` marks an element as done with the workqueue. If the element is not in the workqueue, it will not be marked as done.
+-   `Len` returns the elements count of the workqueue.
+-   `Stop` shuts down the workqueue and waits for all the goroutines to finish.
+-   `IsClosed` returns true if the workqueue is shutting down.
+
+### Example
+
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/shengyanli1982/workqueue"
+)
+
+func main() {
+	q := workqueue.NewSimpleQueue(nil)
+
+	go func() {
+		for {
+			element, err := q.Get()
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			fmt.Println("get element:", element)
+			q.Done(element) // mark element as done, 'Done' is not required after 'Get'
+		}
+	}()
+
+	_ = q.Add("hello")
+	_ = q.Add("world")
+
+	time.Sleep(time.Second * 2)
+
+	q.Stop()
+}
+```
+
+## 3. Delaying Queue
 
 `Delaying Queue` is a queue that supports delaying execution. It is based on `Queue` and uses a `heap` to maintain the expiration time of the element. When you add an element to the queue, you can specify the delay time, and the element will be executed after the delay time.
 
@@ -213,7 +280,7 @@ func main() {
 }
 ```
 
-## 3. Priority Queue
+## 4. Priority Queue
 
 `Priority Queue` is a queue that supports priority execution. It is based on `Queue` and uses a `heap` to maintain the priority of the element. When you add an element to the queue, you can specify the priority of the element, and the element will be executed according to the priority.
 
@@ -276,7 +343,7 @@ func main() {
 }
 ```
 
-## 4. RateLimiting Queue
+## 5. RateLimiting Queue
 
 `RateLimiting Queue` is a queue that supports rate limiting execution. It is based on `Queue` and uses a `heap` to maintain the expiration time of the element. When you add an element to the queue, you can specify the rate limit of the element, and the element will be executed according to the rate limit.
 
@@ -402,7 +469,7 @@ func main() {
 
 The queue callback functions are loosely used and can be easily extended, you can use it as you like.
 
-#### Queue
+#### Queue / Simple Queue
 
 -   `OnAdd` will be called when add an element to the queue
 -   `OnGet` will be called when get an element from the queue
@@ -510,8 +577,6 @@ func main() {
 	q.Stop()
 }
 ```
-
-# Contact us
 
 # Thanks to
 

@@ -28,7 +28,7 @@ func (c *delayingcallback) OnAddAfter(item any, _ time.Duration) {
 	c.r0 = append(c.r0, item)
 }
 
-func TestDelayingQueueStandard(t *testing.T) {
+func TestDelayingQueue_Standard(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Stop()
 	_ = q.AddAfter(time.Now().Local().UnixMilli(), 100*time.Millisecond)
@@ -44,7 +44,7 @@ func TestDelayingQueueStandard(t *testing.T) {
 	}
 }
 
-func TestDelayingQueueTwoFireEarly(t *testing.T) {
+func TestDelayingQueue_TwoFireEarly(t *testing.T) {
 	first := "foo"
 	second := "bar"
 	third := "baz"
@@ -70,7 +70,7 @@ func TestDelayingQueueTwoFireEarly(t *testing.T) {
 	q.Done(item)
 }
 
-func TestDelayingQueueCallbackFuncs(t *testing.T) {
+func TestDelayingQueue_CallbackFuncs(t *testing.T) {
 	conf := NewDelayingQConfig()
 	conf.WithCallback(&delayingcallback{})
 

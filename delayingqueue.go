@@ -87,6 +87,12 @@ func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
 	return q
 }
 
+// 创建一个默认的 DelayingQueue 对象
+// Create a new default DelayingQueue object
+func DefaultDelayingQueue() DelayingInterface {
+	return NewDelayingQueue(nil)
+}
+
 // isConfigValid 检查配置是否有效，如果为空则设置默认值
 // Check if the config is valid, if it is nil, set default values
 func (q *DelayingQ) isConfigValid() {
