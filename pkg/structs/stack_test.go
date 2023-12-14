@@ -18,7 +18,7 @@ func TestStack(t *testing.T) {
 	s.Reset()
 }
 
-func BenchmarkStackPush(b *testing.B) {
+func BenchmarkStack_Push(b *testing.B) {
 	l := NewStack()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -26,7 +26,7 @@ func BenchmarkStackPush(b *testing.B) {
 	}
 }
 
-func BenchmarkStackPop(b *testing.B) {
+func BenchmarkStack_Pop(b *testing.B) {
 	l := NewStack()
 	for i := 0; i < b.N; i++ {
 		l.Push(&Node{data: i})
@@ -36,3 +36,4 @@ func BenchmarkStackPop(b *testing.B) {
 		l.Pop()
 	}
 }
+

@@ -76,7 +76,7 @@ func TestLinkHeadAndTail(t *testing.T) {
 	assert.Equal(t, "baz", l.Tail().data)
 }
 
-func BenchmarkLinkPush(b *testing.B) {
+func BenchmarkLink_Push(b *testing.B) {
 	l := NewDeque()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -84,7 +84,7 @@ func BenchmarkLinkPush(b *testing.B) {
 	}
 }
 
-func BenchmarkLinkPushFront(b *testing.B) {
+func BenchmarkLink_PushFront(b *testing.B) {
 	l := NewDeque()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -92,7 +92,7 @@ func BenchmarkLinkPushFront(b *testing.B) {
 	}
 }
 
-func BenchmarkLinkPop(b *testing.B) {
+func BenchmarkLink_Pop(b *testing.B) {
 	l := NewDeque()
 	for i := 0; i < b.N; i++ {
 		l.Push(&Node{data: i})
@@ -103,7 +103,7 @@ func BenchmarkLinkPop(b *testing.B) {
 	}
 }
 
-func BenchmarkLinkPopBack(b *testing.B) {
+func BenchmarkLink_PopBack(b *testing.B) {
 	l := NewDeque()
 	for i := 0; i < b.N; i++ {
 		l.Push(&Node{data: i})

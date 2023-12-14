@@ -93,6 +93,12 @@ func NewRateLimitingQueue(conf *RateLimitingQConfig) *RateLimitingQ {
 	return q
 }
 
+// 创建一个默认的 RateLimitingQueue 实例
+// Create a new default RateLimitingQueue config
+func DefaultRateLimitingQueue() RateLimitingInterface {
+	return NewRateLimitingQueue(nil)
+}
+
 // 判断 config 是否为空，如果为空，设置默认值
 // Check if config is nil, if it is, set default value
 func (q *RateLimitingQ) isConfigValid() {

@@ -64,7 +64,7 @@ func TestHeapHead(t *testing.T) {
 	assert.Equal(t, 3, h.Len())
 }
 
-func BenchmarkHeapPush(b *testing.B) {
+func BenchmarkHeap_Push(b *testing.B) {
 	h := NewHeap()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -72,7 +72,7 @@ func BenchmarkHeapPush(b *testing.B) {
 	}
 }
 
-func BenchmarkHeapPop(b *testing.B) {
+func BenchmarkHeap_Pop(b *testing.B) {
 	h := NewHeap()
 	for i := 0; i < b.N; i++ {
 		h.Push(NewElement(i, int64(i)))

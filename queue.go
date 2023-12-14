@@ -77,9 +77,16 @@ func NewQueue(conf *QConfig) *Q {
 	}
 
 	q.isConfigValid()
+
 	q.queue = make(chan any, q.config.cap)
 
 	return q
+}
+
+// 创建一个默认的 Queue 对象
+// Create a new default Queue object.
+func DefaultQueue() Interface {
+	return NewQueue(nil)
 }
 
 // 判断 config 是否为空，如果为空，设置默认值
