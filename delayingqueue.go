@@ -23,9 +23,9 @@ type DelayingInterface interface {
 // DelayingCallback is the delayed version of the Queue callback interface
 type DelayingCallback interface {
 	Callback
-	// OnAfter 添加元素后的回调
+	// OnAddAfter 添加元素后的回调
 	// Callback after adding element
-	OnAfter(any, time.Duration)
+	OnAddAfter(any, time.Duration)
 }
 
 // DelayingQConfig 是 Queue 的配置的延迟版本
@@ -121,7 +121,7 @@ func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
 	q.waiting.Push(st.NewElement(element, time.Now().Add(delay).UnixMilli()))
 	q.lock.Unlock()
 
-	q.config.cb.OnAfter(element, delay)
+	q.config.cb.OnAddAfter(element, delay)
 
 	return nil
 }

@@ -24,7 +24,7 @@ func (c *delayingcallback) OnDone(item any) {
 	c.d0 = append(c.d0, item)
 }
 
-func (c *delayingcallback) OnAfter(item any, _ time.Duration) {
+func (c *delayingcallback) OnAddAfter(item any, _ time.Duration) {
 	c.r0 = append(c.r0, item)
 }
 

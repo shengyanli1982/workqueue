@@ -26,9 +26,9 @@ type RateLimitingInterface interface {
 // RateLimitingCallback is the callback interface for Queue
 type RateLimitingCallback interface {
 	DelayingCallback
-	// OnLimited 添加元素后的回调
-	// OnLimited is the callback after adding an element
-	OnLimited(any)
+	// OnAddLimited 添加元素后的回调
+	// OnAddLimited is the callback after adding an element
+	OnAddLimited(any)
 
 	// OnForget 忘记元素后的回调
 	// OnForget is the callback after forgetting an element
@@ -66,7 +66,6 @@ func (c *RateLimitingQConfig) WithLimiter(limiter RateLimiter) *RateLimitingQCon
 	c.limiter = limiter
 	return c
 }
-
 
 type RateLimitingQ struct {
 	*DelayingQ
@@ -125,7 +124,7 @@ func (q *RateLimitingQ) AddLimited(element any) error {
 	}
 
 	err := q.AddAfter(element, q.limiter.When(element)) // 加入到等待队列, add it to the waiting queue
-	q.config.cb.OnLimited(element)
+	q.config.cb.OnAddLimited(element)
 	return err
 }
 
@@ -152,4 +151,3 @@ func (q *RateLimitingQ) Stop() {
 		q.limiter.Stop()
 	})
 }
-

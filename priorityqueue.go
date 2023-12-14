@@ -22,9 +22,9 @@ type PriorityInterface interface {
 // Priority queue callback interface
 type PriorityCallback interface {
 	Callback
-	// OnWeight 添加元素后的回调
+	// OnAddWeight 添加元素后的回调
 	// Callback after adding an element
-	OnWeight(element any, weight int)
+	OnAddWeight(element any, weight int)
 }
 
 // 优先级队列的配置
@@ -127,7 +127,7 @@ func (q *PriorityQ) AddWeight(element any, weight int) error {
 	q.waiting.Push(st.NewElement(element, int64(weight)))
 	q.lock.Unlock()
 
-	q.config.cb.OnWeight(element, weight)
+	q.config.cb.OnAddWeight(element, weight)
 
 	return nil
 }

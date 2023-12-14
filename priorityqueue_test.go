@@ -24,7 +24,7 @@ func (c *prioritycallback) OnDone(item any) {
 	c.d0 = append(c.d0, item)
 }
 
-func (c *prioritycallback) OnWeight(item any, _ int) {
+func (c *prioritycallback) OnAddWeight(item any, _ int) {
 	c.p0 = append(c.p0, item)
 }
 

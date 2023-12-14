@@ -21,11 +21,11 @@ const defaultQueueExpFailureMax = 500  // seconds
 // empty implementation
 type emptyCallback struct{}
 
-func (emptyCallback) OnDone(_ any)                   {}
-func (emptyCallback) OnAdd(_ any)                    {}
-func (emptyCallback) OnGet(_ any)                    {}
-func (emptyCallback) OnAfter(_ any, _ time.Duration) {}
-func (emptyCallback) OnWeight(_ any, _ int)          {}
-func (emptyCallback) OnLimited(_ any)                {}
-func (emptyCallback) OnForget(_ any)                 {}
-func (emptyCallback) OnGetTimes(_ any, _ int)        {}
+func (emptyCallback) OnDone(_ any)                      {}
+func (emptyCallback) OnAdd(_ any)                       {}
+func (emptyCallback) OnGet(_ any)                       {}
+func (emptyCallback) OnAddAfter(_ any, _ time.Duration) {}
+func (emptyCallback) OnAddWeight(_ any, _ int)          {}
+func (emptyCallback) OnAddLimited(_ any)                {}
+func (emptyCallback) OnForget(_ any)                    {}
+func (emptyCallback) OnGetTimes(_ any, _ int)           {}

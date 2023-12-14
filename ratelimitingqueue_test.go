@@ -23,11 +23,11 @@ func (c *rateLimitingcallback) OnDone(item any) {
 	c.d0 = append(c.d0, item)
 }
 
-func (c *rateLimitingcallback) OnAfter(item any, _ time.Duration) {
+func (c *rateLimitingcallback) OnAddAfter(item any, _ time.Duration) {
 	c.t0 = append(c.t0, item)
 }
 
-func (c *rateLimitingcallback) OnLimited(item any) {
+func (c *rateLimitingcallback) OnAddLimited(item any) {
 	c.l0 = append(c.l0, item)
 }
 
