@@ -1,4 +1,4 @@
-package workqueue
+package structs
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestHeapStandard(t *testing.T) {
-	h := &Heap{}
+	h := NewHeap()
 	h.Push(NewElement("foo", 1))
 	h.Push(NewElement("bar", 2))
 	h.Push(NewElement("baz", 3))
@@ -19,7 +19,7 @@ func TestHeapStandard(t *testing.T) {
 }
 
 func TestHeapReset(t *testing.T) {
-	h := &Heap{}
+	h := NewHeap()
 	h.Push(NewElement("foo", 1))
 	h.Push(NewElement("bar", 2))
 	h.Push(NewElement("baz", 3))
@@ -29,7 +29,7 @@ func TestHeapReset(t *testing.T) {
 }
 
 func TestHeapDelete(t *testing.T) {
-	h := &Heap{}
+	h := NewHeap()
 	h.Push(NewElement("foo", 1))
 	h.Push(NewElement("bar", 2))
 	h.Push(NewElement("baz", 3))
@@ -41,7 +41,7 @@ func TestHeapDelete(t *testing.T) {
 }
 
 func TestHeapUpdate(t *testing.T) {
-	h := &Heap{}
+	h := NewHeap()
 	h.Push(NewElement("foo", 1))
 	h.Push(NewElement("bar", 2))
 	h.Push(NewElement("baz", 3))
@@ -54,7 +54,7 @@ func TestHeapUpdate(t *testing.T) {
 }
 
 func TestHeapHead(t *testing.T) {
-	h := &Heap{}
+	h := NewHeap()
 	h.Push(NewElement("foo", 1))
 	h.Push(NewElement("bar", 2))
 	h.Push(NewElement("baz", 3))
@@ -65,14 +65,15 @@ func TestHeapHead(t *testing.T) {
 }
 
 func BenchmarkHeapPush(b *testing.B) {
-	h := &Heap{}
+	h := NewHeap()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		h.Push(NewElement(i, int64(i)))
 	}
 }
 
 func BenchmarkHeapPop(b *testing.B) {
-	h := &Heap{}
+	h := NewHeap()
 	for i := 0; i < b.N; i++ {
 		h.Push(NewElement(i, int64(i)))
 	}

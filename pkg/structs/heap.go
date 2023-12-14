@@ -1,4 +1,4 @@
-package workqueue
+package structs
 
 // 堆中元素结构
 // Element is the structure of the element in the heap

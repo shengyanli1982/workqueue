@@ -38,15 +38,17 @@ goos: darwin
 goarch: amd64
 pkg: github.com/shengyanli1982/workqueue/pkg/structs
 cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
-BenchmarkHeapPush-12         	10738350	       115.7 ns/op	      85 B/op	       1 allocs/op
-BenchmarkHeapPop-12          	10416264	       135.4 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLinkPush-12         	15639480	       104.6 ns/op	      39 B/op	       1 allocs/op
-BenchmarkLinkPushFront-12    	13275211	        78.84 ns/op	      39 B/op	       1 allocs/op
-BenchmarkLinkPop-12          	240192596	         5.943 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLinkPopBack-12      	252412587	         4.869 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSetDelete-12        	 9711955	       165.1 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSetInsert-12        	 3651292	       386.5 ns/op	     101 B/op	       1 allocs/op
-BenchmarkSetHas-12           	12831529	       136.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeapPush-12         	10202862	       117.9 ns/op	      88 B/op	       1 allocs/op
+BenchmarkHeapPop-12          	11791902	       118.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLinkPush-12         	16013065	        81.63 ns/op	      39 B/op	       1 allocs/op
+BenchmarkLinkPushFront-12    	14881771	        80.47 ns/op	      39 B/op	       1 allocs/op
+BenchmarkLinkPop-12          	244934114	         4.494 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLinkPopBack-12      	275577670	         4.408 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSetDelete-12        	11674332	       150.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSetInsert-12        	 4378489	       347.3 ns/op	      86 B/op	       1 allocs/op
+BenchmarkSetHas-12           	14812819	       156.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStackPush-12        	13127522	        84.95 ns/op	      39 B/op	       1 allocs/op
+BenchmarkStackPop-12         	270568515	         4.433 ns/op	       0 B/op	       0 allocs/op
 
 ```
 

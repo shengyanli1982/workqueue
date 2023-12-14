@@ -1,4 +1,4 @@
-package workqueue
+package structs
 
 import (
 	"testing"
@@ -31,6 +31,7 @@ func BenchmarkSetDelete(b *testing.B) {
 
 func BenchmarkSetInsert(b *testing.B) {
 	s := make(Set)
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		s.Add(i)
 	}
