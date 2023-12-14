@@ -410,15 +410,15 @@ The queue callback functions are loosely used and can be easily extended, you ca
 
 #### Delaying Queue
 
--   `OnAfter` will be called when add an specified delay time element to the delaying queue
+-   `OnAddAfter` will be called when add an specified delay time element to the delaying queue
 
 #### Priority Queue
 
--   `OnWeight` will be called when add an specified priority element to the priority queue
+-   `OnAddWeight` will be called when add an specified priority element to the priority queue
 
 #### RateLimiting Queue
 
--   `OnLimited` will be called when add an specified rate limit element to the rate limiting queue
+-   `OnAddLimited` will be called when add an specified rate limit element to the rate limiting queue
 -   `OnForget` will be called when forget an element from the rate limiting queue
 -   `OnGetTimes` will be called when get the number of times an element has been limited from the rate limiting queue
 
