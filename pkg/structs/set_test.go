@@ -1,4 +1,4 @@
-package workqueue
+package structs
 
 import (
 	"testing"
@@ -18,7 +18,7 @@ func TestSet(t *testing.T) {
 	assert.False(t, s.Has("foo"))
 }
 
-func BenchmarkSetDelete(b *testing.B) {
+func BenchmarkSet_Delete(b *testing.B) {
 	s := make(Set)
 	for i := 0; i < b.N; i++ {
 		s.Add(i)
@@ -29,14 +29,15 @@ func BenchmarkSetDelete(b *testing.B) {
 	}
 }
 
-func BenchmarkSetInsert(b *testing.B) {
+func BenchmarkSet_Insert(b *testing.B) {
 	s := make(Set)
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		s.Add(i)
 	}
 }
 
-func BenchmarkSetHas(b *testing.B) {
+func BenchmarkSet_Has(b *testing.B) {
 	s := make(Set)
 	for i := 0; i < b.N; i++ {
 		s.Add(i)

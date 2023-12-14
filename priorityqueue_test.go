@@ -28,7 +28,7 @@ func (c *prioritycallback) OnAddWeight(item any, _ int) {
 	c.p0 = append(c.p0, item)
 }
 
-func TestPriorityQueueStandard(t *testing.T) {
+func TestPriorityQueue_Standard(t *testing.T) {
 	q := NewPriorityQueue(nil)
 	defer q.Stop()
 	_ = q.AddWeight(time.Now().Local().UnixMilli(), 10)
@@ -44,7 +44,7 @@ func TestPriorityQueueStandard(t *testing.T) {
 	}
 }
 
-func TestPriorityQueueTwoFireEarly(t *testing.T) {
+func TestPriorityQueue_TwoFireEarly(t *testing.T) {
 	first := "foo"
 	second := "bar"
 	third := "baz"
@@ -69,7 +69,7 @@ func TestPriorityQueueTwoFireEarly(t *testing.T) {
 	q.Done(item)
 }
 
-func TestPriorityQueueCallbackFuncs(t *testing.T) {
+func TestPriorityQueue_CallbackFuncs(t *testing.T) {
 	conf := NewPriorityQConfig()
 	conf.WithCallback(&prioritycallback{})
 

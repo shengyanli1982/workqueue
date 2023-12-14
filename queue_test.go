@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestQueueStandard(t *testing.T) {
+func TestQueue_Standard(t *testing.T) {
 	q := NewQueue(nil)
 	err := q.Add("foo")
 	assert.Equal(t, nil, err)
@@ -31,7 +31,7 @@ func TestQueueStandard(t *testing.T) {
 	q.Stop()
 }
 
-func TestQueueItemExist(t *testing.T) {
+func TestQueue_ItemExist(t *testing.T) {
 	q := NewQueue(nil)
 	err := q.Add("foo")
 	assert.Equal(t, nil, err)
@@ -40,7 +40,7 @@ func TestQueueItemExist(t *testing.T) {
 	q.Stop()
 }
 
-func TestQueueShutDown(t *testing.T) {
+func TestQueue_ShutDown(t *testing.T) {
 	q := NewQueue(nil)
 	err := q.Add("foo")
 	assert.Equal(t, nil, err)
@@ -54,7 +54,7 @@ func TestQueueShutDown(t *testing.T) {
 	assert.True(t, q.IsClosed())
 }
 
-func TestQueueItemEmptyGet(t *testing.T) {
+func TestQueue_ItemEmptyGet(t *testing.T) {
 	q := NewQueue(nil)
 	item, err := q.Get()
 	assert.Equal(t, nil, item)
@@ -62,7 +62,7 @@ func TestQueueItemEmptyGet(t *testing.T) {
 	q.Stop()
 }
 
-func TestQueueBlockingGet(t *testing.T) {
+func TestQueue_BlockingGet(t *testing.T) {
 	q := NewQueue(nil)
 	err := q.Add("foo")
 	assert.Equal(t, nil, err)
@@ -87,7 +87,7 @@ func TestQueueBlockingGet(t *testing.T) {
 	q.Stop()
 }
 
-func TestQueueAddItemFull(t *testing.T) {
+func TestQueue_AddItemFull(t *testing.T) {
 	conf := NewQConfig()
 	conf.WithCap(defaultQueueCap + 1)
 	q := NewQueue(conf)
@@ -100,7 +100,7 @@ func TestQueueAddItemFull(t *testing.T) {
 	q.Stop()
 }
 
-func TestQueueReInsert(t *testing.T) {
+func TestQueue_ReInsert(t *testing.T) {
 	q := NewQueue(nil)
 
 	_ = q.Add("foo")
@@ -127,7 +127,7 @@ func TestQueueReInsert(t *testing.T) {
 	q.Stop()
 }
 
-func TestQueueAddInProcessing(t *testing.T) {
+func TestQueue_AddInProcessing(t *testing.T) {
 	q := NewQueue(nil)
 
 	_ = q.Add("foo")
@@ -171,7 +171,7 @@ func (cb *callback) OnDone(item any) {
 	cb.d0 = append(cb.d0, item)
 }
 
-func TestQueueCallbackFuncs(t *testing.T) {
+func TestQueue_CallbackFuncs(t *testing.T) {
 	conf := NewQConfig()
 	conf.WithCallback(&callback{})
 

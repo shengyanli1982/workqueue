@@ -90,6 +90,12 @@ func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
 	return q
 }
 
+// 创建一个默认的 PriorityQueue 对象
+// Create a new default PriorityQueue object
+func DefaultPriorityQueue() PriorityInterface {
+	return NewPriorityQueue(nil)
+}
+
 // 判断 config 是否为空，如果为空，设置默认值
 // Check if config is nil, if it is, set default value
 func (q *PriorityQ) isConfigValid() {
