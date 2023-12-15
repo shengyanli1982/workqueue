@@ -98,6 +98,11 @@ Here are some examples of how to use WorkQueue. but you can also refer to the [e
 >
 > `Done` method is required after `Get` method, don't forget it.
 
+### Create
+
+-   `NewQueue` create a queue, use `QConfig` to set config options. If the config is `nil`, the default config will be used.
+-   `DefaultQueue` create a queue with default config. It is equivalent to `NewQueue(nil)`, but return value implementing the `Interface` interface.
+
 ### Config
 
 The `Queue` has some config options, you can set it when create a queue.
@@ -156,9 +161,14 @@ func main() {
 `Simple Queue` is a simple queue that does not track the state of the element. It is simple version of `Queue`, which mean it is a FIFO queue and has no `dirty` and `processing` set to track the state of the queue. If you want to `Add` an exist element to the queue, it will be added to the queue again.
 
 > [!TIP]
-> The `Simple Queue`  have no `dirty` and `processing` set to track the state of the queue, so `Done` method is not required after `Get` method. 
+> The `Simple Queue` have no `dirty` and `processing` set to track the state of the queue, so `Done` method is not required after `Get` method.
 >
 > The `Done` method is left for compatibility
+
+### Create
+
+-   `NewSimpleQueue` create a simple queue, use `QConfig` to set config options. If the config is `nil`, the default config will be used.
+-   `DefaultSimpleQueue` create a simple queue with default config. It is equivalent to `NewSimpleQueue(nil)`, but return value implementing the `Interface` interface.
 
 ### Config
 
@@ -172,7 +182,7 @@ The `Queue` has some config options, you can set it when create a queue.
 -   `Add` adds an element to the workqueue. If the element is already in the queue, it will not be added again.
 -   `Get` gets an element from the workqueue. If the workqueue is empty, it will **`nonblock`** and return immediately.
 -   `GetWithBlock` gets an element from the workqueue. If the workqueue is empty, it will **`blocking`** and waiting new element be added into queue.
--   `Done` marks an element as done with the workqueue. If the element is not in the workqueue, it will not be marked as done.
+-   `Done` marks an element as done with the workqueue. In fact in `Simple Queue`, it does nothing. Only left for compatibility.
 -   `Len` returns the elements count of the workqueue.
 -   `Stop` shuts down the workqueue and waits for all the goroutines to finish.
 -   `IsClosed` returns true if the workqueue is shutting down.
@@ -221,6 +231,12 @@ func main() {
 > The `Delaying Queue` has a `goroutine` that is sync the current time, used to update timeout scale. It can not be shut down and modified.
 >
 > Timer minimum resync time is `500ms`, which mean if you set the element's delay time less than `500ms`, it will be processed after `500ms`.
+
+### Create
+
+-   `NewDelayingQueue` create a delaying queue, use `DelayingQConfig` to set config options. If the config is `nil`, the default config will be used.
+
+-   `DefaultDelayingQueue` create a delaying queue with default config. It is equivalent to `NewDelayingQueue(nil)`, but return value implementing the `DelayingInterface` interface.
 
 ### Config
 
@@ -292,6 +308,12 @@ func main() {
 > -   Dont't set the window size too small, it will cause the queue to be sorted frequently, which will affect the performance of the queue.
 > -   Dont't set the window size too large, it will cause the elements sorted to wait for a long time, which will affect elements to be executed in time.
 
+### Create
+
+-   `NewPriorityQueue` create a priority queue, use `PriorityQConfig` to set config options. If the config is `nil`, the default config will be used.
+
+-   `DefaultPriorityQueue` create a priority queue with default config. It is equivalent to `NewPriorityQueue(nil)`, but return value implementing the `PriorityInterface` interface.
+
 ### Config
 
 -   `WithCallback` set callback functions
@@ -334,7 +356,7 @@ func main() {
 
 	_ = q.Add("hello")
 	_ = q.Add("world")
-	_ = q.AddWeight("priority: 1", 1)
+	_ = q.AddWeight("priority: 1", 1) // add element with priority
 	_ = q.AddWeight("priority: 2", 2)
 
 	time.Sleep(time.Second * 2) // wait for element to be executed
@@ -349,6 +371,11 @@ func main() {
 
 > [!TIP]
 > default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `RateLimiter` interface.
+
+### Create
+
+-   `NewRateLimitingQueue` create a rate limiting queue, use `RateLimitingQConfig` to set config options. If the config is `nil`, the default config will be used.
+-   `DefaultRateLimitingQueue` create a rate limiting queue with default config. It is equivalent to `NewRateLimitingQueue(nil)`, but return value implementing the `RateLimitingInterface` interface.
 
 ### Config
 
