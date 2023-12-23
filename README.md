@@ -35,11 +35,11 @@ All Queue types are based on `Queue`(exclude `Simple Queue`), which mean will us
 `Simple Queue` is a simple queue, it is based on `channel` to store elements. No `set` and `heap` are used, so no element state is tracked and no element priority is maintained.
 
 ```bash
-# go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/pkg/structs
+# go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/pkg/stl
 
 goos: darwin
 goarch: amd64
-pkg: github.com/shengyanli1982/workqueue/pkg/structs
+pkg: github.com/shengyanli1982/workqueue/pkg/stl
 cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
 BenchmarkHeapPush-12         	10202862	       117.9 ns/op	      88 B/op	       1 allocs/op
 BenchmarkHeapPop-12          	11791902	       118.0 ns/op	       0 B/op	       0 allocs/op
@@ -301,7 +301,7 @@ func main() {
 `Priority Queue` is a queue that supports priority execution. It is based on `Queue` and uses a `heap` to maintain the priority of the element. When you add an element to the queue, you can specify the priority of the element, and the element will be executed according to the priority.
 
 > [!CAUTION]
-> The `Priority Queue` requires a window to sort the elements currently added to the Queue. The elements in this time window are sorted in order of `priority` from smallest to largest. The order of elements in two different time Windows is not guaranteed to be sorted by `priority`, even if the two Windows are immediately adjacent.
+> The `Priority Queue` requires a window to sort the elements currently added to the Queue. The elements in this time window are sorted in order of `priority` from smallest to largestl The order of elements in two different time Windows is not guaranteed to be sorted by `priority`, even if the two Windows are immediately adjacent.
 >
 > The default window size is `500ms`, you can set it when create a queue.
 >

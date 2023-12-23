@@ -1,4 +1,4 @@
-package structs
+package stl
 
 // 堆中元素结构
 // Element is the structure of the element in the heap
@@ -77,15 +77,6 @@ func (h *Heap) Update(ele *Element, value int64) {
 	ele.value = value
 }
 
-// min 返回两个元素中值较小的元素的索引
-// min returns the index of the element with the smaller value of the two elements
-func (h *Heap) min(i, j int) int {
-	if h.data[i].value < h.data[j].value {
-		return i
-	}
-	return j
-}
-
 // Len 返回堆中元素的个数
 // Len returns the number of elements in the heap
 func (h *Heap) Len() int {
@@ -124,27 +115,28 @@ func (h *Heap) up(i int) {
 // Adjust the heap from i downwards
 func (h *Heap) down(i, n int) {
 	for {
-		child1 := i<<2 + 1
-		if child1 >= n {
+		c1 := i<<2 + 1
+		if c1 >= n {
 			break
 		}
 
-		child2 := child1 + 1
-		child3 := child1 + 2
-		child4 := child1 + 3
-		j := child1
+		c2 := c1 + 1
+		c3 := c1 + 2
+		c4 := c1 + 3
+		j := c1
 
-		if child4 < n {
-			j = h.min(h.min(child1, child2), h.min(child3, child4))
-		} else if child3 < n {
-			j = h.min(h.min(child1, child2), child3)
-		} else if child2 < n {
-			j = h.min(child1, child2)
+		if c2 < n && h.Less(c2, j) {
+			j = c2
+		} else if c3 < n && h.Less(c3, j) {
+			j = c3
+		} else if c4 < n && h.Less(c4, j) {
+			j = c4
 		}
 
 		if !h.Less(j, i) {
 			break
 		}
+
 		h.Swap(i, j)
 		i = j
 	}

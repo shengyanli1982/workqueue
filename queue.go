@@ -4,7 +4,7 @@ import (
 	"math"
 	"sync"
 
-	st "github.com/shengyanli1982/workqueue/pkg/structs"
+	"github.com/shengyanli1982/workqueue/pkg/stl"
 )
 
 // 队列方法接口
@@ -56,8 +56,8 @@ func (c *QConfig) WithCap(cap int) *QConfig {
 
 type Q struct {
 	queue      chan any
-	dirty      st.Set
-	processing st.Set
+	dirty      stl.Set
+	processing stl.Set
 	lock       *sync.Mutex
 	once       sync.Once
 	closed     bool
@@ -68,8 +68,8 @@ type Q struct {
 // Create a new Queue object.
 func NewQueue(conf *QConfig) *Q {
 	q := &Q{
-		dirty:      st.NewSet(),
-		processing: st.NewSet(),
+		dirty:      stl.NewSet(),
+		processing: stl.NewSet(),
 		lock:       &sync.Mutex{},
 		once:       sync.Once{},
 		closed:     false,

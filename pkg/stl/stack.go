@@ -1,4 +1,4 @@
-package structs
+package stl
 
 type Stack struct {
 	l *Deque

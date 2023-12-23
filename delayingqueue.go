@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	st "github.com/shengyanli1982/workqueue/pkg/structs"
+	"github.com/shengyanli1982/workqueue/pkg/stl"
 )
 
 // DelayingInterface 是 Queue 方法接口的延迟版本
@@ -52,7 +52,7 @@ func (c *DelayingQConfig) WithCallback(cb DelayingCallback) *DelayingQConfig {
 // DelayingQ is the implementation of DelayingQueue
 type DelayingQ struct {
 	*Q
-	waiting *st.Heap
+	waiting *stl.Heap
 	stopCtx context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -66,7 +66,7 @@ type DelayingQ struct {
 // Create a new DelayingQueue instance
 func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
 	q := &DelayingQ{
-		waiting: st.NewHeap(),
+		waiting: stl.NewHeap(),
 		wg:      sync.WaitGroup{},
 		now:     atomic.Int64{},
 		once:    sync.Once{},
@@ -124,7 +124,7 @@ func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
 	}
 
 	q.lock.Lock()
-	q.waiting.Push(st.NewElement(element, time.Now().Add(delay).UnixMilli()))
+	q.waiting.Push(stl.NewElement(element, time.Now().Add(delay).UnixMilli()))
 	q.lock.Unlock()
 
 	q.config.cb.OnAddAfter(element, delay)

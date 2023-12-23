@@ -1,4 +1,4 @@
-package structs
+package stl
 
 import (
 	"testing"
@@ -36,4 +36,3 @@ func BenchmarkStack_Pop(b *testing.B) {
 		l.Pop()
 	}
 }
-

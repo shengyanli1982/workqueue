@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	st "github.com/shengyanli1982/workqueue/pkg/structs"
+	st "github.com/shengyanli1982/workqueue/pkg/stl"
 )
 
 // 优先级队列方法接口
