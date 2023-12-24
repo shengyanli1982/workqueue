@@ -1,4 +1,4 @@
-package structs
+package set
 
 import (
 	"testing"

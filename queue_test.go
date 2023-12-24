@@ -87,19 +87,6 @@ func TestQueue_BlockingGet(t *testing.T) {
 	q.Stop()
 }
 
-func TestQueue_AddItemFull(t *testing.T) {
-	conf := NewQConfig()
-	conf.WithCap(defaultQueueCap + 1)
-	q := NewQueue(conf)
-	for i := 0; i < defaultQueueCap+1; i++ {
-		err := q.Add(i)
-		assert.Equal(t, nil, err)
-	}
-	err := q.Add("foo")
-	assert.Equal(t, ErrorQueueFull, err)
-	q.Stop()
-}
-
 func TestQueue_ReInsert(t *testing.T) {
 	q := NewQueue(nil)
 

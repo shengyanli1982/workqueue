@@ -1,30 +1,36 @@
 package workqueue
 
 import (
-	"math"
 	"sync"
 	"sync/atomic"
+
+	list "github.com/shengyanli1982/workqueue/internal/stl/deque"
 )
 
 type SimpleQ struct {
-	queue  chan any
-	once   sync.Once
-	closed atomic.Bool
-	config *QConfig
+	queue    *list.Deque
+	qlock    *sync.Mutex
+	cond     *sync.Cond
+	nodepool *list.ListNodePool
+	once     sync.Once
+	closed   atomic.Bool
+	config   *QConfig
 }
 
 // 创建一个 SimpleQueue 实例
 // Create a new SimpleQueue config
 func NewSimpleQueue(conf *QConfig) *SimpleQ {
 	q := &SimpleQ{
-		once:   sync.Once{},
-		closed: atomic.Bool{},
-		config: conf,
+		queue:    list.NewDeque(),
+		nodepool: list.NewListNodePool(),
+		qlock:    &sync.Mutex{},
+		once:     sync.Once{},
+		closed:   atomic.Bool{},
+		config:   conf,
 	}
+	q.cond = sync.NewCond(q.qlock)
 
 	q.isConfigValid()
-
-	q.queue = make(chan any, q.config.cap)
 
 	return q
 }
@@ -39,18 +45,10 @@ func DefaultSimpleQueue() Interface {
 // Check if config is nil, if it is, set default value
 func (q *SimpleQ) isConfigValid() {
 	if q.config == nil {
-		q.config = &QConfig{}
-		q.config.WithCallback(emptyCallback{})
-		q.config.WithCap(defaultQueueCap)
+		q.config = NewQConfig().WithCallback(emptyCallback{})
 	} else {
 		if q.config.cb == nil {
 			q.config.cb = emptyCallback{}
-		}
-		if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
-			q.config.cap = defaultQueueCap
-		}
-		if q.config.cap < 0 {
-			q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
 		}
 	}
 }
@@ -58,7 +56,9 @@ func (q *SimpleQ) isConfigValid() {
 // 获取队列长度
 // Get queue length
 func (q *SimpleQ) Len() int {
-	return len(q.queue)
+	q.qlock.Lock()
+	defer q.qlock.Unlock()
+	return q.queue.Len()
 }
 
 // 判断队列是否已经关闭
@@ -74,13 +74,17 @@ func (q *SimpleQ) Add(element any) error {
 		return ErrorQueueClosed
 	}
 
-	select {
-	case q.queue <- element:
-		q.config.cb.OnAdd(element)
-		return nil
-	default:
-		return ErrorQueueFull
-	}
+	n := q.nodepool.Get()
+	n.SetData(element)
+
+	q.cond.L.Lock()
+	q.queue.Push(n)
+	q.cond.Signal()
+	q.cond.L.Unlock()
+
+	q.config.cb.OnAdd(element)
+
+	return nil
 }
 
 // 从队列中获取一个元素, 如果队列为空，不阻塞等待
@@ -90,13 +94,18 @@ func (q *SimpleQ) Get() (element any, err error) {
 		return nil, ErrorQueueClosed
 	}
 
-	select {
-	case element = <-q.queue:
-		q.config.cb.OnGet(element)
-		return element, nil
-	default:
+	q.qlock.Lock()
+	n := q.queue.Pop()
+	q.qlock.Unlock()
+	if n == nil { // 队列为空 (queue is empty)
 		return nil, ErrorQueueEmpty
 	}
+
+	element = n.Data()
+	q.config.cb.OnGet(element)
+	q.nodepool.Put(n)
+
+	return element, nil
 }
 
 // 从队列中获取一个元素，如果队列为空，阻塞等待
@@ -106,8 +115,20 @@ func (q *SimpleQ) GetWithBlock() (element any, err error) {
 		return nil, ErrorQueueClosed
 	}
 
-	element = <-q.queue
+	q.cond.L.Lock()
+	for q.queue.Len() == 0 {
+		q.cond.Wait()
+	}
+	n := q.queue.Pop()
+	q.cond.L.Unlock()
+	if n == nil {
+		return nil, ErrorQueueEmpty
+	}
+
+	element = n.Data()
 	q.config.cb.OnGet(element)
+	q.nodepool.Put(n)
+
 	return element, nil
 }
 
@@ -122,9 +143,9 @@ func (q *SimpleQ) Done(element any) {
 func (q *SimpleQ) Stop() {
 	q.once.Do(func() {
 		q.closed.Store(true)
-		close(q.queue)
-		for range q.queue {
-			// drain the queue
-		}
+		q.cond.L.Lock()
+		q.cond.Broadcast() // 唤醒所有等待的 goroutine (Wake up all waiting goroutines)
+		q.queue.Reset()
+		q.cond.L.Unlock()
 	})
 }

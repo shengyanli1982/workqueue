@@ -2,10 +2,6 @@ package workqueue
 
 import "time"
 
-// Queue 容量
-// Queue capacity
-const defaultQueueCap = 2048
-
 // Queue 排序窗口
 // Queue sort window
 const defaultQueueSortWin = 500 // ms

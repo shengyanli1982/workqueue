@@ -2,11 +2,10 @@ package workqueue
 
 import (
 	"context"
-	"math"
 	"sync"
 	"time"
 
-	st "github.com/shengyanli1982/workqueue/pkg/structs"
+	"github.com/shengyanli1982/workqueue/internal/stl/heap"
 )
 
 // 优先级队列方法接口
@@ -57,7 +56,8 @@ func (c *PriorityQConfig) WithWindow(win int64) *PriorityQConfig {
 
 type PriorityQ struct {
 	*Q
-	waiting *st.Heap
+	waiting *heap.Heap
+	elepool *heap.HeapElementPool
 	stopCtx context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -70,7 +70,8 @@ type PriorityQ struct {
 // Create a new PriorityQueue config
 func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
 	q := &PriorityQ{
-		waiting: st.NewHeap(),
+		waiting: heap.NewHeap(),
+		elepool: heap.NewHeapElementPool(),
 		wg:      sync.WaitGroup{},
 		lock:    &sync.Mutex{},
 		once:    sync.Once{},
@@ -101,16 +102,10 @@ func DefaultPriorityQueue() PriorityInterface {
 func (q *PriorityQ) isConfigValid() {
 	if q.config == nil {
 		q.config = NewPriorityQConfig()
-		q.config.WithCallback(emptyCallback{}).WithWindow(defaultQueueSortWin).WithCap(defaultQueueCap)
+		q.config.WithCallback(emptyCallback{}).WithWindow(defaultQueueSortWin)
 	} else {
 		if q.config.cb == nil {
 			q.config.cb = emptyCallback{}
-		}
-		if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
-			q.config.cap = defaultQueueCap
-		}
-		if q.config.cap < 0 {
-			q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
 		}
 		if q.config.win <= defaultQueueSortWin {
 			q.config.win = defaultQueueSortWin
@@ -129,8 +124,12 @@ func (q *PriorityQ) AddWeight(element any, weight int) error {
 		return q.Add(element)
 	}
 
+	ele := q.elepool.Get()
+	ele.SetData(element)
+	ele.SetValue(int64(weight))
+
 	q.lock.Lock()
-	q.waiting.Push(st.NewElement(element, int64(weight)))
+	q.waiting.Push(ele)
 	q.lock.Unlock()
 
 	q.config.cb.OnAddWeight(element, weight)
@@ -173,6 +172,9 @@ func (q *PriorityQ) loop() {
 						// 将元素重新添加到 Heap 中。 Re-add the element to the Heap.
 						q.waiting.Push(ele)
 						q.lock.Unlock()
+					} else {
+						// 释放元素 Free element
+						q.elepool.Put(ele)
 					}
 				}
 			}

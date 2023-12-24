@@ -26,33 +26,51 @@ WorkQueue is a simple, fast, reliable work queue written in Go. It supports mult
 
 # Benchmark
 
-## 1. Structure
+## 1. STL
 
-All Queue types are based on `Queue`(exclude `Simple Queue`), which mean will use `channel` to store elements and use `set` to track the state of the queue.
+All Queue types are based on `Queue`(exclude `Simple Queue`), which mean will use `deque` to store elements and use `set` to track the state of the queue.
 
 `Delaying Queue` and `Priority Queue` will use `heap` to maintain the expiration time and priority of the element.
 
-`Simple Queue` is a simple queue, it is based on `channel` to store elements. No `set` and `heap` are used, so no element state is tracked and no element priority is maintained.
+`Simple Queue` is a simple queue, it is based on `deque` to store elements. No `set` and `heap` are used, so no element state is tracked and no element priority is maintained.
+
+### 1.1. Deque
 
 ```bash
-# go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/pkg/structs
-
+$ go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/internal/stl/deque
 goos: darwin
 goarch: amd64
-pkg: github.com/shengyanli1982/workqueue/pkg/structs
-cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
-BenchmarkHeapPush-12         	10202862	       117.9 ns/op	      88 B/op	       1 allocs/op
-BenchmarkHeapPop-12          	11791902	       118.0 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLinkPush-12         	16013065	        81.63 ns/op	      39 B/op	       1 allocs/op
-BenchmarkLinkPushFront-12    	14881771	        80.47 ns/op	      39 B/op	       1 allocs/op
-BenchmarkLinkPop-12          	244934114	         4.494 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLinkPopBack-12      	275577670	         4.408 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSetDelete-12        	11674332	       150.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSetInsert-12        	 4378489	       347.3 ns/op	      86 B/op	       1 allocs/op
-BenchmarkSetHas-12           	14812819	       156.1 ns/op	       0 B/op	       0 allocs/op
-BenchmarkStackPush-12        	13127522	        84.95 ns/op	      39 B/op	       1 allocs/op
-BenchmarkStackPop-12         	270568515	         4.433 ns/op	       0 B/op	       0 allocs/op
+pkg: github.com/shengyanli1982/workqueue/internal/stl/deque
+cpu: Intel(R) Xeon(R) CPU E5-4627 v2 @ 3.30GHz
+BenchmarkLink_Push-8        	11259825	        96.54 ns/op	      39 B/op	       1 allocs/op
+BenchmarkLink_PushFront-8   	14764346	        92.25 ns/op	      39 B/op	       1 allocs/op
+BenchmarkLink_Pop-8         	100000000	        18.21 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLink_PopBack-8     	250675488	         5.142 ns/op	       0 B/op	       0 allocs/op
+```
 
+### 1.2. Heap
+
+```bash
+$ go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/internal/stl/heap
+goos: darwin
+goarch: amd64
+pkg: github.com/shengyanli1982/workqueue/internal/stl/heap
+cpu: Intel(R) Xeon(R) CPU E5-4627 v2 @ 3.30GHz
+BenchmarkHeap_Push-8   	 8891779	       138.2 ns/op	      84 B/op	       1 allocs/op
+BenchmarkHeap_Pop-8    	13314109	       119.1 ns/op	       0 B/op	       0 allocs/op
+```
+
+### 1.3. Set
+
+```bash
+$ go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/internal/stl/set
+goos: darwin
+goarch: amd64
+pkg: github.com/shengyanli1982/workqueue/internal/stl/set
+cpu: Intel(R) Xeon(R) CPU E5-4627 v2 @ 3.30GHz
+BenchmarkSet_Delete-8   	10340976	       145.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSet_Insert-8   	 3968264	       400.3 ns/op	      94 B/op	       1 allocs/op
+BenchmarkSet_Has-8      	11896728	       136.4 ns/op	       0 B/op	       0 allocs/op
 ```
 
 ## 2. Queue
@@ -64,19 +82,24 @@ Compare to [kubernetes/client-go](https://github.com/kubernetes/client-go) workq
 >
 > Why not compare to others? I think workqueue too close to the process of use and it is difficult to compare. If you have a better idea, please let me know.
 
-```bash
-# go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/bennchmark
+`WorkQueue` is same as `kubernetes/client-go` workqueue, no used `channel`, `WorkQueue` use `deque` to store elements and use `set` to track the state of the queue. `kubernetes/client-go` workqueue use `slice` to store elements and use `set` to track the state of the queue.
 
+`slice` is faster than `deque`, preallocate memory for slice will improve performance.
+
+But `slice` will cause the element to be copied when the slice is expanded, **which will cause the memory usage to increase**.
+
+```bash
+$ go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/bennchmark
 goos: darwin
 goarch: amd64
 pkg: github.com/shengyanli1982/workqueue/bennchmark
-cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
-BenchmarkClientgoAdd-12           	 2631259	       435.1 ns/op	     155 B/op	       1 allocs/op
-BenchmarkClientgoGet-12           	 4454460	       305.4 ns/op	       7 B/op	       0 allocs/op
-BenchmarkClientgoAddAndGet-12     	 2272807	       532.4 ns/op	      86 B/op	       1 allocs/op
-BenchmarkWorkqueueAdd-12          	13773114	        85.97 ns/op	       8 B/op	       0 allocs/op
-BenchmarkWorkqueueGet-12          	19877964	        60.22 ns/op	       7 B/op	       0 allocs/op
-BenchmarkWorkqueueAddAndGet-12    	 4895158	       249.4 ns/op	       8 B/op	       1 allocs/op
+cpu: Intel(R) Xeon(R) CPU E5-4627 v2 @ 3.30GHz
+BenchmarkClientgoAdd-8          	 2439475	       463.0 ns/op	     166 B/op	       1 allocs/op
+BenchmarkClientgoGet-8          	 4138384	       314.1 ns/op	       7 B/op	       0 allocs/op
+BenchmarkClientgoAddAndGet-8    	 2355006	       488.5 ns/op	      57 B/op	       1 allocs/op
+BenchmarkWorkqueueAdd-8         	 1585618	       677.8 ns/op	      96 B/op	       2 allocs/op
+BenchmarkWorkqueueGet-8         	 4445774	       293.8 ns/op	       7 B/op	       0 allocs/op
+BenchmarkWorkqueueAddAndGet-8   	 1734568	       764.4 ns/op	      90 B/op	       2 allocs/op
 ```
 
 # Installation
@@ -108,7 +131,6 @@ Here are some examples of how to use WorkQueue. but you can also refer to the [e
 The `Queue` has some config options, you can set it when create a queue.
 
 -   `WithCallback` set callback functions
--   `WithCap` set the capacity of the queue, default is `2048`. If the capacity is `-1`, which mean the queue is unlimited.
 
 ### Methods
 
@@ -175,7 +197,6 @@ func main() {
 The `Queue` has some config options, you can set it when create a queue.
 
 -   `WithCallback` set callback functions
--   `WithCap` set the capacity of the queue, default is `2048`. If the capacity is `-1`, which mean the queue is unlimited.
 
 ### Methods
 
@@ -243,10 +264,6 @@ func main() {
 The `Delaying Queue` has some config options, you can set it when create a queue.
 
 -   `WithCallback` set callback functions
--   `WithCap` set the capacity of the queue, default is `2048`. If the capacity is `-1`, which mean the queue is unlimited.
-
-> [!TIP]
-> please let `WithCap` behind `WithCallback`.
 
 > [!NOTE]
 > Don't set the capacity too small, it will cause the element from `heap` to be added to Queue failed.
@@ -301,7 +318,7 @@ func main() {
 `Priority Queue` is a queue that supports priority execution. It is based on `Queue` and uses a `heap` to maintain the priority of the element. When you add an element to the queue, you can specify the priority of the element, and the element will be executed according to the priority.
 
 > [!CAUTION]
-> The `Priority Queue` requires a window to sort the elements currently added to the Queue. The elements in this time window are sorted in order of `priority` from smallest to largest. The order of elements in two different time Windows is not guaranteed to be sorted by `priority`, even if the two Windows are immediately adjacent.
+> The `Priority Queue` requires a window to sort the elements currently added to the Queue. The elements in this time window are sorted in order of `priority` from smallest to largestl The order of elements in two different time Windows is not guaranteed to be sorted by `priority`, even if the two Windows are immediately adjacent.
 >
 > The default window size is `500ms`, you can set it when create a queue.
 >
@@ -317,11 +334,7 @@ func main() {
 ### Config
 
 -   `WithCallback` set callback functions
--   `WithCap` set the capacity of the queue, default is `2048`. If the capacity is `-1`, which mean the queue is unlimited.
 -   `WithWindow` set the sort window size of the queue, default is `500` ms.
-
-> [!TIP]
-> please let `WithCap` behind `WithWindow`, `WithCallback`.
 
 ### Methods
 
@@ -370,7 +383,7 @@ func main() {
 `RateLimiting Queue` is a queue that supports rate limiting execution. It is based on `Queue` and uses a `heap` to maintain the expiration time of the element. When you add an element to the queue, you can specify the rate limit of the element, and the element will be executed according to the rate limit.
 
 > [!TIP]
-> default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `RateLimiter` interface.
+> Default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `RateLimiter` interface.
 
 ### Create
 
@@ -380,11 +393,7 @@ func main() {
 ### Config
 
 -   `WithCallback` set callback functions
--   `WithCap` set the capacity of the queue, default is `2048`. If the capacity is `-1`, which mean the queue is unlimited.
 -   `WithLimiter` set the rate limiter of the queue, default is `TokenBucketRateLimiter`.
-
-> [!TIP]
-> please let `WithCap` behind `WithLimiter`, `WithCallback`.
 
 ### Methods
 
@@ -516,53 +525,7 @@ The queue callback functions are loosely used and can be easily extended, you ca
 -   `OnForget` will be called when forget an element from the rate limiting queue
 -   `OnGetTimes` will be called when get the number of times an element has been limited from the rate limiting queue
 
-## 2. Capacity
-
-Queue capacity is a very important parameter, it determines the maximum number of elements that can be stored in the queue. If the capacity is `-1`, which mean the queue is unlimited. Default capacity is `2048`.
-
-### Example
-
-```go
-package main
-
-import (
-	"fmt"
-	"time"
-
-	"github.com/shengyanli1982/workqueue"
-)
-
-func main() {
-	conf := workqueue.NewQConfig()
-	conf.WithCap(100) // set queue capacity
-
-	q := workqueue.NewQueue(conf)
-
-	go func() {
-		for {
-			element, err := q.Get()
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			q.Done(element)
-		}
-	}()
-
-	var err error
-	for i := 0; i < 1000; i++ {
-		if err = q.Add(i); err != nil {
-			fmt.Println(err)
-		}
-	}
-
-	time.Sleep(time.Second * 2) // wait for element to be executed
-
-	q.Stop()
-}
-```
-
-## 3. Limiter
+## 2. Limiter
 
 The limiter only works for `RateLimiting Queue`, it determines the rate limit of the element. Default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `RateLimiter` interface.
 

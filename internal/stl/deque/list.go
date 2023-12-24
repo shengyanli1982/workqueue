@@ -1,4 +1,4 @@
-package structs
+package deque
 
 // 用双向链表实现一个队列
 // 双向链表的节点
@@ -23,6 +23,12 @@ func (n *Node) Reset() {
 // Data returns the data of the node
 func (n *Node) Data() any {
 	return n.data
+}
+
+// 设置节点的数据
+// SetData sets the data of the node
+func (n *Node) SetData(data any) {
+	n.data = data
 }
 
 // 双向链表
