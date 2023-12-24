@@ -2,7 +2,6 @@ package workqueue
 
 import (
 	"context"
-	"math"
 	"sync"
 	"time"
 
@@ -103,16 +102,10 @@ func DefaultPriorityQueue() PriorityInterface {
 func (q *PriorityQ) isConfigValid() {
 	if q.config == nil {
 		q.config = NewPriorityQConfig()
-		q.config.WithCallback(emptyCallback{}).WithWindow(defaultQueueSortWin).WithCap(defaultQueueCap)
+		q.config.WithCallback(emptyCallback{}).WithWindow(defaultQueueSortWin)
 	} else {
 		if q.config.cb == nil {
 			q.config.cb = emptyCallback{}
-		}
-		if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
-			q.config.cap = defaultQueueCap
-		}
-		if q.config.cap < 0 {
-			q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
 		}
 		if q.config.win <= defaultQueueSortWin {
 			q.config.win = defaultQueueSortWin

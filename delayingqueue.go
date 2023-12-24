@@ -2,7 +2,6 @@ package workqueue
 
 import (
 	"context"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -100,16 +99,10 @@ func DefaultDelayingQueue() DelayingInterface {
 func (q *DelayingQ) isConfigValid() {
 	if q.config == nil {
 		q.config = &DelayingQConfig{}
-		q.config.WithCallback(emptyCallback{}).WithCap(defaultQueueCap)
+		q.config.WithCallback(emptyCallback{})
 	} else {
 		if q.config.cb == nil {
 			q.config.cb = emptyCallback{}
-		}
-		if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
-			q.config.cap = defaultQueueCap
-		}
-		if q.config.cap < 0 {
-			q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
 		}
 	}
 }

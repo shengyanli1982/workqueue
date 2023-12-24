@@ -1,9 +1,9 @@
 package workqueue
 
 import (
-	"math"
 	"sync"
 
+	list "github.com/shengyanli1982/workqueue/internal/stl/deque"
 	"github.com/shengyanli1982/workqueue/internal/stl/set"
 )
 
@@ -30,8 +30,7 @@ type Callback interface {
 // 队列的配置
 // Queue config
 type QConfig struct {
-	cb  Callback
-	cap int
+	cb Callback
 }
 
 // 创建一个队列的配置
@@ -47,15 +46,11 @@ func (c *QConfig) WithCallback(cb Callback) *QConfig {
 	return c
 }
 
-// 设置队列的容量
-// Set Queue capacity
-func (c *QConfig) WithCap(cap int) *QConfig {
-	c.cap = cap
-	return c
-}
-
 type Q struct {
-	queue      chan any
+	queue      *list.Deque
+	elepool    *list.ListNodePool
+	qlock      *sync.Mutex
+	cond       *sync.Cond
 	dirty      set.Set
 	processing set.Set
 	lock       *sync.Mutex
@@ -70,15 +65,17 @@ func NewQueue(conf *QConfig) *Q {
 	q := &Q{
 		dirty:      set.NewSet(),
 		processing: set.NewSet(),
+		queue:      list.NewDeque(),
+		qlock:      &sync.Mutex{},
+		elepool:    list.NewListNodePool(),
 		lock:       &sync.Mutex{},
 		once:       sync.Once{},
 		closed:     false,
 		config:     conf,
 	}
+	q.cond = sync.NewCond(q.qlock)
 
 	q.isConfigValid()
-
-	q.queue = make(chan any, q.config.cap)
 
 	return q
 }
@@ -93,18 +90,10 @@ func DefaultQueue() Interface {
 // Check if config is nil, if it is, set default value
 func (q *Q) isConfigValid() {
 	if q.config == nil {
-		q.config = &QConfig{}
-		q.config.WithCallback(emptyCallback{})
-		q.config.WithCap(defaultQueueCap)
+		q.config = NewQConfig().WithCallback(emptyCallback{})
 	} else {
 		if q.config.cb == nil {
 			q.config.cb = emptyCallback{}
-		}
-		if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
-			q.config.cap = defaultQueueCap
-		}
-		if q.config.cap < 0 {
-			q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
 		}
 	}
 }
@@ -140,9 +129,9 @@ func (q *Q) isElementMarked(element any) bool {
 // 获取队列长度
 // Get queue length
 func (q *Q) Len() int {
-	q.lock.Lock()
-	defer q.lock.Unlock()
-	return len(q.queue)
+	q.qlock.Lock()
+	defer q.qlock.Unlock()
+	return q.queue.Len()
 }
 
 // 判断队列是否已经关闭
@@ -164,14 +153,18 @@ func (q *Q) Add(element any) error {
 		return ErrorQueueElementExist
 	}
 
-	select {
-	case q.queue <- element:
-		q.prepare(element)
-		q.config.cb.OnAdd(element)
-		return nil
-	default:
-		return ErrorQueueFull
-	}
+	ele := q.elepool.Get()
+	ele.SetData(element)
+
+	q.cond.L.Lock()
+	q.queue.Push(ele)
+	q.cond.Signal()
+	q.cond.L.Unlock()
+
+	q.prepare(element)
+	q.config.cb.OnAdd(element)
+
+	return nil
 }
 
 // 从队列中获取一个元素, 如果队列为空，不阻塞等待
@@ -181,14 +174,19 @@ func (q *Q) Get() (element any, err error) {
 		return nil, ErrorQueueClosed
 	}
 
-	select {
-	case element = <-q.queue:
-		q.todo(element)
-		q.config.cb.OnGet(element)
-		return element, nil
-	default:
+	q.qlock.Lock()
+	ln := q.queue.Pop()
+	q.qlock.Unlock()
+
+	if ln == nil {
 		return nil, ErrorQueueEmpty
 	}
+
+	element = ln.Data()
+	q.todo(element)
+	q.config.cb.OnGet(element)
+
+	return element, nil
 }
 
 // 从队列中获取一个元素，如果队列为空，阻塞等待
@@ -198,9 +196,21 @@ func (q *Q) GetWithBlock() (element any, err error) {
 		return nil, ErrorQueueClosed
 	}
 
-	element = <-q.queue
+	q.cond.L.Lock()
+	for q.queue.Len() == 0 {
+		q.cond.Wait()
+	}
+	ln := q.queue.Pop()
+	q.cond.L.Unlock()
+
+	if ln == nil {
+		return nil, ErrorQueueEmpty
+	}
+
+	element = ln.Data()
 	q.todo(element)
 	q.config.cb.OnGet(element)
+
 	return element, nil
 }
 
@@ -224,19 +234,19 @@ func (q *Q) Stop() {
 		wg := sync.WaitGroup{}
 		wg.Add(3)
 		go func() {
-			defer wg.Done()
-			close(q.queue)
-			for range q.queue {
-				// drain the queue
-			}
+			q.cond.L.Lock()
+			q.cond.Broadcast() // 唤醒所有等待的 goroutine (Wake up all waiting goroutines)
+			q.queue.Reset()
+			q.cond.L.Unlock()
+			wg.Done()
 		}()
 		go func() {
-			defer wg.Done()
 			q.dirty.Cleanup()
+			wg.Done()
 		}()
 		go func() {
-			defer wg.Done()
 			q.processing.Cleanup()
+			wg.Done()
 		}()
 		wg.Wait()
 	})

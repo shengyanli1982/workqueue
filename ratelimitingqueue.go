@@ -1,7 +1,6 @@
 package workqueue
 
 import (
-	"math"
 	"sync"
 )
 
@@ -105,16 +104,10 @@ func (q *RateLimitingQ) isConfigValid() {
 	limiter := DefaultBucketRateLimiter()
 	if q.config == nil {
 		q.config = &RateLimitingQConfig{}
-		q.config.WithLimiter(limiter).WithCallback(emptyCallback{}).WithCap(defaultQueueCap)
+		q.config.WithLimiter(limiter).WithCallback(emptyCallback{})
 	} else {
 		if q.config.cb == nil {
 			q.config.cb = emptyCallback{}
-		}
-		if q.config.cap < defaultQueueCap && q.config.cap >= 0 {
-			q.config.cap = defaultQueueCap
-		}
-		if q.config.cap < 0 {
-			q.config.cap = math.MaxInt64 // 无限容量, unlimited capacity
 		}
 		if q.config.limiter == nil {
 			q.config.limiter = limiter
