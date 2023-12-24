@@ -48,7 +48,7 @@ func (c *QConfig) WithCallback(cb Callback) *QConfig {
 
 type Q struct {
 	queue      *list.Deque
-	elepool    *list.ListNodePool
+	nodepool   *list.ListNodePool
 	qlock      *sync.Mutex
 	cond       *sync.Cond
 	dirty      set.Set
@@ -67,7 +67,7 @@ func NewQueue(conf *QConfig) *Q {
 		processing: set.NewSet(),
 		queue:      list.NewDeque(),
 		qlock:      &sync.Mutex{},
-		elepool:    list.NewListNodePool(),
+		nodepool:   list.NewListNodePool(),
 		lock:       &sync.Mutex{},
 		once:       sync.Once{},
 		closed:     false,
@@ -153,11 +153,11 @@ func (q *Q) Add(element any) error {
 		return ErrorQueueElementExist
 	}
 
-	ele := q.elepool.Get()
-	ele.SetData(element)
+	n := q.nodepool.Get()
+	n.SetData(element)
 
 	q.cond.L.Lock()
-	q.queue.Push(ele)
+	q.queue.Push(n)
 	q.cond.Signal()
 	q.cond.L.Unlock()
 
@@ -175,16 +175,16 @@ func (q *Q) Get() (element any, err error) {
 	}
 
 	q.qlock.Lock()
-	ln := q.queue.Pop()
+	n := q.queue.Pop()
 	q.qlock.Unlock()
-
-	if ln == nil {
+	if n == nil {
 		return nil, ErrorQueueEmpty
 	}
 
-	element = ln.Data()
+	element = n.Data()
 	q.todo(element)
 	q.config.cb.OnGet(element)
+	q.nodepool.Put(n)
 
 	return element, nil
 }
@@ -200,16 +200,16 @@ func (q *Q) GetWithBlock() (element any, err error) {
 	for q.queue.Len() == 0 {
 		q.cond.Wait()
 	}
-	ln := q.queue.Pop()
+	n := q.queue.Pop()
 	q.cond.L.Unlock()
-
-	if ln == nil {
+	if n == nil {
 		return nil, ErrorQueueEmpty
 	}
 
-	element = ln.Data()
+	element = n.Data()
 	q.todo(element)
 	q.config.cb.OnGet(element)
+	q.nodepool.Put(n)
 
 	return element, nil
 }

@@ -52,7 +52,7 @@ func (c *DelayingQConfig) WithCallback(cb DelayingCallback) *DelayingQConfig {
 type DelayingQ struct {
 	*Q
 	waiting *heap.Heap
-	pool    *heap.HeapElementPool
+	elepool *heap.HeapElementPool
 	stopCtx context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -67,7 +67,7 @@ type DelayingQ struct {
 func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
 	q := &DelayingQ{
 		waiting: heap.NewHeap(),
-		pool:    heap.NewHeapElementPool(),
+		elepool: heap.NewHeapElementPool(),
 		wg:      sync.WaitGroup{},
 		now:     atomic.Int64{},
 		once:    sync.Once{},
@@ -118,7 +118,7 @@ func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
 		return q.Add(element)
 	}
 
-	ele := q.pool.Get()
+	ele := q.elepool.Get()
 	ele.SetData(element)
 	ele.SetValue(time.Now().Add(delay).UnixMilli())
 
@@ -176,7 +176,6 @@ func (q *DelayingQ) loop() {
 					// 弹出堆顶元素
 					_ = q.waiting.Pop()
 					q.lock.Unlock()
-
 					// 添加到队列中
 					if err := q.Add(ele.Data()); err != nil {
 						q.lock.Lock()
@@ -187,7 +186,7 @@ func (q *DelayingQ) loop() {
 						q.lock.Unlock()
 					} else {
 						// 释放元素 Free element
-						q.pool.Put(ele)
+						q.elepool.Put(ele)
 					}
 				} else {
 					q.lock.Unlock()

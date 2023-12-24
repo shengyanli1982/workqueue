@@ -8,25 +8,25 @@ import (
 )
 
 type SimpleQ struct {
-	queue   *list.Deque
-	qlock   *sync.Mutex
-	cond    *sync.Cond
-	elepool *list.ListNodePool
-	once    sync.Once
-	closed  atomic.Bool
-	config  *QConfig
+	queue    *list.Deque
+	qlock    *sync.Mutex
+	cond     *sync.Cond
+	nodepool *list.ListNodePool
+	once     sync.Once
+	closed   atomic.Bool
+	config   *QConfig
 }
 
 // 创建一个 SimpleQueue 实例
 // Create a new SimpleQueue config
 func NewSimpleQueue(conf *QConfig) *SimpleQ {
 	q := &SimpleQ{
-		queue:   list.NewDeque(),
-		elepool: list.NewListNodePool(),
-		qlock:   &sync.Mutex{},
-		once:    sync.Once{},
-		closed:  atomic.Bool{},
-		config:  conf,
+		queue:    list.NewDeque(),
+		nodepool: list.NewListNodePool(),
+		qlock:    &sync.Mutex{},
+		once:     sync.Once{},
+		closed:   atomic.Bool{},
+		config:   conf,
 	}
 	q.cond = sync.NewCond(q.qlock)
 
@@ -74,11 +74,11 @@ func (q *SimpleQ) Add(element any) error {
 		return ErrorQueueClosed
 	}
 
-	ele := q.elepool.Get()
-	ele.SetData(element)
+	n := q.nodepool.Get()
+	n.SetData(element)
 
 	q.cond.L.Lock()
-	q.queue.Push(ele)
+	q.queue.Push(n)
 	q.cond.Signal()
 	q.cond.L.Unlock()
 
@@ -95,15 +95,15 @@ func (q *SimpleQ) Get() (element any, err error) {
 	}
 
 	q.qlock.Lock()
-	ln := q.queue.Pop()
+	n := q.queue.Pop()
 	q.qlock.Unlock()
-
-	if ln == nil { // 队列为空 (queue is empty)
+	if n == nil { // 队列为空 (queue is empty)
 		return nil, ErrorQueueEmpty
 	}
 
-	element = ln.Data()
+	element = n.Data()
 	q.config.cb.OnGet(element)
+	q.nodepool.Put(n)
 
 	return element, nil
 }
@@ -119,15 +119,15 @@ func (q *SimpleQ) GetWithBlock() (element any, err error) {
 	for q.queue.Len() == 0 {
 		q.cond.Wait()
 	}
-	ln := q.queue.Pop()
+	n := q.queue.Pop()
 	q.cond.L.Unlock()
-
-	if ln == nil {
+	if n == nil {
 		return nil, ErrorQueueEmpty
 	}
 
-	element = ln.Data()
+	element = n.Data()
 	q.config.cb.OnGet(element)
+	q.nodepool.Put(n)
 
 	return element, nil
 }

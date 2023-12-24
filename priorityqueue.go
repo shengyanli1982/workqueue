@@ -57,7 +57,7 @@ func (c *PriorityQConfig) WithWindow(win int64) *PriorityQConfig {
 type PriorityQ struct {
 	*Q
 	waiting *heap.Heap
-	pool    *heap.HeapElementPool
+	elepool *heap.HeapElementPool
 	stopCtx context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -71,7 +71,7 @@ type PriorityQ struct {
 func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
 	q := &PriorityQ{
 		waiting: heap.NewHeap(),
-		pool:    heap.NewHeapElementPool(),
+		elepool: heap.NewHeapElementPool(),
 		wg:      sync.WaitGroup{},
 		lock:    &sync.Mutex{},
 		once:    sync.Once{},
@@ -124,7 +124,7 @@ func (q *PriorityQ) AddWeight(element any, weight int) error {
 		return q.Add(element)
 	}
 
-	ele := q.pool.Get()
+	ele := q.elepool.Get()
 	ele.SetData(element)
 	ele.SetValue(int64(weight))
 
@@ -174,7 +174,7 @@ func (q *PriorityQ) loop() {
 						q.lock.Unlock()
 					} else {
 						// 释放元素 Free element
-						q.pool.Put(ele)
+						q.elepool.Put(ele)
 					}
 				}
 			}

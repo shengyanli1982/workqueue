@@ -1,6 +1,8 @@
 package deque
 
-import "sync"
+import (
+	"sync"
+)
 
 type ListNodePool struct {
 	bp sync.Pool // 同步池 (sync pool)

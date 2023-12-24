@@ -1,6 +1,8 @@
 package heap
 
-import "sync"
+import (
+	"sync"
+)
 
 type HeapElementPool struct {
 	bp sync.Pool // 同步池 (sync pool)
