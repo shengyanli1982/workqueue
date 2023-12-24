@@ -1,4 +1,4 @@
-package stl
+package heap
 
 // 堆中元素结构
 // Element is the structure of the element in the heap
@@ -26,10 +26,16 @@ func (e *Element) Index() int {
 	return e.index
 }
 
-// ResetValue 重置元素的值
-// ResetValue resets the value of the element
-func (e *Element) ResetValue(i int64) {
+// SetValue 设置元素的值
+// SetValue sets the value of the element
+func (e *Element) SetValue(i int64) {
 	e.value = i
+}
+
+// SetData 设置元素的数据
+// SetData sets the data of the element
+func (e *Element) SetData(data any) {
+	e.data = data
 }
 
 // Reset 重置元素
@@ -160,10 +166,7 @@ func (h *Heap) Pop() *Element {
 // Delete deletes the i-th element in the heap
 func (h *Heap) Delete(i int) {
 	n := h.Len()
-	if n == 0 {
-		return
-	}
-	if i >= n {
+	if n == 0 || i >= n {
 		return
 	}
 	h.Swap(i, n-1)

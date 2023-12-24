@@ -1,4 +1,4 @@
-package stl
+package deque
 
 import (
 	"testing"

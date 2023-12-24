@@ -35,11 +35,11 @@ All Queue types are based on `Queue`(exclude `Simple Queue`), which mean will us
 `Simple Queue` is a simple queue, it is based on `channel` to store elements. No `set` and `heap` are used, so no element state is tracked and no element priority is maintained.
 
 ```bash
-# go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/pkg/stl
+# go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/internal/stl
 
 goos: darwin
 goarch: amd64
-pkg: github.com/shengyanli1982/workqueue/pkg/stl
+pkg: github.com/shengyanli1982/workqueue/internal/stl
 cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
 BenchmarkHeapPush-12         	10202862	       117.9 ns/op	      88 B/op	       1 allocs/op
 BenchmarkHeapPop-12          	11791902	       118.0 ns/op	       0 B/op	       0 allocs/op

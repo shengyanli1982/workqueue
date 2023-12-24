@@ -1,4 +1,4 @@
-package stl
+package set
 
 import (
 	"testing"

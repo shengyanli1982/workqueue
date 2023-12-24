@@ -1,4 +1,4 @@
-package stl
+package heap
 
 import (
 	"testing"

@@ -1,4 +1,4 @@
-package stl
+package set
 
 // 使用 map 实现一个 map[any]struct{} 的 set
 

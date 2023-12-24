@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	st "github.com/shengyanli1982/workqueue/pkg/stl"
+	"github.com/shengyanli1982/workqueue/internal/stl/heap"
 )
 
 // 优先级队列方法接口
@@ -57,7 +57,8 @@ func (c *PriorityQConfig) WithWindow(win int64) *PriorityQConfig {
 
 type PriorityQ struct {
 	*Q
-	waiting *st.Heap
+	waiting *heap.Heap
+	pool    *heap.HeapElementPool
 	stopCtx context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
@@ -70,7 +71,8 @@ type PriorityQ struct {
 // Create a new PriorityQueue config
 func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
 	q := &PriorityQ{
-		waiting: st.NewHeap(),
+		waiting: heap.NewHeap(),
+		pool:    heap.NewHeapElementPool(),
 		wg:      sync.WaitGroup{},
 		lock:    &sync.Mutex{},
 		once:    sync.Once{},
@@ -129,8 +131,12 @@ func (q *PriorityQ) AddWeight(element any, weight int) error {
 		return q.Add(element)
 	}
 
+	ele := q.pool.Get()
+	ele.SetData(element)
+	ele.SetValue(int64(weight))
+
 	q.lock.Lock()
-	q.waiting.Push(st.NewElement(element, int64(weight)))
+	q.waiting.Push(ele)
 	q.lock.Unlock()
 
 	q.config.cb.OnAddWeight(element, weight)
@@ -173,6 +179,9 @@ func (q *PriorityQ) loop() {
 						// 将元素重新添加到 Heap 中。 Re-add the element to the Heap.
 						q.waiting.Push(ele)
 						q.lock.Unlock()
+					} else {
+						// 释放元素 Free element
+						q.pool.Put(ele)
 					}
 				}
 			}
