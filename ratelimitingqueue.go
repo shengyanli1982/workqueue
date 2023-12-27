@@ -66,6 +66,24 @@ func (c *RateLimitingQConfig) WithLimiter(limiter RateLimiter) *RateLimitingQCon
 	return c
 }
 
+// 验证队列的配置是否有效
+// Verify that the queue configuration is valid
+func isRateLimitingQConfigValid(conf *RateLimitingQConfig) *RateLimitingQConfig {
+	if conf == nil {
+		conf = &RateLimitingQConfig{}
+		conf.WithLimiter(DefaultBucketRateLimiter()).WithCallback(emptyCallback{})
+	} else {
+		if conf.cb == nil {
+			conf.cb = emptyCallback{}
+		}
+		if conf.limiter == nil {
+			conf.limiter = DefaultBucketRateLimiter()
+		}
+	}
+
+	return conf
+}
+
 type RateLimitingQ struct {
 	*DelayingQ
 	once    sync.Once
@@ -77,15 +95,15 @@ type RateLimitingQ struct {
 // 创建一个 RateLimitingQueue 实例
 // Create a new RateLimitingQueue config
 func NewRateLimitingQueue(conf *RateLimitingQConfig) *RateLimitingQ {
+	conf = isRateLimitingQConfigValid(conf)
+	conf.DelayingQConfig.cb = conf.cb
+
 	q := &RateLimitingQ{
-		once:   sync.Once{},
-		config: conf,
+		DelayingQ: NewDelayingQueue(&conf.DelayingQConfig),
+		once:      sync.Once{},
+		config:    conf,
 	}
 
-	q.isConfigValid()
-
-	q.config.DelayingQConfig.cb = q.config.cb
-	q.DelayingQ = NewDelayingQueue(&q.config.DelayingQConfig)
 	q.lock = q.DelayingQ.lock
 	q.limiter = q.config.limiter
 
@@ -96,23 +114,6 @@ func NewRateLimitingQueue(conf *RateLimitingQConfig) *RateLimitingQ {
 // Create a new default RateLimitingQueue config
 func DefaultRateLimitingQueue() RateLimitingInterface {
 	return NewRateLimitingQueue(nil)
-}
-
-// 判断 config 是否为空，如果为空，设置默认值
-// Check if config is nil, if it is, set default value
-func (q *RateLimitingQ) isConfigValid() {
-	limiter := DefaultBucketRateLimiter()
-	if q.config == nil {
-		q.config = &RateLimitingQConfig{}
-		q.config.WithLimiter(limiter).WithCallback(emptyCallback{})
-	} else {
-		if q.config.cb == nil {
-			q.config.cb = emptyCallback{}
-		}
-		if q.config.limiter == nil {
-			q.config.limiter = limiter
-		}
-	}
 }
 
 // 添加元素到队列, 加入到等待队列, 如果有 token 则直接加入到队列

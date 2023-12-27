@@ -46,6 +46,19 @@ func (c *QConfig) WithCallback(cb Callback) *QConfig {
 	return c
 }
 
+// 验证队列的配置是否有效
+// Verify that the queue configuration is valid
+func isQConfigValid(conf *QConfig) *QConfig {
+	if conf == nil {
+		conf = NewQConfig().WithCallback(emptyCallback{})
+	} else {
+		if conf.cb == nil {
+			conf.cb = emptyCallback{}
+		}
+	}
+	return conf
+}
+
 type Q struct {
 	queue      *list.Deque
 	nodepool   *list.ListNodePool
@@ -62,6 +75,7 @@ type Q struct {
 // 创建一个 Queue 对象
 // Create a new Queue object.
 func NewQueue(conf *QConfig) *Q {
+	conf = isQConfigValid(conf)
 	q := &Q{
 		dirty:      set.NewSet(),
 		processing: set.NewSet(),
@@ -75,8 +89,6 @@ func NewQueue(conf *QConfig) *Q {
 	}
 	q.cond = sync.NewCond(q.qlock)
 
-	q.isConfigValid()
-
 	return q
 }
 
@@ -84,18 +96,6 @@ func NewQueue(conf *QConfig) *Q {
 // Create a new default Queue object.
 func DefaultQueue() Interface {
 	return NewQueue(nil)
-}
-
-// 判断 config 是否为空，如果为空，设置默认值
-// Check if config is nil, if it is, set default value
-func (q *Q) isConfigValid() {
-	if q.config == nil {
-		q.config = NewQConfig().WithCallback(emptyCallback{})
-	} else {
-		if q.config.cb == nil {
-			q.config.cb = emptyCallback{}
-		}
-	}
 }
 
 // 标记已经准备好处理的元素
