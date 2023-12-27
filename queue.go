@@ -228,9 +228,6 @@ func (q *Q) Done(element any) {
 // Shut down the queue.
 func (q *Q) Stop() {
 	q.once.Do(func() {
-		q.lock.Lock()
-		defer q.lock.Unlock()
-		q.closed = true
 		wg := sync.WaitGroup{}
 		wg.Add(3)
 		go func() {
@@ -240,12 +237,19 @@ func (q *Q) Stop() {
 			q.cond.L.Unlock()
 			wg.Done()
 		}()
+		q.lock.Lock()
+		q.closed = true
+		q.lock.Unlock()
 		go func() {
+			q.lock.Lock()
 			q.dirty.Cleanup()
+			q.lock.Unlock()
 			wg.Done()
 		}()
 		go func() {
+			q.lock.Lock()
 			q.processing.Cleanup()
+			q.lock.Unlock()
 			wg.Done()
 		}()
 		wg.Wait()
