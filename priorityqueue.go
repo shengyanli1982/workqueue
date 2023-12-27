@@ -84,14 +84,14 @@ type PriorityQ struct {
 	config  *PriorityQConfig
 }
 
-// 创建一个 PriorityQueue 实例
-// Create a new PriorityQueue config
-func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
+// 创建一个 PriorityQueue 实例, 使用自定义 Queue (实现了 Q 接口)
+// Create a new PriorityQueue config, use custom Queue (implement Q interface)
+func NewPriorityQueueWithCustomQueue(conf *PriorityQConfig, queue *Q) *PriorityQ {
 	conf = isPriorityQConfigValid(conf)
 	conf.QConfig.cb = conf.cb
 
 	q := &PriorityQ{
-		Q:       NewQueue(&conf.QConfig),
+		Q:       queue,
 		waiting: heap.NewHeap(),
 		elepool: heap.NewHeapElementPool(),
 		wg:      sync.WaitGroup{},
@@ -107,6 +107,14 @@ func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
 	go q.loop()
 
 	return q
+}
+
+// 创建一个 PriorityQueue 实例
+// Create a new PriorityQueue config
+func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
+	conf = isPriorityQConfigValid(conf)
+	conf.QConfig.cb = conf.cb
+	return NewPriorityQueueWithCustomQueue(conf, NewQueue(&conf.QConfig))
 }
 
 // 创建一个默认的 PriorityQueue 对象

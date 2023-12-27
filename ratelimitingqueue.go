@@ -92,14 +92,14 @@ type RateLimitingQ struct {
 	config  *RateLimitingQConfig
 }
 
-// 创建一个 RateLimitingQueue 实例
-// Create a new RateLimitingQueue config
-func NewRateLimitingQueue(conf *RateLimitingQConfig) *RateLimitingQ {
+// 创建一个 RateLimitingQueue 实例, 使用自定义 Queue (实现了 DelayingQ 接口)
+// Create a new PriorityRateLimitingQueueQueue config, use custom Queue (implement DelayingQ interface)
+func NewRateLimitingQueueWithCustomQueue(conf *RateLimitingQConfig, queue *DelayingQ) *RateLimitingQ {
 	conf = isRateLimitingQConfigValid(conf)
 	conf.DelayingQConfig.cb = conf.cb
 
 	q := &RateLimitingQ{
-		DelayingQ: NewDelayingQueue(&conf.DelayingQConfig),
+		DelayingQ: queue,
 		once:      sync.Once{},
 		config:    conf,
 	}
@@ -108,6 +108,14 @@ func NewRateLimitingQueue(conf *RateLimitingQConfig) *RateLimitingQ {
 	q.limiter = q.config.limiter
 
 	return q
+}
+
+// 创建一个 RateLimitingQueue 实例
+// Create a new RateLimitingQueue config
+func NewRateLimitingQueue(conf *RateLimitingQConfig) *RateLimitingQ {
+	conf = isRateLimitingQConfigValid(conf)
+	conf.DelayingQConfig.cb = conf.cb
+	return NewRateLimitingQueueWithCustomQueue(conf, NewDelayingQueue(&conf.DelayingQConfig))
 }
 
 // 创建一个默认的 RateLimitingQueue 实例

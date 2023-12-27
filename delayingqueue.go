@@ -77,14 +77,14 @@ type DelayingQ struct {
 	config  *DelayingQConfig
 }
 
-// NewDelayingQueue 创建一个 DelayingQueue 实例
-// Create a new DelayingQueue instance
-func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
+// 创建一个 DelayingQueue 实例, 使用自定义 Queue (实现了 Q 接口)
+// Create a new DelayingQueue config, use custom Queue (implement Q interface)
+func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue *Q) *DelayingQ {
 	conf = isDelayingQConfigValid(conf)
 	conf.QConfig.cb = conf.cb
 
 	q := &DelayingQ{
-		Q:       NewQueue(&conf.QConfig),
+		Q:       queue,
 		waiting: heap.NewHeap(),
 		elepool: heap.NewHeapElementPool(),
 		wg:      sync.WaitGroup{},
@@ -101,6 +101,14 @@ func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
 	go q.syncNow()
 
 	return q
+}
+
+// 创建一个 DelayingQueue 实例
+// Create a new DelayingQueue config
+func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
+	conf = isDelayingQConfigValid(conf)
+	conf.QConfig.cb = conf.cb
+	return NewDelayingQueueWithCustomQueue(conf, NewQueue(&conf.QConfig))
 }
 
 // 创建一个默认的 DelayingQueue 对象
