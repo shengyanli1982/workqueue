@@ -80,6 +80,10 @@ type DelayingQ struct {
 // 创建一个 DelayingQueue 实例, 使用自定义 Queue (实现了 Q 接口)
 // Create a new DelayingQueue config, use custom Queue (implement Q interface)
 func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue *Q) *DelayingQ {
+	if queue == nil {
+		return nil
+	}
+
 	conf = isDelayingQConfigValid(conf)
 	conf.QConfig.cb = conf.cb
 

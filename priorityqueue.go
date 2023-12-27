@@ -87,6 +87,10 @@ type PriorityQ struct {
 // 创建一个 PriorityQueue 实例, 使用自定义 Queue (实现了 Q 接口)
 // Create a new PriorityQueue config, use custom Queue (implement Q interface)
 func NewPriorityQueueWithCustomQueue(conf *PriorityQConfig, queue *Q) *PriorityQ {
+	if queue == nil {
+		return nil
+	}
+
 	conf = isPriorityQConfigValid(conf)
 	conf.QConfig.cb = conf.cb
 

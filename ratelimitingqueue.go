@@ -95,6 +95,10 @@ type RateLimitingQ struct {
 // 创建一个 RateLimitingQueue 实例, 使用自定义 Queue (实现了 DelayingQ 接口)
 // Create a new PriorityRateLimitingQueueQueue config, use custom Queue (implement DelayingQ interface)
 func NewRateLimitingQueueWithCustomQueue(conf *RateLimitingQConfig, queue *DelayingQ) *RateLimitingQ {
+	if queue == nil {
+		return nil
+	}
+
 	conf = isRateLimitingQConfigValid(conf)
 	conf.DelayingQConfig.cb = conf.cb
 
