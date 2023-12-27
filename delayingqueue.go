@@ -47,6 +47,21 @@ func (c *DelayingQConfig) WithCallback(cb DelayingCallback) *DelayingQConfig {
 	return c
 }
 
+// 验证队列的配置是否有效
+// Verify that the queue configuration is valid
+func isDelayingQConfigValid(conf *DelayingQConfig) *DelayingQConfig {
+	if conf == nil {
+		conf = NewDelayingQConfig()
+		conf.WithCallback(emptyCallback{})
+	} else {
+		if conf.cb == nil {
+			conf.cb = emptyCallback{}
+		}
+	}
+
+	return conf
+}
+
 // DelayingQ 是 DelayingQueue 的实现
 // DelayingQ is the implementation of DelayingQueue
 type DelayingQ struct {
@@ -62,10 +77,18 @@ type DelayingQ struct {
 	config  *DelayingQConfig
 }
 
-// NewDelayingQueue 创建一个 DelayingQueue 实例
-// Create a new DelayingQueue instance
-func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
+// 创建一个 DelayingQueue 实例, 使用自定义 Queue (实现了 Q 接口)
+// Create a new DelayingQueue config, use custom Queue (implement Q interface)
+func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue *Q) *DelayingQ {
+	if queue == nil {
+		return nil
+	}
+
+	conf = isDelayingQConfigValid(conf)
+	conf.QConfig.cb = conf.cb
+
 	q := &DelayingQ{
+		Q:       queue,
 		waiting: heap.NewHeap(),
 		elepool: heap.NewHeapElementPool(),
 		wg:      sync.WaitGroup{},
@@ -74,10 +97,6 @@ func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
 		config:  conf,
 	}
 
-	q.isConfigValid()
-
-	q.config.QConfig.cb = q.config.cb
-	q.Q = NewQueue(&q.config.QConfig)
 	q.lock = q.Q.lock
 	q.stopCtx, q.cancel = context.WithCancel(context.Background())
 
@@ -88,23 +107,18 @@ func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
 	return q
 }
 
+// 创建一个 DelayingQueue 实例
+// Create a new DelayingQueue config
+func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
+	conf = isDelayingQConfigValid(conf)
+	conf.QConfig.cb = conf.cb
+	return NewDelayingQueueWithCustomQueue(conf, NewQueue(&conf.QConfig))
+}
+
 // 创建一个默认的 DelayingQueue 对象
 // Create a new default DelayingQueue object
 func DefaultDelayingQueue() DelayingInterface {
 	return NewDelayingQueue(nil)
-}
-
-// isConfigValid 检查配置是否有效，如果为空则设置默认值
-// Check if the config is valid, if it is nil, set default values
-func (q *DelayingQ) isConfigValid() {
-	if q.config == nil {
-		q.config = &DelayingQConfig{}
-		q.config.WithCallback(emptyCallback{})
-	} else {
-		if q.config.cb == nil {
-			q.config.cb = emptyCallback{}
-		}
-	}
 }
 
 // AddAfter 将元素添加到队列中，在延迟一段时间后处理

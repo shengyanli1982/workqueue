@@ -46,6 +46,19 @@ func (c *QConfig) WithCallback(cb Callback) *QConfig {
 	return c
 }
 
+// 验证队列的配置是否有效
+// Verify that the queue configuration is valid
+func isQConfigValid(conf *QConfig) *QConfig {
+	if conf == nil {
+		conf = NewQConfig().WithCallback(emptyCallback{})
+	} else {
+		if conf.cb == nil {
+			conf.cb = emptyCallback{}
+		}
+	}
+	return conf
+}
+
 type Q struct {
 	queue      *list.Deque
 	nodepool   *list.ListNodePool
@@ -62,6 +75,7 @@ type Q struct {
 // 创建一个 Queue 对象
 // Create a new Queue object.
 func NewQueue(conf *QConfig) *Q {
+	conf = isQConfigValid(conf)
 	q := &Q{
 		dirty:      set.NewSet(),
 		processing: set.NewSet(),
@@ -75,8 +89,6 @@ func NewQueue(conf *QConfig) *Q {
 	}
 	q.cond = sync.NewCond(q.qlock)
 
-	q.isConfigValid()
-
 	return q
 }
 
@@ -84,18 +96,6 @@ func NewQueue(conf *QConfig) *Q {
 // Create a new default Queue object.
 func DefaultQueue() Interface {
 	return NewQueue(nil)
-}
-
-// 判断 config 是否为空，如果为空，设置默认值
-// Check if config is nil, if it is, set default value
-func (q *Q) isConfigValid() {
-	if q.config == nil {
-		q.config = NewQConfig().WithCallback(emptyCallback{})
-	} else {
-		if q.config.cb == nil {
-			q.config.cb = emptyCallback{}
-		}
-	}
 }
 
 // 标记已经准备好处理的元素
@@ -228,9 +228,6 @@ func (q *Q) Done(element any) {
 // Shut down the queue.
 func (q *Q) Stop() {
 	q.once.Do(func() {
-		q.lock.Lock()
-		defer q.lock.Unlock()
-		q.closed = true
 		wg := sync.WaitGroup{}
 		wg.Add(3)
 		go func() {
@@ -240,12 +237,19 @@ func (q *Q) Stop() {
 			q.cond.L.Unlock()
 			wg.Done()
 		}()
+		q.lock.Lock()
+		q.closed = true
+		q.lock.Unlock()
 		go func() {
+			q.lock.Lock()
 			q.dirty.Cleanup()
+			q.lock.Unlock()
 			wg.Done()
 		}()
 		go func() {
+			q.lock.Lock()
 			q.processing.Cleanup()
+			q.lock.Unlock()
 			wg.Done()
 		}()
 		wg.Wait()

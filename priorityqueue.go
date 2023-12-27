@@ -54,6 +54,24 @@ func (c *PriorityQConfig) WithWindow(win int64) *PriorityQConfig {
 	return c
 }
 
+// 验证队列的配置是否有效
+// Verify that the queue configuration is valid
+func isPriorityQConfigValid(conf *PriorityQConfig) *PriorityQConfig {
+	if conf == nil {
+		conf = NewPriorityQConfig()
+		conf.WithCallback(emptyCallback{}).WithWindow(defaultQueueSortWin)
+	} else {
+		if conf.cb == nil {
+			conf.cb = emptyCallback{}
+		}
+		if conf.win <= defaultQueueSortWin {
+			conf.win = defaultQueueSortWin
+		}
+	}
+
+	return conf
+}
+
 type PriorityQ struct {
 	*Q
 	waiting *heap.Heap
@@ -66,10 +84,18 @@ type PriorityQ struct {
 	config  *PriorityQConfig
 }
 
-// 创建一个 PriorityQueue 实例
-// Create a new PriorityQueue config
-func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
+// 创建一个 PriorityQueue 实例, 使用自定义 Queue (实现了 Q 接口)
+// Create a new PriorityQueue config, use custom Queue (implement Q interface)
+func NewPriorityQueueWithCustomQueue(conf *PriorityQConfig, queue *Q) *PriorityQ {
+	if queue == nil {
+		return nil
+	}
+
+	conf = isPriorityQConfigValid(conf)
+	conf.QConfig.cb = conf.cb
+
 	q := &PriorityQ{
+		Q:       queue,
 		waiting: heap.NewHeap(),
 		elepool: heap.NewHeapElementPool(),
 		wg:      sync.WaitGroup{},
@@ -78,10 +104,6 @@ func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
 		config:  conf,
 	}
 
-	q.isConfigValid()
-
-	q.config.QConfig.cb = q.config.cb
-	q.Q = NewQueue(&q.config.QConfig)
 	q.lock = q.Q.lock
 	q.stopCtx, q.cancel = context.WithCancel(context.Background())
 
@@ -91,26 +113,18 @@ func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
 	return q
 }
 
+// 创建一个 PriorityQueue 实例
+// Create a new PriorityQueue config
+func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
+	conf = isPriorityQConfigValid(conf)
+	conf.QConfig.cb = conf.cb
+	return NewPriorityQueueWithCustomQueue(conf, NewQueue(&conf.QConfig))
+}
+
 // 创建一个默认的 PriorityQueue 对象
 // Create a new default PriorityQueue object
 func DefaultPriorityQueue() PriorityInterface {
 	return NewPriorityQueue(nil)
-}
-
-// 判断 config 是否为空，如果为空，设置默认值
-// Check if config is nil, if it is, set default value
-func (q *PriorityQ) isConfigValid() {
-	if q.config == nil {
-		q.config = NewPriorityQConfig()
-		q.config.WithCallback(emptyCallback{}).WithWindow(defaultQueueSortWin)
-	} else {
-		if q.config.cb == nil {
-			q.config.cb = emptyCallback{}
-		}
-		if q.config.win <= defaultQueueSortWin {
-			q.config.win = defaultQueueSortWin
-		}
-	}
 }
 
 // AddWeight 添加一个元素，指定权重，并在一段时间内排序

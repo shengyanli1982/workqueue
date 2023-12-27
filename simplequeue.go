@@ -20,6 +20,7 @@ type SimpleQ struct {
 // 创建一个 SimpleQueue 实例
 // Create a new SimpleQueue config
 func NewSimpleQueue(conf *QConfig) *SimpleQ {
+	conf = isQConfigValid(conf)
 	q := &SimpleQ{
 		queue:    list.NewDeque(),
 		nodepool: list.NewListNodePool(),
@@ -30,8 +31,6 @@ func NewSimpleQueue(conf *QConfig) *SimpleQ {
 	}
 	q.cond = sync.NewCond(q.qlock)
 
-	q.isConfigValid()
-
 	return q
 }
 
@@ -39,18 +38,6 @@ func NewSimpleQueue(conf *QConfig) *SimpleQ {
 // Create a new default SimpleQueue object
 func DefaultSimpleQueue() Interface {
 	return NewSimpleQueue(nil)
-}
-
-// 判断 config 是否为空，如果为空，设置默认值
-// Check if config is nil, if it is, set default value
-func (q *SimpleQ) isConfigValid() {
-	if q.config == nil {
-		q.config = NewQConfig().WithCallback(emptyCallback{})
-	} else {
-		if q.config.cb == nil {
-			q.config.cb = emptyCallback{}
-		}
-	}
 }
 
 // 获取队列长度

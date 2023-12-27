@@ -28,11 +28,13 @@ WorkQueue is a simple, fast, reliable work queue written in Go. It supports mult
 
 ## 1. STL
 
-All Queue types are based on `Queue`(exclude `Simple Queue`), which mean will use `deque` to store elements and use `set` to track the state of the queue.
+All Queue types can be based on `Queue` and `Simple Queue`.
+
+`Queue` use `deque` to store elements and use `set` to track the state of the queue. `Queue` is **default**.
+
+`Simple Queue` also use `deque` to store elements. No `set` be used, so no element state is tracked and no element priority is maintained.
 
 `Delaying Queue` and `Priority Queue` will use `heap` to maintain the expiration time and priority of the element.
-
-`Simple Queue` is a simple queue, it is based on `deque` to store elements. No `set` and `heap` are used, so no element state is tracked and no element priority is maintained.
 
 ### 1.1. Deque
 
@@ -525,7 +527,56 @@ The queue callback functions are loosely used and can be easily extended, you ca
 -   `OnForget` will be called when forget an element from the rate limiting queue
 -   `OnGetTimes` will be called when get the number of times an element has been limited from the rate limiting queue
 
-## 2. Limiter
+## 2. With Custom Queue
+
+`WorkQueue` is designed to be easily extensible which mean you can easily write a new queue type and use it with WorkQueue. You can implement the `Interface`, `Callback` interfaces and reference `QConfig` to create a new queue type.
+
+`WorkQueue` provides two queue types, `Queue` and `Simple Queue`. You can refer to them to create your own queue type.
+
+Following is used the `Simple Queue` as an example to set base for `Delaying Queue`.
+
+### Example
+
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/shengyanli1982/workqueue"
+)
+
+func main() {
+	base := workqueue.NewSimpleQueue(nil)
+	q := workqueue.NewDelayingQueueWithCustomQueue(nil, base)
+
+	go func() {
+		for {
+			element, err := q.Get()
+			if err != nil && !errors.Is(err, workqueue.ErrorQueueEmpty) {
+				fmt.Println(err)
+				return
+			}
+			fmt.Println("get element:", element)
+			q.Done(element) // mark element as done, 'Done' is required after 'Get'
+		}
+	}()
+
+	_ = q.Add("hello")
+	_ = q.Add("world")
+	_ = q.AddAfter("delay 1 sec", time.Second)
+	_ = q.AddAfter("delay 2 sec", time.Second*2)
+
+	time.Sleep(time.Second * 4) // wait for element to be executed
+
+	q.Stop()
+}
+
+```
+
+## 3. Limiter
 
 The limiter only works for `RateLimiting Queue`, it determines the rate limit of the element. Default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `RateLimiter` interface.
 
