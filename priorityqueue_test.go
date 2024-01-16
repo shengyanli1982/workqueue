@@ -28,7 +28,7 @@ func (c *prioritycallback) OnAddWeight(item any, _ int) {
 	c.p0 = append(c.p0, item)
 }
 
-func TestPriorityQueue_Standard(t *testing.T) {
+func TestPriorityQueue(t *testing.T) {
 	q := NewPriorityQueue(nil)
 	defer q.Stop()
 	_ = q.AddWeight(time.Now().Local().UnixMilli(), 10)

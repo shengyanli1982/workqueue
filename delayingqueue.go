@@ -12,7 +12,10 @@ import (
 // DelayingInterface 是 Queue 方法接口的延迟版本
 // DelayingInterface is the delayed version of the Queue method interface
 type DelayingInterface interface {
+	// 继承 Queue 接口
+	// Inherit Queue
 	Interface
+
 	// AddAfter 添加一个元素，延迟一段时间后再执行
 	// Add an element, execute it after a delay
 	AddAfter(element any, delay time.Duration) error

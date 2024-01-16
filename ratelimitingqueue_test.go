@@ -39,7 +39,7 @@ func (c *rateLimitingcallback) OnGetTimes(item any, _ int) {
 	c.r0 = append(c.r0, item)
 }
 
-func TestRatelimitingQueue_Standard(t *testing.T) {
+func TestRatelimitingQueue(t *testing.T) {
 	conf := NewRateLimitingQConfig().WithLimiter(NewBucketRateLimiter(float64(3), 1))
 	q := NewRateLimitingQueue(conf)
 	defer q.Stop()

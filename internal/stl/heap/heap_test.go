@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestHeapStandard(t *testing.T) {
+func TestHeap(t *testing.T) {
 	h := NewHeap()
 	h.Push(NewElement("foo", 1))
 	h.Push(NewElement("bar", 2))

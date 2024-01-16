@@ -7,7 +7,10 @@ import (
 // RateLimitingInterface 是 Queue 方法的接口
 // RateLimitingInterface is the interface for Queue methods
 type RateLimitingInterface interface {
+	// 继承 Queue 接口
+	// Inherit Queue
 	Interface
+
 	// AddLimited 添加一个元素，需要对该元素进行限速处理
 	// AddLimited adds an element that needs to be rate-limited
 	AddLimited(element any) error

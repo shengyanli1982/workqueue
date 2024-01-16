@@ -10,13 +10,41 @@ import (
 // 队列方法接口
 // Queue interface
 type Interface interface {
+	// 添加一个元素到队列
+	// Add adds an element to the queue.
 	Add(element any) error
+
+	// 获得 queue 的长度
+	// Len returns the number of elements in the queue.
 	Len() int
+
+	// 遍历队列中的元素，如果 fn 返回 false，则停止遍历
+	// Range iterates over each element in the queue and calls the provided function.
+	// If the function returns false, the iteration stops.
+	Range(fn func(element any) bool)
+
+	// 获得 queue 中的一个元素，如果 queue 为空，返回 ErrorQueueEmpty
+	// Get retrieves an element from the queue.
 	Get() (element any, err error)
+
+	// 获得 queue 中的一个元素，如果 queue 为空，阻塞等待
+	// GetWithBlock retrieves an element from the queue, blocking if the queue is empty.
 	GetWithBlock() (element any, err error)
+
+	// 获得 queue 中的所有元素
+	// GetValues returns all elements in the queue.
 	GetValues() []any
+
+	// 标记元素已经处理完成
+	// Done marks an element as processed and removes it from the queue.
 	Done(element any)
+
+	// 关闭队列
+	// Stop stops the queue and releases any resources.
 	Stop()
+
+	// 判断队列是否已经关闭
+	// IsClosed returns true if the queue is closed, false otherwise.
 	IsClosed() bool
 }
 

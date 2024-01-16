@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestQueue_Standard(t *testing.T) {
+func TestQueue(t *testing.T) {
 	q := NewQueue(nil)
 	err := q.Add("foo")
 	assert.Equal(t, nil, err)

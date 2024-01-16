@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestHeapElementPool_Standard(t *testing.T) {
+func TestHeapElementPool(t *testing.T) {
 	p := NewHeapElementPool()
 	h := NewHeap()
 
