@@ -154,3 +154,29 @@ func (l *Deque) Head() *Node {
 func (l *Deque) Tail() *Node {
 	return l.tail
 }
+
+// 链表是否为空
+// IsEmpty returns true if the list is empty
+func (l *Deque) IsEmpty() bool {
+	return l.length == 0
+}
+
+// 获得链表所有原素值数组
+// SnapshotValues returns current snapshot list of all values
+func (l *Deque) SnapshotValues() []any {
+	values := make([]any, 0, l.length)
+	for n := l.head; n != nil; n = n.next {
+		values = append(values, n.data)
+	}
+	return values
+}
+
+// 遍历链表
+// Range iterates the list
+func (l *Deque) Range(fn func(node *Node) bool) {
+	for n := l.head; n != nil; n = n.next {
+		if !fn(n) {
+			break
+		}
+	}
+}

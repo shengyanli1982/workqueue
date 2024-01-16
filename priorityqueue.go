@@ -11,7 +11,10 @@ import (
 // 优先级队列方法接口
 // Priority queue interface
 type PriorityInterface interface {
+	// 继承 Queue 接口
+	// Inherit Queue
 	Interface
+
 	// AddWeight 添加一个元素，指定权重，并在一段时间内排序
 	// Add an element with specified weight and sort it within a period of time
 	AddWeight(element any, weight int) error

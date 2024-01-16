@@ -8,15 +8,23 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// 定义一个限速器接口
 // Defines the rate limiter interface.
 type RateLimiter interface {
+	// 获取一个元素应该等待多长时间
 	// When gets an element and gets to decide how long that element should wait
 	When(element any) time.Duration
+
+	// 停止追踪这个元素，不让他继续在队列中等待。
 	// Forget indicates that an element is finished being retried.  Doesn't matter whether it's for failing
 	// or for success, we'll stop tracking it
 	Forget(element any)
+
+	// 返回一个元素被限速的次数
 	// NumLimitTimes returns back limit times the element has had
 	NumLimitTimes(element any) int
+
+	// 关闭限速器
 	// Stop stops the limiter
 	Stop()
 }

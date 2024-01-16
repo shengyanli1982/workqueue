@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestQueue_Standard(t *testing.T) {
+func TestQueue(t *testing.T) {
 	q := NewQueue(nil)
 	err := q.Add("foo")
 	assert.Equal(t, nil, err)
@@ -179,5 +179,51 @@ func TestQueue_CallbackFuncs(t *testing.T) {
 	assert.Equal(t, []any{"foo"}, q.config.cb.(*callback).d0)
 
 	// Stop the queue
+	q.Stop()
+}
+
+func TestQueue_GetItemAfterStop(t *testing.T) {
+	q := NewQueue(nil)
+	err := q.Add("foo")
+	assert.Equal(t, nil, err)
+	q.Stop()
+	_, err = q.Get()
+	assert.Equal(t, ErrorQueueClosed, err)
+}
+
+func TestQueue_GetStoreValues(t *testing.T) {
+	q := NewQueue(nil)
+	err := q.Add("foo")
+	assert.Equal(t, nil, err)
+	err = q.Add("bar")
+	assert.Equal(t, nil, err)
+	err = q.Add("baz")
+	assert.Equal(t, nil, err)
+
+	values := q.GetValues()
+	assert.Equal(t, []any{"foo", "bar", "baz"}, values)
+
+	q.Stop()
+}
+func TestQueue_Range(t *testing.T) {
+	q := NewQueue(nil)
+	err := q.Add("foo")
+	assert.Equal(t, nil, err)
+	err = q.Add("bar")
+	assert.Equal(t, nil, err)
+	err = q.Add("baz")
+	assert.Equal(t, nil, err)
+
+	var result []any
+	fn := func(element any) bool {
+		result = append(result, element)
+		return true
+	}
+
+	q.Range(fn)
+
+	expected := []any{"foo", "bar", "baz"}
+	assert.Equal(t, expected, result)
+
 	q.Stop()
 }
