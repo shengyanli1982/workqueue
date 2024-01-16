@@ -190,3 +190,18 @@ func TestQueue_GetItemAfterStop(t *testing.T) {
 	_, err = q.Get()
 	assert.Equal(t, ErrorQueueClosed, err)
 }
+
+func TestQueue_GetStoreValues(t *testing.T) {
+	q := NewQueue(nil)
+	err := q.Add("foo")
+	assert.Equal(t, nil, err)
+	err = q.Add("bar")
+	assert.Equal(t, nil, err)
+	err = q.Add("baz")
+	assert.Equal(t, nil, err)
+
+	values := q.GetStoreValues()
+	assert.Equal(t, []any{"foo", "bar", "baz"}, values)
+
+	q.Stop()
+}

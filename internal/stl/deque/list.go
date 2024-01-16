@@ -154,3 +154,19 @@ func (l *Deque) Head() *Node {
 func (l *Deque) Tail() *Node {
 	return l.tail
 }
+
+// 链表是否为空
+// IsEmpty returns true if the list is empty
+func (l *Deque) IsEmpty() bool {
+	return l.length == 0
+}
+
+// 获得链表所有原素值数组
+// Values returns all values of the list
+func (l *Deque) Values() []any {
+	values := make([]any, 0, l.length)
+	for n := l.head; n != nil; n = n.next {
+		values = append(values, n.data)
+	}
+	return values
+}

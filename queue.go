@@ -255,3 +255,11 @@ func (q *Q) Stop() {
 		wg.Wait()
 	})
 }
+
+// 获取队列中所有元素
+// Get all elements in the queue.
+func (q *Q) GetStoreValues() []any {
+	q.qlock.Lock()
+	defer q.qlock.Unlock()
+	return q.queue.Values()
+}

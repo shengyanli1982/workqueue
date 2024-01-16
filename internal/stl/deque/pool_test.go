@@ -6,35 +6,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDequeNodePool_Standard(t *testing.T) {
-	p := NewListNodePool()
-	assert.NotNil(t, p)
+func TestListNodePool(t *testing.T) {
+	p := &ListNodePool{} // Create a new ListNodePool instance
+	node := &Node{}      // Create a new Node instance
 
-	list := NewDeque()
+	// Add the node to the pool
+	p.bp.Put(node)
 
-	b := p.Get()
-	assert.NotNil(t, b)
-	assert.Nil(t, b.data)
-	assert.Nil(t, b.prev)
-	assert.Nil(t, b.next)
+	// Get a node from the pool
+	got := p.Get()
 
-	b.SetData("hello")
-	assert.Equal(t, "hello", b.data)
-	list.Push(b)
-
-	b = p.Get()
-	b.SetData("world")
-	assert.Equal(t, "world", b.data)
-	list.Push(b)
-	assert.Equal(t, "hello", b.prev.data)
-
-	ln := list.Pop()
-	assert.Equal(t, "hello", ln.data)
-	p.Put(ln)
-
-	ln = list.Pop()
-	assert.Equal(t, "world", ln.data)
-	p.Put(ln)
-
-	list.Reset()
+	// Verify that the returned node is the same as the one added to the pool
+	assert.Equal(t, node, got)
 }

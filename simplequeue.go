@@ -136,3 +136,11 @@ func (q *SimpleQ) Stop() {
 		q.cond.L.Unlock()
 	})
 }
+
+// 获取队列中所有元素
+// Get all elements in the queue.
+func (q *SimpleQ) GetStoreValues() []any {
+	q.qlock.Lock()
+	defer q.qlock.Unlock()
+	return q.queue.Values()
+}
