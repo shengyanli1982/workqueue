@@ -85,3 +85,12 @@ func TestSimpleQueue_CallbackFuncs(t *testing.T) {
 	// Stop the queue
 	q.Stop()
 }
+
+func TestSimpleQueue_GetItemAfterStop(t *testing.T) {
+	q := NewSimpleQueue(nil)
+	err := q.Add("foo")
+	assert.Equal(t, nil, err)
+	q.Stop()
+	_, err = q.Get()
+	assert.Equal(t, ErrorQueueClosed, err)
+}
