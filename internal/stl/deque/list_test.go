@@ -279,7 +279,7 @@ func TestDequeValues(t *testing.T) {
 	deque.Push(node3)
 
 	// Call the Values method
-	values := deque.Values()
+	values := deque.SnapshotValues()
 
 	// Verify the values are correct
 	assert.Equal(t, []any{1, 2, 3}, values)
@@ -290,7 +290,7 @@ func TestDequeValuesEmpty(t *testing.T) {
 	deque := NewDeque()
 
 	// Call the Values method
-	values := deque.Values()
+	values := deque.SnapshotValues()
 
 	// Verify the values are empty
 	assert.Equal(t, []any{}, values)

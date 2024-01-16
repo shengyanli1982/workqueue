@@ -139,8 +139,10 @@ The `Queue` has some config options, you can set it when create a queue.
 -   `Add` adds an element to the workqueue. If the element is already in the queue, it will not be added again.
 -   `Get` gets an element from the workqueue. If the workqueue is empty, it will **`nonblock`** and return immediately.
 -   `GetWithBlock` gets an element from the workqueue. If the workqueue is empty, it will **`blocking`** and waiting new element be added into queue.
+-   `GetValues` returns the elements of the workqueue. elements are `snapshot` of the workqueue, so it is safe to iterate over them.
 -   `Done` marks an element as done with the workqueue. If the element is not in the workqueue, it will not be marked as done.
 -   `Len` returns the elements count of the workqueue.
+-   `Range` calls `fn` for each element in the workqueue. elements are `current` of the workqueue, so it block the workqueue.
 -   `Stop` shuts down the workqueue and waits for all the goroutines to finish.
 -   `IsClosed` returns true if the workqueue is shutting down.
 
@@ -205,8 +207,10 @@ The `Queue` has some config options, you can set it when create a queue.
 -   `Add` adds an element to the workqueue. If the element is already in the queue, it will not be added again.
 -   `Get` gets an element from the workqueue. If the workqueue is empty, it will **`nonblock`** and return immediately.
 -   `GetWithBlock` gets an element from the workqueue. If the workqueue is empty, it will **`blocking`** and waiting new element be added into queue.
+-   `GetValues` returns the elements of the workqueue. elements are `snapshot` of the workqueue, so it is safe to iterate over them.
 -   `Done` marks an element as done with the workqueue. In fact in `Simple Queue`, it does nothing. Only left for compatibility.
 -   `Len` returns the elements count of the workqueue.
+-   `Range` calls `fn` for each element in the workqueue. elements are `current` of the workqueue, so it block the workqueue.
 -   `Stop` shuts down the workqueue and waits for all the goroutines to finish.
 -   `IsClosed` returns true if the workqueue is shutting down.
 

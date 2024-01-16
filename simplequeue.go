@@ -137,10 +137,20 @@ func (q *SimpleQ) Stop() {
 	})
 }
 
-// 获取队列中所有元素
-// Get all elements in the queue.
-func (q *SimpleQ) GetStoreValues() []any {
+// 获取队列中所有元素, 不会阻塞等待
+// Get all elements in the queue. Will not block and wait.
+func (q *SimpleQ) GetValues() []any {
 	q.qlock.Lock()
 	defer q.qlock.Unlock()
-	return q.queue.Values()
+	return q.queue.SnapshotValues()
+}
+
+// 遍历队列中的元素，如果 fn 返回 false，则停止遍历
+// Traverse the elements in the queue. If fn returns false, stop traversing.
+func (q *SimpleQ) Range(fn func(element any) bool) {
+	q.qlock.Lock()
+	defer q.qlock.Unlock()
+	q.queue.Range(func(n *list.Node) bool {
+		return fn(n.Data())
+	})
 }

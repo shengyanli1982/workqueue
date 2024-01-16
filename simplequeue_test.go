@@ -104,8 +104,28 @@ func TestSimpleQueue_GetStoreValues(t *testing.T) {
 	err = q.Add("baz")
 	assert.Equal(t, nil, err)
 
-	values := q.GetStoreValues()
+	values := q.GetValues()
 	assert.Equal(t, []any{"foo", "bar", "baz"}, values)
+
+	q.Stop()
+}
+func TestSimpleQueue_Range(t *testing.T) {
+	q := NewSimpleQueue(nil)
+	err := q.Add("foo")
+	assert.Equal(t, nil, err)
+	err = q.Add("bar")
+	assert.Equal(t, nil, err)
+	err = q.Add("baz")
+	assert.Equal(t, nil, err)
+
+	var result []any
+	q.Range(func(element any) bool {
+		result = append(result, element)
+		return true
+	})
+
+	expected := []any{"foo", "bar", "baz"}
+	assert.Equal(t, expected, result)
 
 	q.Stop()
 }
