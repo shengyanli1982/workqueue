@@ -24,7 +24,10 @@ type DelayingInterface interface {
 // DelayingCallback 是 Queue 的回调接口的延迟版本
 // DelayingCallback is the delayed version of the Queue callback interface
 type DelayingCallback interface {
+	// 继承 Callback 接口
+	// Inherit Callback
 	Callback
+
 	// OnAddAfter 添加元素后的回调
 	// Callback after adding element
 	OnAddAfter(any, time.Duration)

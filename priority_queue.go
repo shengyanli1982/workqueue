@@ -23,7 +23,10 @@ type PriorityInterface interface {
 // 优先级队列的回调接口
 // Priority queue callback interface
 type PriorityCallback interface {
+	// 继承 Callback 接口
+	// Inherit Callback
 	Callback
+
 	// OnAddWeight 添加元素后的回调
 	// Callback after adding an element
 	OnAddWeight(element any, weight int)
