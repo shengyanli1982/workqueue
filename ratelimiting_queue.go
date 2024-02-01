@@ -7,9 +7,9 @@ import (
 // RateLimitingInterface 是 Queue 方法的接口
 // RateLimitingInterface is the interface for Queue methods
 type RateLimitingInterface interface {
-	// 继承 Queue 接口
-	// Inherit Queue
-	Interface
+	// 继承 DelayingQueue 接口
+	// Inherit DelayingQueue
+	DelayingInterface
 
 	// AddLimited 添加一个元素，需要对该元素进行限速处理
 	// AddLimited adds an element that needs to be rate-limited
@@ -27,7 +27,10 @@ type RateLimitingInterface interface {
 // RateLimitingCallback 是 Queue 的回调接口
 // RateLimitingCallback is the callback interface for Queue
 type RateLimitingCallback interface {
+	// 继承 DelayingCallback 接口
+	// Inherit DelayingCallback
 	DelayingCallback
+
 	// OnAddLimited 添加元素后的回调
 	// OnAddLimited is the callback after adding an element
 	OnAddLimited(any)
