@@ -174,9 +174,9 @@ func TestQueue_CallbackFuncs(t *testing.T) {
 	assert.Equal(t, nil, err)
 	q.Done(i)
 
-	assert.Equal(t, []any{"foo", "bar", "baz"}, q.config.cb.(*callback).a0)
-	assert.Equal(t, []any{"foo"}, q.config.cb.(*callback).g0)
-	assert.Equal(t, []any{"foo"}, q.config.cb.(*callback).d0)
+	assert.Equal(t, []any{"foo", "bar", "baz"}, q.config.callback.(*callback).a0)
+	assert.Equal(t, []any{"foo"}, q.config.callback.(*callback).g0)
+	assert.Equal(t, []any{"foo"}, q.config.callback.(*callback).d0)
 
 	// Stop the queue
 	q.Stop()

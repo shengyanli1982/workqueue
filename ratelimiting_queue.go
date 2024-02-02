@@ -48,8 +48,8 @@ type RateLimitingCallback interface {
 // RateLimitingQConfig is the configuration for Queue
 type RateLimitingQConfig struct {
 	DelayingQConfig
-	cb      RateLimitingCallback
-	limiter RateLimiter
+	callback RateLimitingCallback
+	limiter  RateLimiter
 }
 
 // NewRateLimitingQConfig 创建一个 Queue 的配置
@@ -61,7 +61,7 @@ func NewRateLimitingQConfig() *RateLimitingQConfig {
 // WithCallback 设置 Queue 的回调接口
 // WithCallback sets the callback interface for Queue
 func (c *RateLimitingQConfig) WithCallback(cb RateLimitingCallback) *RateLimitingQConfig {
-	c.cb = cb
+	c.callback = cb
 	return c
 }
 
@@ -79,8 +79,8 @@ func isRateLimitingQConfigValid(conf *RateLimitingQConfig) *RateLimitingQConfig 
 		conf = &RateLimitingQConfig{}
 		conf.WithLimiter(DefaultBucketRateLimiter()).WithCallback(emptyCallback{})
 	} else {
-		if conf.cb == nil {
-			conf.cb = emptyCallback{}
+		if conf.callback == nil {
+			conf.callback = emptyCallback{}
 		}
 		if conf.limiter == nil {
 			conf.limiter = DefaultBucketRateLimiter()
@@ -106,7 +106,7 @@ func NewRateLimitingQueueWithCustomQueue(conf *RateLimitingQConfig, queue *Delay
 	}
 
 	conf = isRateLimitingQConfigValid(conf)
-	conf.DelayingQConfig.cb = conf.cb
+	conf.DelayingQConfig.callback = conf.callback
 
 	q := &RateLimitingQ{
 		DelayingQ: queue,
@@ -124,7 +124,7 @@ func NewRateLimitingQueueWithCustomQueue(conf *RateLimitingQConfig, queue *Delay
 // Create a new RateLimitingQueue config
 func NewRateLimitingQueue(conf *RateLimitingQConfig) *RateLimitingQ {
 	conf = isRateLimitingQConfigValid(conf)
-	conf.DelayingQConfig.cb = conf.cb
+	conf.DelayingQConfig.callback = conf.callback
 	return NewRateLimitingQueueWithCustomQueue(conf, NewDelayingQueue(&conf.DelayingQConfig))
 }
 
@@ -137,12 +137,17 @@ func DefaultRateLimitingQueue() RateLimitingInterface {
 // 添加元素到队列, 加入到等待队列, 如果有 token 则直接加入到队列
 // Add an element to the queue, add it to the waiting queue, and add it to the queue directly if there is a token
 func (q *RateLimitingQ) AddLimited(element any) error {
+	// 如果队列已经关闭，返回 ErrorQueueClosed 错误
+	// If the queue is already closed, return ErrorQueueClosed
 	if q.IsClosed() {
 		return ErrorQueueClosed
 	}
 
-	err := q.AddAfter(element, q.limiter.When(element)) // 加入到等待队列, add it to the waiting queue
-	q.config.cb.OnAddLimited(element)
+	// 加入到等待队列
+	// add it to the waiting queue
+	err := q.AddAfter(element, q.limiter.When(element))
+	q.config.callback.OnAddLimited(element)
+
 	return err
 }
 
@@ -150,14 +155,14 @@ func (q *RateLimitingQ) AddLimited(element any) error {
 // Forget an element, don't need to limit the speed of this element
 func (q *RateLimitingQ) Forget(element any) {
 	q.limiter.Forget(element)
-	q.config.cb.OnForget(element)
+	q.config.callback.OnForget(element)
 }
 
 // NumLimitTimes 返回一个元素被限速的次数
 // Return the number of times an element is limited
 func (q *RateLimitingQ) NumLimitTimes(element any) int {
 	count := q.limiter.NumLimitTimes(element)
-	q.config.cb.OnGetTimes(element, count)
+	q.config.callback.OnGetTimes(element, count)
 	return count
 }
 

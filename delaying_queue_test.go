@@ -86,15 +86,15 @@ func TestDelayingQueue_CallbackFuncs(t *testing.T) {
 	assert.Equal(t, nil, err)
 	q.Done(i)
 
-	assert.Equal(t, []any{"foo", "bar", "baz"}, q.config.cb.(*delayingcallback).a0)
-	assert.Equal(t, []any{"foo"}, q.config.cb.(*delayingcallback).g0)
-	assert.Equal(t, []any{"foo"}, q.config.cb.(*delayingcallback).d0)
+	assert.Equal(t, []any{"foo", "bar", "baz"}, q.config.callback.(*delayingcallback).a0)
+	assert.Equal(t, []any{"foo"}, q.config.callback.(*delayingcallback).g0)
+	assert.Equal(t, []any{"foo"}, q.config.callback.(*delayingcallback).d0)
 
 	_ = q.AddAfter("cat", 100*time.Millisecond)
 	time.Sleep(600 * time.Millisecond)
 
-	assert.Equal(t, []any{"foo", "bar", "baz", "cat"}, q.config.cb.(*delayingcallback).a0)
-	assert.Equal(t, []any{"cat"}, q.config.cb.(*delayingcallback).r0)
+	assert.Equal(t, []any{"foo", "bar", "baz", "cat"}, q.config.callback.(*delayingcallback).a0)
+	assert.Equal(t, []any{"cat"}, q.config.callback.(*delayingcallback).r0)
 
 	// Stop the queue
 	q.Stop()

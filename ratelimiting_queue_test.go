@@ -75,32 +75,32 @@ func TestRatelimitingQueue_CallbackFuncs(t *testing.T) {
 	_ = q.Add("foo")
 	_ = q.Add("bar")
 	_ = q.Add("baz")
-	assert.Equal(t, 3, len(q.config.cb.(*rateLimitingcallback).a0))
+	assert.Equal(t, 3, len(q.config.callback.(*rateLimitingcallback).a0))
 
 	// Start processing
 	i, err := q.Get()
 	assert.Equal(t, "foo", i)
 	assert.Equal(t, nil, err)
 	q.Done(i)
-	assert.Equal(t, 1, len(q.config.cb.(*rateLimitingcallback).g0))
-	assert.Equal(t, 1, len(q.config.cb.(*rateLimitingcallback).d0))
+	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).g0))
+	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).d0))
 
 	// Add element delay 100ms
 	_ = q.AddAfter("x4", 100*time.Millisecond)
-	assert.Equal(t, 1, len(q.config.cb.(*rateLimitingcallback).t0))
+	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).t0))
 	time.Sleep(600 * time.Millisecond)
-	assert.Equal(t, 4, len(q.config.cb.(*rateLimitingcallback).a0))
+	assert.Equal(t, 4, len(q.config.callback.(*rateLimitingcallback).a0))
 
 	// Add element ratelimit
 	for i := 0; i < 10; i++ {
 		_ = q.AddLimited(i)
 	}
-	assert.Equal(t, 10, len(q.config.cb.(*rateLimitingcallback).l0))
+	assert.Equal(t, 10, len(q.config.callback.(*rateLimitingcallback).l0))
 
 	q.Forget("x5")
-	assert.Equal(t, 1, len(q.config.cb.(*rateLimitingcallback).f0))
+	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).f0))
 
 	q.NumLimitTimes("x6")
-	assert.Equal(t, 1, len(q.config.cb.(*rateLimitingcallback).r0))
+	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).r0))
 
 }
