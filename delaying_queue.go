@@ -37,7 +37,7 @@ type DelayingCallback interface {
 // DelayingQConfig is the delayed version of the Queue config
 type DelayingQConfig struct {
 	QConfig
-	cb DelayingCallback
+	callback DelayingCallback
 }
 
 // NewDelayingQConfig 创建一个 DelayingQConfig 实例
@@ -49,7 +49,7 @@ func NewDelayingQConfig() *DelayingQConfig {
 // WithCallback 设置 Queue 的回调接口
 // Set Queue callback
 func (c *DelayingQConfig) WithCallback(cb DelayingCallback) *DelayingQConfig {
-	c.cb = cb
+	c.callback = cb
 	return c
 }
 
@@ -60,8 +60,8 @@ func isDelayingQConfigValid(conf *DelayingQConfig) *DelayingQConfig {
 		conf = NewDelayingQConfig()
 		conf.WithCallback(emptyCallback{})
 	} else {
-		if conf.cb == nil {
-			conf.cb = emptyCallback{}
+		if conf.callback == nil {
+			conf.callback = emptyCallback{}
 		}
 	}
 
@@ -72,15 +72,15 @@ func isDelayingQConfigValid(conf *DelayingQConfig) *DelayingQConfig {
 // DelayingQ is the implementation of DelayingQueue
 type DelayingQ struct {
 	*Q
-	waiting *heap.Heap
-	elepool *heap.HeapElementPool
-	stopCtx context.Context
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
-	once    sync.Once
-	lock    *sync.Mutex
-	now     atomic.Int64
-	config  *DelayingQConfig
+	waiting     *heap.Heap
+	elementpool *heap.HeapElementPool
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
+	once        sync.Once
+	lock        *sync.Mutex
+	now         atomic.Int64
+	config      *DelayingQConfig
 }
 
 // 创建一个 DelayingQueue 实例, 使用自定义 Queue (实现了 Q 接口)
@@ -91,20 +91,20 @@ func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue *Q) *DelayingQ
 	}
 
 	conf = isDelayingQConfigValid(conf)
-	conf.QConfig.cb = conf.cb
+	conf.QConfig.callback = conf.callback
 
 	q := &DelayingQ{
-		Q:       queue,
-		waiting: heap.NewHeap(),
-		elepool: heap.NewHeapElementPool(),
-		wg:      sync.WaitGroup{},
-		now:     atomic.Int64{},
-		once:    sync.Once{},
-		config:  conf,
+		Q:           queue,
+		waiting:     heap.NewHeap(),
+		elementpool: heap.NewHeapElementPool(),
+		wg:          sync.WaitGroup{},
+		now:         atomic.Int64{},
+		once:        sync.Once{},
+		config:      conf,
 	}
 
 	q.lock = q.Q.lock
-	q.stopCtx, q.cancel = context.WithCancel(context.Background())
+	q.ctx, q.cancel = context.WithCancel(context.Background())
 
 	q.wg.Add(2)
 	go q.loop()
@@ -117,7 +117,7 @@ func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue *Q) *DelayingQ
 // Create a new DelayingQueue config
 func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
 	conf = isDelayingQConfigValid(conf)
-	conf.QConfig.cb = conf.cb
+	conf.QConfig.callback = conf.callback
 	return NewDelayingQueueWithCustomQueue(conf, NewQueue(&conf.QConfig))
 }
 
@@ -130,23 +130,33 @@ func DefaultDelayingQueue() DelayingInterface {
 // AddAfter 将元素添加到队列中，在延迟一段时间后处理
 // Add an element to the queue and process it after a specified delay
 func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
+	// 如果队列已经关闭，返回 ErrorQueueClosed 错误
+	// If the queue is already closed, return ErrorQueueClosed
 	if q.IsClosed() {
 		return ErrorQueueClosed
 	}
 
+	// 如果延迟时间小于等于 0，直接添加到队列中
+	// If the delay time is less than or equal to 0, add it directly to the queue
 	if delay <= 0 {
 		return q.Add(element)
 	}
 
-	ele := q.elepool.Get()
-	ele.SetData(element)
-	ele.SetValue(time.Now().Add(delay).UnixMilli())
+	// 从对象池中获取一个元素
+	// Get an element from the object pool
+	elem := q.elementpool.Get()
+	elem.SetData(element)
+	elem.SetValue(time.Now().Add(delay).UnixMilli())
 
+	// 添加到堆中
+	// Add to the heap
 	q.lock.Lock()
-	q.waiting.Push(ele)
+	q.waiting.Push(elem)
 	q.lock.Unlock()
 
-	q.config.cb.OnAddAfter(element, delay)
+	// 回调
+	// Callback
+	q.config.callback.OnAddAfter(element, delay)
 
 	return nil
 }
@@ -154,16 +164,20 @@ func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
 // 同步当前的时间
 // Sync current time
 func (q *DelayingQ) syncNow() {
-	heartbeat := time.NewTicker(time.Millisecond * 500)
+	// 心跳
+	// Heartbeat
+	heartbeat := time.NewTicker(time.Millisecond * defaultQueueSortWin)
 
 	defer func() {
 		q.wg.Done()
 		heartbeat.Stop()
 	}()
 
+	// 循环同步当前时间
+	// Loop to sync current time
 	for {
 		select {
-		case <-q.stopCtx.Done():
+		case <-q.ctx.Done():
 			return
 		case <-heartbeat.C:
 			q.now.Store(time.Now().UnixMilli())
@@ -174,46 +188,62 @@ func (q *DelayingQ) syncNow() {
 // 循环处理 Heap 中的元素
 // Loop to process elements in Heap
 func (q *DelayingQ) loop() {
-	heartbeat := time.NewTicker(time.Millisecond * 500)
+	// 心跳
+	// Heartbeat
+	heartbeat := time.NewTicker(time.Millisecond * defaultQueueSortWin)
 
 	defer func() {
 		q.wg.Done()
 		heartbeat.Stop()
 	}()
 
+	// 循环处理堆中的元素
+	// Loop to process elements in the heap
 	for {
 		select {
-		case <-q.stopCtx.Done():
+		case <-q.ctx.Done():
 			return
 		default:
 			q.lock.Lock()
-			// 如果堆中有元素 If there are elements in the heap
+			// 如果堆中有元素
+			// If there are elements in the heap
 			if q.waiting.Len() > 0 {
 				// 获取堆顶元素
-				ele := q.waiting.Head()
+				// Get the top element of the heap
+				elem := q.waiting.Head()
+
 				// 如果堆顶元素的时间小于当前时间, 意味对象已经超时
-				if ele.Value() <= q.now.Load() {
+				// If the time of the top element of the heap is less than the current time, it means the object has timed out
+				if elem.Value() <= q.now.Load() {
 					// 弹出堆顶元素
+					// Pop the top element of the heap
 					_ = q.waiting.Pop()
 					q.lock.Unlock()
+
 					// 添加到队列中
-					if err := q.Add(ele.Data()); err != nil {
+					// Add to the queue
+					if err := q.Add(elem.Data()); err != nil {
 						q.lock.Lock()
 						// 重置元素的值 Reset the value of the element
-						ele.SetValue(q.now.Load() + 1500)
+						// 1500ms 后再次处理元素
+						elem.SetValue(q.now.Load() + defaultQueueSortWin*3)
+
 						// 将元素重新添加到堆中 Re-add the element to the heap
-						q.waiting.Push(ele)
+						// Re-add the element to the heap
+						q.waiting.Push(elem)
 						q.lock.Unlock()
 					} else {
-						// 释放元素 Free element
-						q.elepool.Put(ele)
+						// 释放元素
+						// Free element
+						q.elementpool.Put(elem)
 					}
 				} else {
 					q.lock.Unlock()
 				}
 			} else {
 				q.lock.Unlock()
-				// 500ms 后再次检查堆中的元素 Check the elements in the heap again after 500ms
+				// 500ms 后再次检查堆中的元素
+				// Check the elements in the heap again after 500ms
 				<-heartbeat.C
 			}
 		}

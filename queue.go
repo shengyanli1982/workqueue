@@ -59,7 +59,7 @@ type Callback interface {
 // 队列的配置
 // Queue config
 type QConfig struct {
-	cb Callback
+	callback Callback
 }
 
 // 创建一个队列的配置
@@ -71,7 +71,7 @@ func NewQConfig() *QConfig {
 // 设置队列的回调接口
 // Set Queue callback
 func (c *QConfig) WithCallback(cb Callback) *QConfig {
-	c.cb = cb
+	c.callback = cb
 	return c
 }
 
@@ -81,8 +81,8 @@ func isQConfigValid(conf *QConfig) *QConfig {
 	if conf == nil {
 		conf = NewQConfig().WithCallback(emptyCallback{})
 	} else {
-		if conf.cb == nil {
-			conf.cb = emptyCallback{}
+		if conf.callback == nil {
+			conf.callback = emptyCallback{}
 		}
 	}
 	return conf
@@ -174,24 +174,37 @@ func (q *Q) IsClosed() bool {
 // 添加元素到队列
 // Add element to queue
 func (q *Q) Add(element any) error {
+	// 如果队列已经关闭，返回 ErrorQueueClosed 错误
+	// If the queue is already closed, return ErrorQueueClosed
 	if q.IsClosed() {
 		return ErrorQueueClosed
 	}
 
+	// 如果元素已经被标记，返回 ErrorQueueElementExist 错误
+	// If the element has been marked, return ErrorQueueElementExist
 	if q.isElementMarked(element) {
 		return ErrorQueueElementExist
 	}
 
-	n := q.nodepool.Get()
-	n.SetData(element)
+	// 从资源池中获取一个节点
+	// Get a node from the resource pool
+	node := q.nodepool.Get()
+	node.SetData(element)
 
+	// 添加到队列中，并发送信号
+	// Add to the queue and send a signal
 	q.cond.L.Lock()
-	q.queue.Push(n)
+	q.queue.Push(node)
 	q.cond.Signal()
 	q.cond.L.Unlock()
 
+	// 标记元素已经准备好处理
+	// Mark the element as ready to be processed
 	q.prepare(element)
-	q.config.cb.OnAdd(element)
+
+	// 回调
+	// Callback
+	q.config.callback.OnAdd(element)
 
 	return nil
 }
@@ -199,21 +212,36 @@ func (q *Q) Add(element any) error {
 // 从队列中获取一个元素, 如果队列为空，不阻塞等待
 // Get an element from the queue.
 func (q *Q) Get() (element any, err error) {
+	// 如果队列已经关闭，返回 ErrorQueueClosed 错误
+	// If the queue is already closed, return ErrorQueueClosed
 	if q.IsClosed() {
 		return nil, ErrorQueueClosed
 	}
 
+	// 如果队列为空，返回 ErrorQueueEmpty 错误
+	// If the queue is empty, return ErrorQueueEmpty
 	q.qlock.Lock()
-	n := q.queue.Pop()
+	node := q.queue.Pop()
 	q.qlock.Unlock()
-	if n == nil {
+	if node == nil {
 		return nil, ErrorQueueEmpty
 	}
 
-	element = n.Data()
+	// 从节点中获取数据
+	// Get data from the node
+	element = node.Data()
+
+	// 标记元素已经准备好处理
+	// Mark the element as ready to be processed
 	q.todo(element)
-	q.config.cb.OnGet(element)
-	q.nodepool.Put(n)
+
+	// 回调
+	// Callback
+	q.config.callback.OnGet(element)
+
+	// 回收节点
+	// Recycle node
+	q.nodepool.Put(node)
 
 	return element, nil
 }
@@ -221,24 +249,39 @@ func (q *Q) Get() (element any, err error) {
 // 从队列中获取一个元素，如果队列为空，阻塞等待
 // Get an element from the queue, if the queue is empty, block and wait.
 func (q *Q) GetWithBlock() (element any, err error) {
+	// 如果队列已经关闭，返回 ErrorQueueClosed 错误
+	// If the queue is already closed, return ErrorQueueClosed
 	if q.IsClosed() {
 		return nil, ErrorQueueClosed
 	}
 
+	// 如果队列为空，阻塞等待。否者，读取节点中的数据
+	// If the queue is empty, block and wait. Otherwise, read the data from the node.
 	q.cond.L.Lock()
 	for q.queue.Len() == 0 {
 		q.cond.Wait()
 	}
-	n := q.queue.Pop()
+	node := q.queue.Pop()
 	q.cond.L.Unlock()
-	if n == nil {
+	if node == nil {
 		return nil, ErrorQueueEmpty
 	}
 
-	element = n.Data()
+	// 从节点中获取数据
+	// Get data from the node
+	element = node.Data()
+
+	// 标记元素已经准备好处理
+	// Mark the element as ready to be processed
 	q.todo(element)
-	q.config.cb.OnGet(element)
-	q.nodepool.Put(n)
+
+	// 回调
+	// Callback
+	q.config.callback.OnGet(element)
+
+	// 回收节点
+	// Recycle node
+	q.nodepool.Put(node)
 
 	return element, nil
 }
@@ -249,8 +292,13 @@ func (q *Q) Done(element any) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
+	// 从 processing 中删除元素
+	// Remove the element from processing
 	q.processing.Delete(element)
-	q.config.cb.OnDone(element)
+
+	// 回调
+	// Callback
+	q.config.callback.OnDone(element)
 }
 
 // 关闭队列
@@ -259,16 +307,25 @@ func (q *Q) Stop() {
 	q.once.Do(func() {
 		wg := sync.WaitGroup{}
 		wg.Add(3)
+
+		// 唤醒所有等待的 goroutine
+		// Wake up all waiting goroutines
 		go func() {
 			q.cond.L.Lock()
-			q.cond.Broadcast() // 唤醒所有等待的 goroutine (Wake up all waiting goroutines)
+			q.cond.Broadcast()
 			q.queue.Reset()
 			q.cond.L.Unlock()
 			wg.Done()
 		}()
+
+		// 标记关闭队列
+		// Mark the queue as closed
 		q.lock.Lock()
 		q.closed = true
 		q.lock.Unlock()
+
+		// 清理所有的元素
+		// Clean up all elements
 		go func() {
 			q.lock.Lock()
 			q.dirty.Cleanup()
@@ -281,6 +338,9 @@ func (q *Q) Stop() {
 			q.lock.Unlock()
 			wg.Done()
 		}()
+
+		// 等待所有的 goroutine 完成
+		// Wait for all goroutines to complete
 		wg.Wait()
 	})
 }

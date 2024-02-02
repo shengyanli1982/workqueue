@@ -2,6 +2,8 @@ module github.com/shengyanli1982/workqueue/bennchmark
 
 go 1.19
 
+replace github.com/shengyanli1982/workqueue => ../
+
 require (
 	github.com/shengyanli1982/workqueue v0.0.0-00010101000000-000000000000
 	k8s.io/client-go v0.26.11
@@ -14,5 +16,3 @@ require (
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d // indirect
 )
-
-replace github.com/shengyanli1982/workqueue => ../

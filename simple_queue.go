@@ -57,19 +57,27 @@ func (q *SimpleQ) IsClosed() bool {
 // 添加元素到队列
 // Add element to queue
 func (q *SimpleQ) Add(element any) error {
+	// 如果队列已经关闭，返回 ErrorQueueClosed 错误
+	// If the queue is already closed, return ErrorQueueClosed
 	if q.IsClosed() {
 		return ErrorQueueClosed
 	}
 
-	n := q.nodepool.Get()
-	n.SetData(element)
+	// 从资源池中获取一个节点
+	// Get a node from the resource pool
+	node := q.nodepool.Get()
+	node.SetData(element)
 
+	// 添加到队列中，并发送信号
+	// Add to the queue and send a signal
 	q.cond.L.Lock()
-	q.queue.Push(n)
+	q.queue.Push(node)
 	q.cond.Signal()
 	q.cond.L.Unlock()
 
-	q.config.cb.OnAdd(element)
+	// 回调
+	// Callback
+	q.config.callback.OnAdd(element)
 
 	return nil
 }
@@ -77,19 +85,31 @@ func (q *SimpleQ) Add(element any) error {
 // 从队列中获取一个元素, 如果队列为空，不阻塞等待
 // Get an element from the queue.
 func (q *SimpleQ) Get() (element any, err error) {
+	// 如果队列已经关闭，返回 ErrorQueueClosed 错误
+	// If the queue is already closed, return ErrorQueueClosed
 	if q.IsClosed() {
 		return nil, ErrorQueueClosed
 	}
 
+	// 如果队列为空，返回 ErrorQueueEmpty 错误
+	// If the queue is empty, return ErrorQueueEmpty
 	q.qlock.Lock()
 	n := q.queue.Pop()
 	q.qlock.Unlock()
-	if n == nil { // 队列为空 (queue is empty)
+	if n == nil {
 		return nil, ErrorQueueEmpty
 	}
 
+	// 从节点中获取数据
+	// Get data from the node
 	element = n.Data()
-	q.config.cb.OnGet(element)
+
+	// 回调
+	// Callback
+	q.config.callback.OnGet(element)
+
+	// 回收节点
+	// Recycle node
 	q.nodepool.Put(n)
 
 	return element, nil
@@ -98,23 +118,35 @@ func (q *SimpleQ) Get() (element any, err error) {
 // 从队列中获取一个元素，如果队列为空，阻塞等待
 // Get an element from the queue, if the queue is empty, block and wait.
 func (q *SimpleQ) GetWithBlock() (element any, err error) {
+	// 如果队列已经关闭，返回 ErrorQueueClosed 错误
+	// If the queue is already closed, return ErrorQueueClosed
 	if q.IsClosed() {
 		return nil, ErrorQueueClosed
 	}
 
+	// 如果队列为空，阻塞等待。否者，读取节点中的数据
+	// If the queue is empty, block and wait. Otherwise, read the data from the node.
 	q.cond.L.Lock()
 	for q.queue.Len() == 0 {
 		q.cond.Wait()
 	}
-	n := q.queue.Pop()
+	node := q.queue.Pop()
 	q.cond.L.Unlock()
-	if n == nil {
+	if node == nil {
 		return nil, ErrorQueueEmpty
 	}
 
-	element = n.Data()
-	q.config.cb.OnGet(element)
-	q.nodepool.Put(n)
+	// 从节点中获取数据
+	// Get data from the node
+	element = node.Data()
+
+	// 回调
+	// Callback
+	q.config.callback.OnGet(element)
+
+	// 回收节点
+	// Recycle node
+	q.nodepool.Put(node)
 
 	return element, nil
 }
@@ -122,7 +154,9 @@ func (q *SimpleQ) GetWithBlock() (element any, err error) {
 // 标记元素已经处理完成
 // Mark an element as done processing.
 func (q *SimpleQ) Done(element any) {
-	q.config.cb.OnDone(element)
+	// 回调
+	// Callback
+	q.config.callback.OnDone(element)
 }
 
 // 关闭队列
