@@ -146,6 +146,9 @@ func (q *RateLimitingQ) AddLimited(element any) error {
 	// 加入到等待队列
 	// add it to the waiting queue
 	err := q.AddAfter(element, q.limiter.When(element))
+
+	// 回调
+	// Callback
 	q.config.callback.OnAddLimited(element)
 
 	return err
@@ -154,15 +157,26 @@ func (q *RateLimitingQ) AddLimited(element any) error {
 // 忘记一个元素，不需要这个元素处理经行限速
 // Forget an element, don't need to limit the speed of this element
 func (q *RateLimitingQ) Forget(element any) {
+	// 忘记一个元素
+	// Forget an element
 	q.limiter.Forget(element)
+
+	// 回调
+	// Callback
 	q.config.callback.OnForget(element)
 }
 
 // NumLimitTimes 返回一个元素被限速的次数
 // Return the number of times an element is limited
 func (q *RateLimitingQ) NumLimitTimes(element any) int {
+	// 元素被限速的次数
+	// The number of times an element is limited
 	count := q.limiter.NumLimitTimes(element)
+
+	// 回调
+	// Callback
 	q.config.callback.OnGetTimes(element, count)
+
 	return count
 }
 
