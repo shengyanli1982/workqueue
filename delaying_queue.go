@@ -9,24 +9,24 @@ import (
 	"github.com/shengyanli1982/workqueue/internal/stl/heap"
 )
 
-// DelayingInterface 是 Queue 方法接口的延迟版本
-// DelayingInterface is the delayed version of the Queue method interface
-type DelayingInterface interface {
+// DelayingQInterface 是 Queue 方法接口的延迟版本
+// DelayingQInterface is the delayed version of the Queue method interface
+type DelayingQInterface interface {
 	// 继承 Queue 接口
 	// Inherit Queue
-	Interface
+	QInterface
 
 	// AddAfter 添加一个元素，延迟一段时间后再执行
 	// Add an element, execute it after a delay
 	AddAfter(element any, delay time.Duration) error
 }
 
-// DelayingCallback 是 Queue 的回调接口的延迟版本
-// DelayingCallback is the delayed version of the Queue callback interface
-type DelayingCallback interface {
+// DelayingQCallback 是 Queue 的回调接口的延迟版本
+// DelayingQCallback is the delayed version of the Queue callback interface
+type DelayingQCallback interface {
 	// 继承 Callback 接口
 	// Inherit Callback
-	Callback
+	QCallback
 
 	// OnAddAfter 添加元素后的回调
 	// Callback after adding element
@@ -37,7 +37,7 @@ type DelayingCallback interface {
 // DelayingQConfig is the delayed version of the Queue config
 type DelayingQConfig struct {
 	QConfig
-	callback DelayingCallback
+	callback DelayingQCallback
 }
 
 // NewDelayingQConfig 创建一个 DelayingQConfig 实例
@@ -48,7 +48,7 @@ func NewDelayingQConfig() *DelayingQConfig {
 
 // WithCallback 设置 Queue 的回调接口
 // Set Queue callback
-func (c *DelayingQConfig) WithCallback(cb DelayingCallback) *DelayingQConfig {
+func (c *DelayingQConfig) WithCallback(cb DelayingQCallback) *DelayingQConfig {
 	c.callback = cb
 	return c
 }
@@ -71,21 +71,21 @@ func isDelayingQConfigValid(conf *DelayingQConfig) *DelayingQConfig {
 // 延迟队列数据结构
 // Delayed queue data structure
 type DelayingQ struct {
-	*Q
+	QInterface
 	waiting     *heap.Heap
 	elementpool *heap.HeapElementPool
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
 	once        sync.Once
-	lock        *sync.Mutex
+	wlock       *sync.Mutex
 	now         atomic.Int64
 	config      *DelayingQConfig
 }
 
-// 创建一个 DelayingQueue 实例, 使用自定义 Queue (实现了 Q 接口)
-// Create a new DelayingQueue config, use custom Queue (implement Q interface)
-func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue *Q) *DelayingQ {
+// 创建 DelayingQueue 实例
+// Create a DelayingQueue instance
+func newDelayingQueue(conf *DelayingQConfig, queue QInterface) *DelayingQ {
 	if queue == nil {
 		return nil
 	}
@@ -94,16 +94,16 @@ func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue *Q) *DelayingQ
 	conf.QConfig.callback = conf.callback
 
 	q := &DelayingQ{
-		Q:           queue,
+		QInterface:  queue,
 		waiting:     heap.NewHeap(),
 		elementpool: heap.NewHeapElementPool(),
+		wlock:       &sync.Mutex{},
 		wg:          sync.WaitGroup{},
 		now:         atomic.Int64{},
 		once:        sync.Once{},
 		config:      conf,
 	}
 
-	q.lock = q.Q.plock // 复制外部处理过程锁，是为了保证 waiting 的处理
 	q.ctx, q.cancel = context.WithCancel(context.Background())
 
 	q.wg.Add(2)
@@ -118,12 +118,20 @@ func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue *Q) *DelayingQ
 func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
 	conf = isDelayingQConfigValid(conf)
 	conf.QConfig.callback = conf.callback
-	return NewDelayingQueueWithCustomQueue(conf, NewQueue(&conf.QConfig))
+	return newDelayingQueue(conf, NewQueue(&conf.QConfig))
+}
+
+// 创建一个 DelayingQueue 实例, 使用自定义 Queue (实现了 Q 接口)
+// Create a new DelayingQueue config, use custom Queue (implement Q interface)
+func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue QInterface) *DelayingQ {
+	conf = isDelayingQConfigValid(conf)
+	conf.QConfig.callback = conf.callback
+	return newDelayingQueue(conf, queue)
 }
 
 // 创建一个默认的 DelayingQueue 对象
 // Create a new default DelayingQueue object
-func DefaultDelayingQueue() DelayingInterface {
+func DefaultDelayingQueue() DelayingQInterface {
 	return NewDelayingQueue(nil)
 }
 
@@ -150,9 +158,9 @@ func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
 
 	// 添加到堆中
 	// Add to the heap
-	q.lock.Lock()
+	q.wlock.Lock()
 	q.waiting.Push(elem)
-	q.lock.Unlock()
+	q.wlock.Unlock()
 
 	// 回调
 	// Callback
@@ -204,7 +212,7 @@ func (q *DelayingQ) loop() {
 		case <-q.ctx.Done():
 			return
 		default:
-			q.lock.Lock()
+			q.wlock.Lock()
 			// 如果堆中有元素
 			// If there are elements in the heap
 			if q.waiting.Len() > 0 {
@@ -218,12 +226,12 @@ func (q *DelayingQ) loop() {
 					// 弹出堆顶元素
 					// Pop the top element of the heap
 					_ = q.waiting.Pop()
-					q.lock.Unlock()
+					q.wlock.Unlock()
 
 					// 添加到队列中
 					// Add to the queue
 					if err := q.Add(elem.Data()); err != nil {
-						q.lock.Lock()
+						q.wlock.Lock()
 						// 重置元素的值 Reset the value of the element
 						// 1500ms 后再次处理元素
 						elem.SetValue(q.now.Load() + defaultQueueHeartbeat*3)
@@ -231,17 +239,17 @@ func (q *DelayingQ) loop() {
 						// 将元素重新添加到堆中 Re-add the element to the heap
 						// Re-add the element to the heap
 						q.waiting.Push(elem)
-						q.lock.Unlock()
+						q.wlock.Unlock()
 					} else {
 						// 释放元素
 						// Free element
 						q.elementpool.Put(elem)
 					}
 				} else {
-					q.lock.Unlock()
+					q.wlock.Unlock()
 				}
 			} else {
-				q.lock.Unlock()
+				q.wlock.Unlock()
 				// 500ms 后再次检查堆中的元素
 				// Check the elements in the heap again after 500ms
 				<-heartbeat.C
@@ -253,7 +261,7 @@ func (q *DelayingQ) loop() {
 // 关闭队列
 // Close queue
 func (q *DelayingQ) Stop() {
-	q.Q.Stop()
+	q.QInterface.Stop()
 	q.once.Do(func() {
 		q.cancel()
 		q.wg.Wait()

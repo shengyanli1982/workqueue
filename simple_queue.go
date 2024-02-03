@@ -39,7 +39,7 @@ func NewSimpleQueue(conf *QConfig) *SimpleQ {
 
 // 创建一个默认的 SimpleQueue 对象
 // Create a new default SimpleQueue object
-func DefaultSimpleQueue() Interface {
+func DefaultSimpleQueue() QInterface {
 	return NewSimpleQueue(nil)
 }
 

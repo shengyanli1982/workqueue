@@ -103,4 +103,48 @@ func TestRatelimitingQueue_CallbackFuncs(t *testing.T) {
 	q.NumLimitTimes("x6")
 	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).r0))
 
+	time.Sleep(600 * time.Millisecond)
+}
+
+func TestRatelimitingQueue_WithCustomQueue(t *testing.T) {
+	conf := NewRateLimitingQConfig().WithLimiter(NewBucketRateLimiter(float64(3), 1)).WithCallback(&rateLimitingcallback{})
+
+	sq := NewSimpleQueue(&conf.QConfig)
+	dq := NewDelayingQueueWithCustomQueue(&conf.DelayingQConfig, sq)
+
+	q := NewRateLimitingQueueWithCustomQueue(conf, dq)
+	defer q.Stop()
+
+	_ = q.Add("foo")
+	_ = q.Add("bar")
+	_ = q.Add("baz")
+	assert.Equal(t, 3, len(q.config.callback.(*rateLimitingcallback).a0))
+
+	// Start processing
+	i, err := q.Get()
+	assert.Equal(t, "foo", i)
+	assert.Equal(t, nil, err)
+	q.Done(i)
+	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).g0))
+	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).d0))
+
+	// Add element delay 100ms
+	_ = q.AddAfter("x4", 100*time.Millisecond)
+	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).t0))
+	time.Sleep(600 * time.Millisecond)
+	assert.Equal(t, 4, len(q.config.callback.(*rateLimitingcallback).a0))
+
+	// Add element ratelimit
+	for i := 0; i < 10; i++ {
+		_ = q.AddLimited(i)
+	}
+	assert.Equal(t, 10, len(q.config.callback.(*rateLimitingcallback).l0))
+
+	q.Forget("x5")
+	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).f0))
+
+	q.NumLimitTimes("x6")
+	assert.Equal(t, 1, len(q.config.callback.(*rateLimitingcallback).r0))
+
+	time.Sleep(600 * time.Millisecond)
 }

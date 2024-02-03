@@ -98,3 +98,33 @@ func TestPriorityQueue_CallbackFuncs(t *testing.T) {
 	// Stop the queue
 	q.Stop()
 }
+
+func TestPriorityQueue_WithCustomQueue(t *testing.T) {
+	conf := NewPriorityQConfig().WithCallback(&prioritycallback{})
+
+	queue := NewSimpleQueue(&conf.QConfig)
+	q := NewPriorityQueueWithCustomQueue(conf, queue)
+
+	_ = q.Add("foo")
+	_ = q.Add("bar")
+	_ = q.Add("baz")
+
+	// Start processing
+	i, err := q.Get()
+	assert.Equal(t, "foo", i)
+	assert.Equal(t, nil, err)
+	q.Done(i)
+
+	assert.Equal(t, []any{"foo", "bar", "baz"}, q.config.callback.(*prioritycallback).a0)
+	assert.Equal(t, []any{"foo"}, q.config.callback.(*prioritycallback).g0)
+	assert.Equal(t, []any{"foo"}, q.config.callback.(*prioritycallback).d0)
+
+	_ = q.AddWeight("cat", 100)
+	time.Sleep(600 * time.Millisecond)
+
+	assert.Equal(t, []any{"foo", "bar", "baz", "cat"}, q.config.callback.(*prioritycallback).a0)
+	assert.Equal(t, []any{"cat"}, q.config.callback.(*prioritycallback).p0)
+
+	// Stop the queue
+	q.Stop()
+}
