@@ -76,7 +76,7 @@ func (c *RateLimitingQConfig) WithLimiter(limiter RateLimiter) *RateLimitingQCon
 // Verify that the queue configuration is valid
 func isRateLimitingQConfigValid(conf *RateLimitingQConfig) *RateLimitingQConfig {
 	if conf == nil {
-		conf = &RateLimitingQConfig{}
+		conf = NewRateLimitingQConfig()
 		conf.WithLimiter(DefaultBucketRateLimiter()).WithCallback(emptyCallback{})
 	} else {
 		if conf.callback == nil {
