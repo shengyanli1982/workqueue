@@ -68,8 +68,8 @@ func isDelayingQConfigValid(conf *DelayingQConfig) *DelayingQConfig {
 	return conf
 }
 
-// DelayingQ 是 DelayingQueue 的实现
-// DelayingQ is the implementation of DelayingQueue
+// 延迟队列数据结构
+// Delayed queue data structure
 type DelayingQ struct {
 	*Q
 	waiting     *heap.Heap
@@ -103,7 +103,7 @@ func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue *Q) *DelayingQ
 		config:      conf,
 	}
 
-	q.lock = q.Q.lock
+	q.lock = q.Q.plock // 复制外部处理过程锁，是为了保证 waiting 的处理
 	q.ctx, q.cancel = context.WithCancel(context.Background())
 
 	q.wg.Add(2)

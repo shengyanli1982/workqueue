@@ -90,6 +90,8 @@ func isRateLimitingQConfigValid(conf *RateLimitingQConfig) *RateLimitingQConfig 
 	return conf
 }
 
+// 限速队列数据结构
+// RateLimitingQueue data structure
 type RateLimitingQ struct {
 	*DelayingQ
 	once    sync.Once
@@ -114,7 +116,7 @@ func NewRateLimitingQueueWithCustomQueue(conf *RateLimitingQConfig, queue *Delay
 		config:    conf,
 	}
 
-	q.lock = q.DelayingQ.lock
+	q.lock = q.DelayingQ.lock // 复制外部处理过程锁，但是这里没有需要用锁的地方
 	q.limiter = q.config.limiter
 
 	return q

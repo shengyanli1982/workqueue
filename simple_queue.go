@@ -2,18 +2,20 @@ package workqueue
 
 import (
 	"sync"
-	"sync/atomic"
 
 	list "github.com/shengyanli1982/workqueue/internal/stl/deque"
 )
 
+// 简单队列数据结构
+// SimpleQueue data structure
 type SimpleQ struct {
 	queue    *list.Deque
 	qlock    *sync.Mutex
+	plock    *sync.Mutex
 	cond     *sync.Cond
 	nodepool *list.ListNodePool
 	once     sync.Once
-	closed   atomic.Bool
+	closed   bool
 	config   *QConfig
 }
 
@@ -25,8 +27,9 @@ func NewSimpleQueue(conf *QConfig) *SimpleQ {
 		queue:    list.NewDeque(),
 		nodepool: list.NewListNodePool(),
 		qlock:    &sync.Mutex{},
+		plock:    &sync.Mutex{},
 		once:     sync.Once{},
-		closed:   atomic.Bool{},
+		closed:   false,
 		config:   conf,
 	}
 	q.cond = sync.NewCond(q.qlock)
@@ -51,7 +54,9 @@ func (q *SimpleQ) Len() int {
 // 判断队列是否已经关闭
 // Determine if the queue is shutting down.
 func (q *SimpleQ) IsClosed() bool {
-	return q.closed.Load()
+	q.plock.Lock()
+	defer q.plock.Unlock()
+	return q.closed
 }
 
 // 添加元素到队列
@@ -163,7 +168,9 @@ func (q *SimpleQ) Done(element any) {
 // Shut down the queue.
 func (q *SimpleQ) Stop() {
 	q.once.Do(func() {
-		q.closed.Store(true)
+		q.plock.Lock()
+		q.closed = true
+		q.plock.Unlock()
 		q.cond.L.Lock()
 		q.cond.Broadcast() // 唤醒所有等待的 goroutine (Wake up all waiting goroutines)
 		q.queue.Reset()

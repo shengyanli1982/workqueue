@@ -78,8 +78,8 @@ func isPriorityQConfigValid(conf *PriorityQConfig) *PriorityQConfig {
 	return conf
 }
 
-// PriorityQ 是 PriorityQueue 的实现
-// PriorityQ is the implementation of PriorityQueue
+// 优先级队列数据结构
+// Priority queue data structure
 type PriorityQ struct {
 	*Q
 	waiting     *heap.Heap
@@ -112,7 +112,7 @@ func NewPriorityQueueWithCustomQueue(conf *PriorityQConfig, queue *Q) *PriorityQ
 		config:      conf,
 	}
 
-	q.lock = q.Q.lock
+	q.lock = q.Q.plock // 复制外部处理过程锁，是为了保证 waiting 的处理
 	q.ctx, q.cancel = context.WithCancel(context.Background())
 
 	q.wg.Add(1)
