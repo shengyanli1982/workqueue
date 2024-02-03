@@ -375,8 +375,8 @@ get element: delay 2 sec
 >
 > The default window size is `500ms`, you can set it when create a queue.
 >
-> -   Dont't set the window size too small, it will cause the queue to be sorted frequently, which will affect the performance of the queue.
-> -   Dont't set the window size too large, it will cause the elements sorted to wait for a long time, which will affect elements to be executed in time.
+> -   Don't set the window size too small, it will cause the queue to be sorted frequently, which will affect the performance of the queue.
+> -   Don't set the window size too large, it will cause the elements sorted to wait for a long time, which will affect elements to be executed in time.
 
 ### Create
 
