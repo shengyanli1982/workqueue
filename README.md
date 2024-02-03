@@ -152,6 +152,7 @@ The `Queue` has some config options, you can set it when create a queue.
 package main
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -159,27 +160,41 @@ import (
 )
 
 func main() {
-	q := workqueue.NewQueue(nil) // create a queue
+	q := workqueue.NewQueue(nil)
 
 	go func() {
 		for {
-			element, err := q.Get() // get element from queue
+			element, err := q.Get()
 			if err != nil {
-				fmt.Println(err)
-				return
+				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
+					fmt.Println(err)
+					return
+				} else {
+					continue
+				}
 			}
 			fmt.Println("get element:", element)
 			q.Done(element) // mark element as done, 'Done' is required after 'Get'
 		}
 	}()
 
-	_ = q.Add("hello") // add element to queue
+	_ = q.Add("hello")
 	_ = q.Add("world")
+	_ = q.Add("hello") // duplicate element, can't add duplicate element
+	_ = q.Add("world") // duplicate element, can't add duplicate element
 
-	time.Sleep(time.Second * 2) // wait for element to be executed
+	time.Sleep(time.Second) // wait for element to be executed
 
 	q.Stop()
 }
+```
+
+**Result**
+
+```bash
+$ go run demo.go
+get element: hello
+get element: world
 ```
 
 ## 2. Simple Queue
@@ -220,6 +235,7 @@ The `Queue` has some config options, you can set it when create a queue.
 package main
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -233,21 +249,37 @@ func main() {
 		for {
 			element, err := q.Get()
 			if err != nil {
-				fmt.Println(err)
-				return
+				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
+					fmt.Println(err)
+					return
+				} else {
+					continue
+				}
 			}
 			fmt.Println("get element:", element)
-			q.Done(element) // mark element as done, 'Done' is not required after 'Get'
+			q.Done(element) // mark element as done, 'Done' is required after 'Get'
 		}
 	}()
 
 	_ = q.Add("hello")
 	_ = q.Add("world")
+	_ = q.Add("hello") // duplicate element
+	_ = q.Add("world") // duplicate element
 
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second) // wait for element to be executed
 
 	q.Stop()
 }
+```
+
+**Result**
+
+```bash
+$ go run demo.go
+get element: hello
+get element: world
+get element: hello
+get element: world
 ```
 
 ## 3. Delaying Queue
@@ -286,8 +318,8 @@ The `Delaying Queue` has some config options, you can set it when create a queue
 package main
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/shengyanli1982/workqueue"
@@ -299,9 +331,13 @@ func main() {
 	go func() {
 		for {
 			element, err := q.Get()
-			if err != nil && !errors.Is(err, workqueue.ErrorQueueEmpty) {
-				fmt.Println(err)
-				return
+			if err != nil {
+				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
+					fmt.Println(err)
+					return
+				} else {
+					continue
+				}
 			}
 			fmt.Println("get element:", element)
 			q.Done(element) // mark element as done, 'Done' is required after 'Get'
@@ -317,6 +353,17 @@ func main() {
 
 	q.Stop()
 }
+```
+
+**Result**
+
+```bash
+$ go run demo.go
+get element: hello
+get element: world
+get element: delay 1 sec
+get element: delay 2 sec
+[workqueue] Queue: Is closed
 ```
 
 ## 4. Priority Queue
@@ -352,6 +399,7 @@ func main() {
 package main
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -363,10 +411,14 @@ func main() {
 
 	go func() {
 		for {
-			element, shutdown := q.Get()
-			if shutdown {
-				fmt.Println("shutdown")
-				return
+			element, err := q.Get()
+			if err != nil {
+				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
+					fmt.Println(err)
+					return
+				} else {
+					continue
+				}
 			}
 			fmt.Println("get element:", element)
 			q.Done(element) // mark element as done, 'Done' is required after 'Get'
@@ -376,12 +428,23 @@ func main() {
 	_ = q.Add("hello")
 	_ = q.Add("world")
 	_ = q.AddWeight("priority: 1", 1) // add element with priority
-	_ = q.AddWeight("priority: 2", 2)
+	_ = q.AddWeight("priority: 2", 2) // add element with priority
 
-	time.Sleep(time.Second * 2) // wait for element to be executed
+	time.Sleep(time.Second * 1) // wait for element to be executed
 
 	q.Stop()
 }
+```
+
+**Result**
+
+```bash
+$ go run demo.go
+get element: hello
+get element: world
+get element: priority: 1
+get element: priority: 2
+[workqueue] Queue: Is closed
 ```
 
 ## 5. RateLimiting Queue
@@ -413,6 +476,7 @@ func main() {
 package main
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -424,24 +488,50 @@ func main() {
 
 	go func() {
 		for {
-			element, shutdown := q.Get()
-			if shutdown {
-				fmt.Println("shutdown")
-				return
+			element, err := q.Get()
+			if err != nil {
+				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
+					fmt.Println(err)
+					return
+				} else {
+					continue
+				}
 			}
 			fmt.Println("get element:", element)
 			q.Done(element) // mark element as done, 'Done' is required after 'Get'
 		}
 	}()
 
-	_ = q.AddLimited("hello", time.Second)
-	_ = q.AddLimited("world", time.Second)
+	_ = q.Add("hello")
+	_ = q.Add("world")
 
-	time.Sleep(time.Second * 2) // wait for element to be executed
+	for i := 0; i < 10; i++ {
+		_ = q.AddLimited(fmt.Sprintf(">>> %s %d", time.Now().String(), i))
+	}
+
+	time.Sleep(time.Second * 3) // wait for element to be executed
 
 	q.Stop()
 }
+```
 
+**Result**
+
+```bash
+$ go run demo.go
+get element: hello
+get element: world
+get element: >>> 2024-02-03 15:04:33.111294 +0800 CST m=+0.000177452 0
+get element: >>> 2024-02-03 15:04:33.111461 +0800 CST m=+0.000344599 1
+get element: >>> 2024-02-03 15:04:33.111464 +0800 CST m=+0.000347704 2
+get element: >>> 2024-02-03 15:04:33.111466 +0800 CST m=+0.000350012 3
+get element: >>> 2024-02-03 15:04:33.111468 +0800 CST m=+0.000352241 4
+get element: >>> 2024-02-03 15:04:33.111471 +0800 CST m=+0.000354489 5
+get element: >>> 2024-02-03 15:04:33.111473 +0800 CST m=+0.000356461 6
+get element: >>> 2024-02-03 15:04:33.111475 +0800 CST m=+0.000358548 7
+get element: >>> 2024-02-03 15:04:33.111477 +0800 CST m=+0.000360545 8
+get element: >>> 2024-02-03 15:04:33.111479 +0800 CST m=+0.000362747 9
+[workqueue] Queue: Is closed
 ```
 
 # Features
@@ -553,15 +643,18 @@ import (
 )
 
 func main() {
-	base := workqueue.NewSimpleQueue(nil)
-	q := workqueue.NewDelayingQueueWithCustomQueue(nil, base)
+	q := workqueue.NewDelayingQueueWithCustomQueue(nil, workqueue.NewSimpleQueue(nil))
 
 	go func() {
 		for {
 			element, err := q.Get()
-			if err != nil && !errors.Is(err, workqueue.ErrorQueueEmpty) {
-				fmt.Println(err)
-				return
+			if err != nil {
+				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
+					fmt.Println(err)
+					return
+				} else {
+					continue
+				}
 			}
 			fmt.Println("get element:", element)
 			q.Done(element) // mark element as done, 'Done' is required after 'Get'
@@ -577,7 +670,17 @@ func main() {
 
 	q.Stop()
 }
+```
 
+**Result**
+
+```bash
+$ go run demo.go
+get element: hello
+get element: world
+get element: delay 1 sec
+get element: delay 2 sec
+[workqueue] Queue: Is closed
 ```
 
 ## 3. Limiter
@@ -590,6 +693,7 @@ The limiter only works for `RateLimiting Queue`, it determines the rate limit of
 package main
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -597,30 +701,58 @@ import (
 )
 
 func main() {
-	conf := workqueue.NewQConfig()
-	conf.WithLimiter(workqueue.NewTokenBucketRateLimiter(3, 1)) // set rate limit
+	conf := workqueue.NewRateLimitingQConfig()
+	conf.WithLimiter(workqueue.NewBucketRateLimiter(float64(4), 1))
 
 	q := workqueue.NewRateLimitingQueue(conf)
 
 	go func() {
 		for {
-			element, shutdown := q.Get()
-			if shutdown {
-				fmt.Println("shutdown")
-				return
+			element, err := q.Get()
+			if err != nil {
+				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
+					fmt.Println(err)
+					return
+				} else {
+					continue
+				}
 			}
-			fmt.Println("get element:", element)
+			fmt.Printf("[%s] get element: %s\n", time.Now().Format("04:05"), element)
 			q.Done(element) // mark element as done, 'Done' is required after 'Get'
 		}
 	}()
 
-	_ = q.AddLimited("hello", time.Second)
-	_ = q.AddLimited("world", time.Second)
+	_ = q.Add("hello")
+	_ = q.Add("world")
 
-	time.Sleep(time.Second * 2) // wait for element to be executed
+	for i := 0; i < 10; i++ {
+		_ = q.AddLimited(fmt.Sprintf(">>> %d", i))
+	}
+
+	time.Sleep(time.Second * 3) // wait for element to be executed
 
 	q.Stop()
 }
+
+```
+
+**Result**
+
+```bash
+$ go run demo.go
+[14:13] get element: hello
+[14:13] get element: world
+[14:13] get element: >>> 0
+[14:13] get element: >>> 1
+[14:13] get element: >>> 2
+[14:14] get element: >>> 3
+[14:14] get element: >>> 4
+[14:14] get element: >>> 5
+[14:14] get element: >>> 6
+[14:15] get element: >>> 7
+[14:15] get element: >>> 8
+[14:15] get element: >>> 9
+[workqueue] Queue: Is closed
 ```
 
 # Thanks to

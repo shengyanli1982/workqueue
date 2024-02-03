@@ -10,10 +10,10 @@ import (
 
 // 优先级队列方法接口
 // Priority queue interface
-type PriorityInterface interface {
+type PriorityQInterface interface {
 	// 继承 Queue 接口
 	// Inherit Queue
-	Interface
+	QInterface
 
 	// AddWeight 添加一个元素，指定权重，并在一段时间内排序
 	// Add an element with specified weight and sort it within a period of time
@@ -22,10 +22,10 @@ type PriorityInterface interface {
 
 // 优先级队列的回调接口
 // Priority queue callback interface
-type PriorityCallback interface {
+type PriorityQCallback interface {
 	// 继承 Callback 接口
 	// Inherit Callback
-	Callback
+	QCallback
 
 	// OnAddWeight 添加元素后的回调
 	// Callback after adding an element
@@ -36,7 +36,7 @@ type PriorityCallback interface {
 // Priority queue configuration
 type PriorityQConfig struct {
 	QConfig
-	callback PriorityCallback
+	callback PriorityQCallback
 	sortwin  int64
 }
 
@@ -48,7 +48,7 @@ func NewPriorityQConfig() *PriorityQConfig {
 
 // 设置优先级队列的回调接口
 // Set the callback interface for the priority queue
-func (c *PriorityQConfig) WithCallback(cb PriorityCallback) *PriorityQConfig {
+func (c *PriorityQConfig) WithCallback(cb PriorityQCallback) *PriorityQConfig {
 	c.callback = cb
 	return c
 }
@@ -81,20 +81,20 @@ func isPriorityQConfigValid(conf *PriorityQConfig) *PriorityQConfig {
 // 优先级队列数据结构
 // Priority queue data structure
 type PriorityQ struct {
-	*Q
+	QInterface
 	waiting     *heap.Heap
 	elementpool *heap.HeapElementPool
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
 	once        sync.Once
-	lock        *sync.Mutex
+	wlock       *sync.Mutex
 	config      *PriorityQConfig
 }
 
-// 创建一个 PriorityQueue 实例, 使用自定义 Queue (实现了 Q 接口)
-// Create a new PriorityQueue config, use custom Queue (implement Q interface)
-func NewPriorityQueueWithCustomQueue(conf *PriorityQConfig, queue *Q) *PriorityQ {
+// 创建 DelayingQueue 实例
+// Create a DelayingQueue instance
+func newPriorityQueue(conf *PriorityQConfig, queue QInterface) *PriorityQ {
 	if queue == nil {
 		return nil
 	}
@@ -103,16 +103,15 @@ func NewPriorityQueueWithCustomQueue(conf *PriorityQConfig, queue *Q) *PriorityQ
 	conf.QConfig.callback = conf.callback
 
 	q := &PriorityQ{
-		Q:           queue,
+		QInterface:  queue,
 		waiting:     heap.NewHeap(),
 		elementpool: heap.NewHeapElementPool(),
+		wlock:       &sync.Mutex{},
 		wg:          sync.WaitGroup{},
-		lock:        &sync.Mutex{},
 		once:        sync.Once{},
 		config:      conf,
 	}
 
-	q.lock = q.Q.plock // 复制外部处理过程锁，是为了保证 waiting 的处理
 	q.ctx, q.cancel = context.WithCancel(context.Background())
 
 	q.wg.Add(1)
@@ -126,12 +125,20 @@ func NewPriorityQueueWithCustomQueue(conf *PriorityQConfig, queue *Q) *PriorityQ
 func NewPriorityQueue(conf *PriorityQConfig) *PriorityQ {
 	conf = isPriorityQConfigValid(conf)
 	conf.QConfig.callback = conf.callback
-	return NewPriorityQueueWithCustomQueue(conf, NewQueue(&conf.QConfig))
+	return newPriorityQueue(conf, NewQueue(&conf.QConfig))
+}
+
+// 创建一个 PriorityQueue 实例, 使用自定义 Queue (实现了 Q 接口)
+// Create a new PriorityQueue config, use custom Queue (implement Q interface)
+func NewPriorityQueueWithCustomQueue(conf *PriorityQConfig, queue QInterface) *PriorityQ {
+	conf = isPriorityQConfigValid(conf)
+	conf.QConfig.callback = conf.callback
+	return newPriorityQueue(conf, queue)
 }
 
 // 创建一个默认的 PriorityQueue 对象
 // Create a new default PriorityQueue object
-func DefaultPriorityQueue() PriorityInterface {
+func DefaultPriorityQueue() PriorityQInterface {
 	return NewPriorityQueue(nil)
 }
 
@@ -158,9 +165,9 @@ func (q *PriorityQ) AddWeight(element any, weight int) error {
 
 	// 添加到堆中
 	// Add to the heap
-	q.lock.Lock()
+	q.wlock.Lock()
 	q.waiting.Push(elem)
-	q.lock.Unlock()
+	q.wlock.Unlock()
 
 	// 回调
 	// Callback
@@ -191,7 +198,7 @@ func (q *PriorityQ) loop() {
 		// 每隔一段时间，处理一次 Heap 中的元素
 		// Process the elements in the Heap every once in a while.
 		case <-heartbeat.C:
-			q.lock.Lock()
+			q.wlock.Lock()
 			// 获取 Heap 中的元素
 			// Get the elements in the Heap.
 			elems := q.waiting.Slice()
@@ -199,7 +206,7 @@ func (q *PriorityQ) loop() {
 			// 重置 Heap
 			// Reset the Heap.
 			q.waiting.Reset()
-			q.lock.Unlock()
+			q.wlock.Unlock()
 
 			// 将 Heap 中的元素添加到 Queue 中
 			// Add the elements in the Heap to the Queue.
@@ -224,11 +231,11 @@ func (q *PriorityQ) loop() {
 
 				// 将需要重新添加的元素重新添加到 Heap 中
 				// Re-add the elements that need to be re-added to the Heap.
-				q.lock.Lock()
+				q.wlock.Lock()
 				for i := 0; i < len(reAddElems); i++ {
 					q.waiting.Push(reAddElems[i])
 				}
-				q.lock.Unlock()
+				q.wlock.Unlock()
 			}
 		}
 	}
@@ -237,7 +244,7 @@ func (q *PriorityQ) loop() {
 // Close 关闭 Queue
 // Close Queue
 func (q *PriorityQ) Stop() {
-	q.Q.Stop()
+	q.QInterface.Stop()
 	q.once.Do(func() {
 		q.cancel()
 		q.wg.Wait()

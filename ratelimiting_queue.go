@@ -4,12 +4,12 @@ import (
 	"sync"
 )
 
-// RateLimitingInterface 是 Queue 方法的接口
-// RateLimitingInterface is the interface for Queue methods
-type RateLimitingInterface interface {
+// RateLimitingQInterface 是 Queue 方法的接口
+// RateLimitingQInterface is the interface for Queue methods
+type RateLimitingQInterface interface {
 	// 继承 DelayingQueue 接口
 	// Inherit DelayingQueue
-	DelayingInterface
+	DelayingQInterface
 
 	// AddLimited 添加一个元素，需要对该元素进行限速处理
 	// AddLimited adds an element that needs to be rate-limited
@@ -24,12 +24,12 @@ type RateLimitingInterface interface {
 	NumLimitTimes(element any) int
 }
 
-// RateLimitingCallback 是 Queue 的回调接口
-// RateLimitingCallback is the callback interface for Queue
-type RateLimitingCallback interface {
+// RateLimitingQCallback 是 Queue 的回调接口
+// RateLimitingQCallback is the callback interface for Queue
+type RateLimitingQCallback interface {
 	// 继承 DelayingCallback 接口
 	// Inherit DelayingCallback
-	DelayingCallback
+	DelayingQCallback
 
 	// OnAddLimited 添加元素后的回调
 	// OnAddLimited is the callback after adding an element
@@ -48,7 +48,7 @@ type RateLimitingCallback interface {
 // RateLimitingQConfig is the configuration for Queue
 type RateLimitingQConfig struct {
 	DelayingQConfig
-	callback RateLimitingCallback
+	callback RateLimitingQCallback
 	limiter  RateLimiter
 }
 
@@ -60,7 +60,7 @@ func NewRateLimitingQConfig() *RateLimitingQConfig {
 
 // WithCallback 设置 Queue 的回调接口
 // WithCallback sets the callback interface for Queue
-func (c *RateLimitingQConfig) WithCallback(cb RateLimitingCallback) *RateLimitingQConfig {
+func (c *RateLimitingQConfig) WithCallback(cb RateLimitingQCallback) *RateLimitingQConfig {
 	c.callback = cb
 	return c
 }
@@ -76,7 +76,7 @@ func (c *RateLimitingQConfig) WithLimiter(limiter RateLimiter) *RateLimitingQCon
 // Verify that the queue configuration is valid
 func isRateLimitingQConfigValid(conf *RateLimitingQConfig) *RateLimitingQConfig {
 	if conf == nil {
-		conf = &RateLimitingQConfig{}
+		conf = NewRateLimitingQConfig()
 		conf.WithLimiter(DefaultBucketRateLimiter()).WithCallback(emptyCallback{})
 	} else {
 		if conf.callback == nil {
@@ -93,16 +93,16 @@ func isRateLimitingQConfigValid(conf *RateLimitingQConfig) *RateLimitingQConfig 
 // 限速队列数据结构
 // RateLimitingQueue data structure
 type RateLimitingQ struct {
-	*DelayingQ
+	DelayingQInterface
 	once    sync.Once
-	lock    *sync.Mutex
+	rlock   *sync.Mutex
 	limiter RateLimiter
 	config  *RateLimitingQConfig
 }
 
-// 创建一个 RateLimitingQueue 实例, 使用自定义 Queue (实现了 DelayingQ 接口)
-// Create a new PriorityRateLimitingQueueQueue config, use custom Queue (implement DelayingQ interface)
-func NewRateLimitingQueueWithCustomQueue(conf *RateLimitingQConfig, queue *DelayingQ) *RateLimitingQ {
+// 创建 RateLimitingQueue 实例
+// Create a new RateLimitingQueue config
+func newRateLimitingQueue(conf *RateLimitingQConfig, queue DelayingQInterface) *RateLimitingQ {
 	if queue == nil {
 		return nil
 	}
@@ -111,12 +111,12 @@ func NewRateLimitingQueueWithCustomQueue(conf *RateLimitingQConfig, queue *Delay
 	conf.DelayingQConfig.callback = conf.callback
 
 	q := &RateLimitingQ{
-		DelayingQ: queue,
-		once:      sync.Once{},
-		config:    conf,
+		DelayingQInterface: queue,
+		once:               sync.Once{},
+		rlock:              &sync.Mutex{},
+		config:             conf,
 	}
 
-	q.lock = q.DelayingQ.lock // 复制外部处理过程锁，但是这里没有需要用锁的地方
 	q.limiter = q.config.limiter
 
 	return q
@@ -127,12 +127,21 @@ func NewRateLimitingQueueWithCustomQueue(conf *RateLimitingQConfig, queue *Delay
 func NewRateLimitingQueue(conf *RateLimitingQConfig) *RateLimitingQ {
 	conf = isRateLimitingQConfigValid(conf)
 	conf.DelayingQConfig.callback = conf.callback
-	return NewRateLimitingQueueWithCustomQueue(conf, NewDelayingQueue(&conf.DelayingQConfig))
+	return newRateLimitingQueue(conf, NewDelayingQueue(&conf.DelayingQConfig))
+}
+
+// 创建一个 RateLimitingQueue 实例, 使用自定义 Queue (实现了 DelayingQ 接口)
+// Create a new PriorityRateLimitingQueueQueue config, use custom Queue (implement DelayingQ interface)
+func NewRateLimitingQueueWithCustomQueue(conf *RateLimitingQConfig, queue DelayingQInterface) *RateLimitingQ {
+	conf = isRateLimitingQConfigValid(conf)
+	conf.DelayingQConfig.callback = conf.callback
+	conf.DelayingQConfig.QConfig.callback = conf.callback
+	return newRateLimitingQueue(conf, queue)
 }
 
 // 创建一个默认的 RateLimitingQueue 实例
 // Create a new default RateLimitingQueue config
-func DefaultRateLimitingQueue() RateLimitingInterface {
+func DefaultRateLimitingQueue() RateLimitingQInterface {
 	return NewRateLimitingQueue(nil)
 }
 
@@ -185,7 +194,7 @@ func (q *RateLimitingQ) NumLimitTimes(element any) int {
 // 关闭队列
 // Close queue
 func (q *RateLimitingQ) Stop() {
-	q.DelayingQ.Stop()
+	q.DelayingQInterface.Stop()
 	q.once.Do(func() {
 		q.limiter.Stop()
 	})

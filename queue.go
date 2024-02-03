@@ -9,7 +9,7 @@ import (
 
 // 队列方法接口
 // Queue interface
-type Interface interface {
+type QInterface interface {
 	// 添加一个元素到队列
 	// Add adds an element to the queue.
 	Add(element any) error
@@ -49,8 +49,8 @@ type Interface interface {
 }
 
 // 队列的回调接口
-// Callback interface
-type Callback interface {
+// QCallback interface
+type QCallback interface {
 	OnAdd(any)
 	OnGet(any)
 	OnDone(any)
@@ -59,7 +59,7 @@ type Callback interface {
 // 队列的配置
 // Queue config
 type QConfig struct {
-	callback Callback
+	callback QCallback
 }
 
 // 创建一个队列的配置
@@ -70,7 +70,7 @@ func NewQConfig() *QConfig {
 
 // 设置队列的回调接口
 // Set Queue callback
-func (c *QConfig) WithCallback(cb Callback) *QConfig {
+func (c *QConfig) WithCallback(cb QCallback) *QConfig {
 	c.callback = cb
 	return c
 }
@@ -125,7 +125,7 @@ func NewQueue(conf *QConfig) *Q {
 
 // 创建一个默认的 Queue 对象
 // Create a new default Queue object.
-func DefaultQueue() Interface {
+func DefaultQueue() QInterface {
 	return NewQueue(nil)
 }
 
