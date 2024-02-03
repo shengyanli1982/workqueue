@@ -91,10 +91,10 @@ Compare to [kubernetes/client-go](https://github.com/kubernetes/client-go) workq
 But `slice` will cause the element to be copied when the slice is expanded, **which will cause the memory usage to increase**.
 
 ```bash
-$ go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/bennchmark
+$ go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/benchmark
 goos: darwin
 goarch: amd64
-pkg: github.com/shengyanli1982/workqueue/bennchmark
+pkg: github.com/shengyanli1982/workqueue/benchmark
 cpu: Intel(R) Xeon(R) CPU E5-4627 v2 @ 3.30GHz
 BenchmarkClientgoAdd-8          	 2363143	       476.9 ns/op	     171 B/op	       1 allocs/op
 BenchmarkClientgoGet-8          	 4164686	       316.3 ns/op	       7 B/op	       0 allocs/op
