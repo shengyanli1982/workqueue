@@ -37,7 +37,7 @@ type PriorityCallback interface {
 type PriorityQConfig struct {
 	QConfig
 	callback PriorityCallback
-	win      int64
+	sortwin  int64
 }
 
 // 创建一个优先级队列的配置
@@ -56,7 +56,7 @@ func (c *PriorityQConfig) WithCallback(cb PriorityCallback) *PriorityQConfig {
 // 设置优先级队列的排序窗口大小
 // Set the sort window size for the priority queue
 func (c *PriorityQConfig) WithWindow(win int64) *PriorityQConfig {
-	c.win = win
+	c.sortwin = win
 	return c
 }
 
@@ -70,16 +70,16 @@ func isPriorityQConfigValid(conf *PriorityQConfig) *PriorityQConfig {
 		if conf.callback == nil {
 			conf.callback = emptyCallback{}
 		}
-		if conf.win <= defaultQueueSortWin {
-			conf.win = defaultQueueSortWin
+		if conf.sortwin <= defaultQueueSortWin {
+			conf.sortwin = defaultQueueSortWin
 		}
 	}
 
 	return conf
 }
 
-// PriorityQ 是 PriorityQueue 的实现
-// PriorityQ is the implementation of PriorityQueue
+// 优先级队列数据结构
+// Priority queue data structure
 type PriorityQ struct {
 	*Q
 	waiting     *heap.Heap
@@ -112,7 +112,7 @@ func NewPriorityQueueWithCustomQueue(conf *PriorityQConfig, queue *Q) *PriorityQ
 		config:      conf,
 	}
 
-	q.lock = q.Q.lock
+	q.lock = q.Q.plock // 复制外部处理过程锁，是为了保证 waiting 的处理
 	q.ctx, q.cancel = context.WithCancel(context.Background())
 
 	q.wg.Add(1)
@@ -174,7 +174,7 @@ func (q *PriorityQ) AddWeight(element any, weight int) error {
 func (q *PriorityQ) loop() {
 	// 心跳
 	// Heartbeat
-	heartbeat := time.NewTicker(time.Duration(q.config.win) * time.Millisecond)
+	heartbeat := time.NewTicker(time.Duration(q.config.sortwin) * time.Millisecond)
 
 	defer func() {
 		q.wg.Done()
@@ -204,23 +204,31 @@ func (q *PriorityQ) loop() {
 			// 将 Heap 中的元素添加到 Queue 中
 			// Add the elements in the Heap to the Queue.
 			if len(elems) > 0 {
+				// 创建一个临时的切片，用于存储需要重新添加到 Heap 中的元素
+				// Create a temporary slice to store the elements that need to be re-added to the Heap.
+				var reAddElems []*heap.Element
+
 				// 将 s0 中的元素添加到 Queue 中
 				// Add the elements in s0 to the Queue.
 				for i := 0; i < len(elems); i++ {
 					elem := elems[i]
-					// 如果添加失败，则将元素重新添加到 Heap 中
-					// If the addition fails, the element is re-added to the Heap.
+					// 如果添加失败，则将元素添加到临时切片中
+					// If the addition fails, add the element to the temporary slice.
 					if err := q.Add(elem.Data()); err != nil {
-						q.lock.Lock()
-						// 将元素重新添加到 Heap 中
-						// Re-add the element to the Heap.
-						q.waiting.Push(elem)
-						q.lock.Unlock()
+						reAddElems = append(reAddElems, elem)
 					} else {
 						// 释放元素 Free element
 						q.elementpool.Put(elem)
 					}
 				}
+
+				// 将需要重新添加的元素重新添加到 Heap 中
+				// Re-add the elements that need to be re-added to the Heap.
+				q.lock.Lock()
+				for i := 0; i < len(reAddElems); i++ {
+					q.waiting.Push(reAddElems[i])
+				}
+				q.lock.Unlock()
 			}
 		}
 	}

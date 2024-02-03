@@ -4,7 +4,11 @@ import "time"
 
 // Queue 排序窗口
 // Queue sort window
-const defaultQueueSortWin = 500 // ms
+const defaultQueueSortWin = 500 // milliseconds
+
+// Queue 心跳间隔
+// Queue heartbeat interval
+const defaultQueueHeartbeat = 500 // milliseconds
 
 // Queue 限速设置
 // Queue rate limit setting

@@ -88,6 +88,8 @@ func isQConfigValid(conf *QConfig) *QConfig {
 	return conf
 }
 
+// 队列数据结构
+// Queue data structure
 type Q struct {
 	queue      *list.Deque
 	nodepool   *list.ListNodePool
@@ -95,7 +97,7 @@ type Q struct {
 	cond       *sync.Cond
 	dirty      set.Set
 	processing set.Set
-	lock       *sync.Mutex
+	plock      *sync.Mutex
 	once       sync.Once
 	closed     bool
 	config     *QConfig
@@ -109,9 +111,9 @@ func NewQueue(conf *QConfig) *Q {
 		dirty:      set.NewSet(),
 		processing: set.NewSet(),
 		queue:      list.NewDeque(),
-		qlock:      &sync.Mutex{},
+		qlock:      &sync.Mutex{}, // 队列锁
 		nodepool:   list.NewListNodePool(),
-		lock:       &sync.Mutex{},
+		plock:      &sync.Mutex{}, // 外部处理过程锁
 		once:       sync.Once{},
 		closed:     false,
 		config:     conf,
@@ -130,29 +132,26 @@ func DefaultQueue() Interface {
 // 标记已经准备好处理的元素
 // Mark an element as ready to be processed.
 func (q *Q) todo(element any) {
-	q.lock.Lock()
+	q.plock.Lock()
 	q.dirty.Delete(element)
 	q.processing.Add(element)
-	q.lock.Unlock()
+	q.plock.Unlock()
 }
 
 // 标记待被处理的元素
 // Mark an element to be processed
 func (q *Q) prepare(element any) {
-	q.lock.Lock()
+	q.plock.Lock()
 	q.dirty.Add(element)
-	q.lock.Unlock()
+	q.plock.Unlock()
 }
 
 // 判断元素是否已经被标记
 // Determine if an element has been marked.
 func (q *Q) isElementMarked(element any) bool {
-	q.lock.Lock()
-	defer q.lock.Unlock()
-	if q.dirty.Has(element) || q.processing.Has(element) {
-		return true
-	}
-	return false
+	q.plock.Lock()
+	defer q.plock.Unlock()
+	return q.dirty.Has(element) || q.processing.Has(element)
 }
 
 // 获取队列长度
@@ -166,8 +165,8 @@ func (q *Q) Len() int {
 // 判断队列是否已经关闭
 // Determine if the queue is shutting down.
 func (q *Q) IsClosed() bool {
-	q.lock.Lock()
-	defer q.lock.Unlock()
+	q.plock.Lock()
+	defer q.plock.Unlock()
 	return q.closed
 }
 
@@ -289,8 +288,8 @@ func (q *Q) GetWithBlock() (element any, err error) {
 // 标记元素已经处理完成
 // Mark an element as done processing.
 func (q *Q) Done(element any) {
-	q.lock.Lock()
-	defer q.lock.Unlock()
+	q.plock.Lock()
+	defer q.plock.Unlock()
 
 	// 从 processing 中删除元素
 	// Remove the element from processing
@@ -320,22 +319,22 @@ func (q *Q) Stop() {
 
 		// 标记关闭队列
 		// Mark the queue as closed
-		q.lock.Lock()
+		q.plock.Lock()
 		q.closed = true
-		q.lock.Unlock()
+		q.plock.Unlock()
 
 		// 清理所有的元素
 		// Clean up all elements
 		go func() {
-			q.lock.Lock()
+			q.plock.Lock()
 			q.dirty.Cleanup()
-			q.lock.Unlock()
+			q.plock.Unlock()
 			wg.Done()
 		}()
 		go func() {
-			q.lock.Lock()
+			q.plock.Lock()
 			q.processing.Cleanup()
-			q.lock.Unlock()
+			q.plock.Unlock()
 			wg.Done()
 		}()
 

@@ -68,8 +68,8 @@ func isDelayingQConfigValid(conf *DelayingQConfig) *DelayingQConfig {
 	return conf
 }
 
-// DelayingQ 是 DelayingQueue 的实现
-// DelayingQ is the implementation of DelayingQueue
+// 延迟队列数据结构
+// Delayed queue data structure
 type DelayingQ struct {
 	*Q
 	waiting     *heap.Heap
@@ -103,7 +103,7 @@ func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue *Q) *DelayingQ
 		config:      conf,
 	}
 
-	q.lock = q.Q.lock
+	q.lock = q.Q.plock // 复制外部处理过程锁，是为了保证 waiting 的处理
 	q.ctx, q.cancel = context.WithCancel(context.Background())
 
 	q.wg.Add(2)
@@ -166,7 +166,7 @@ func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
 func (q *DelayingQ) syncNow() {
 	// 心跳
 	// Heartbeat
-	heartbeat := time.NewTicker(time.Millisecond * defaultQueueSortWin)
+	heartbeat := time.NewTicker(time.Millisecond * defaultQueueHeartbeat)
 
 	defer func() {
 		q.wg.Done()
@@ -190,7 +190,7 @@ func (q *DelayingQ) syncNow() {
 func (q *DelayingQ) loop() {
 	// 心跳
 	// Heartbeat
-	heartbeat := time.NewTicker(time.Millisecond * defaultQueueSortWin)
+	heartbeat := time.NewTicker(time.Millisecond * defaultQueueHeartbeat)
 
 	defer func() {
 		q.wg.Done()
@@ -226,7 +226,7 @@ func (q *DelayingQ) loop() {
 						q.lock.Lock()
 						// 重置元素的值 Reset the value of the element
 						// 1500ms 后再次处理元素
-						elem.SetValue(q.now.Load() + defaultQueueSortWin*3)
+						elem.SetValue(q.now.Load() + defaultQueueHeartbeat*3)
 
 						// 将元素重新添加到堆中 Re-add the element to the heap
 						// Re-add the element to the heap

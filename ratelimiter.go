@@ -1,7 +1,6 @@
 package workqueue
 
 import (
-	"math"
 	"sync"
 	"time"
 
@@ -37,8 +36,8 @@ type BucketRateLimiter struct {
 
 // 创建一个基于令牌桶 RateLimiter
 // NewBucketRateLimiter returns a new instance of a bucket rate limiter.
-func NewBucketRateLimiter(r float64, b int) *BucketRateLimiter {
-	return &BucketRateLimiter{rate.NewLimiter(rate.Limit(r), b)}
+func NewBucketRateLimiter(rateLimit float64, burst int) *BucketRateLimiter {
+	return &BucketRateLimiter{rate.NewLimiter(rate.Limit(rateLimit), burst)}
 }
 
 // 创建一个基于令牌桶 RateLimiter, 拥有默认值
@@ -86,7 +85,7 @@ type ExponentialFailureRateLimiter struct {
 func NewExponentialFailureRateLimiter(base time.Duration, max time.Duration) RateLimiter {
 	return &ExponentialFailureRateLimiter{
 		lock:      sync.Mutex{},
-		failures:  map[any]int{},
+		failures:  make(map[any]int),
 		basedelay: base,
 		maxdelay:  max,
 	}
@@ -104,13 +103,17 @@ func (r *ExponentialFailureRateLimiter) When(item any) time.Duration {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
+	// 获取元素的失败次数
+	// Get the number of times an element has failed
 	exp := r.failures[item]
 	r.failures[item]++
 
-	// Calculate the backoff using exponential formula
-	backoff := r.basedelay * time.Duration(math.Pow(2, float64(exp))) // 2^exp * base
+	// 计算退避时间，使用向左位移
+	// Calculate the backoff time using left shift
+	backoff := r.basedelay << uint(exp) // base * 2^exp
 
-	// Cap the backoff to avoid overflow
+	// 如果退避时间大于最大退避时间，就使用最大退避时间
+	// If the backoff time is greater than the maximum backoff time, use the maximum backoff time
 	if backoff > r.maxdelay {
 		return r.maxdelay
 	}
@@ -141,5 +144,5 @@ func (r *ExponentialFailureRateLimiter) Forget(item any) {
 func (r *ExponentialFailureRateLimiter) Stop() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	r.failures = map[any]int{}
+	r.failures = make(map[any]int)
 }

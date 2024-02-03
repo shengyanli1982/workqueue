@@ -91,17 +91,17 @@ Compare to [kubernetes/client-go](https://github.com/kubernetes/client-go) workq
 But `slice` will cause the element to be copied when the slice is expanded, **which will cause the memory usage to increase**.
 
 ```bash
-$ go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/bennchmark
+$ go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/benchmark
 goos: darwin
 goarch: amd64
-pkg: github.com/shengyanli1982/workqueue/bennchmark
+pkg: github.com/shengyanli1982/workqueue/benchmark
 cpu: Intel(R) Xeon(R) CPU E5-4627 v2 @ 3.30GHz
-BenchmarkClientgoAdd-8          	 2439475	       463.0 ns/op	     166 B/op	       1 allocs/op
-BenchmarkClientgoGet-8          	 4138384	       314.1 ns/op	       7 B/op	       0 allocs/op
-BenchmarkClientgoAddAndGet-8    	 2355006	       488.5 ns/op	      57 B/op	       1 allocs/op
-BenchmarkWorkqueueAdd-8         	 1585618	       677.8 ns/op	      96 B/op	       2 allocs/op
-BenchmarkWorkqueueGet-8         	 4445774	       293.8 ns/op	       7 B/op	       0 allocs/op
-BenchmarkWorkqueueAddAndGet-8   	 1734568	       764.4 ns/op	      90 B/op	       2 allocs/op
+BenchmarkClientgoAdd-8          	 2363143	       476.9 ns/op	     171 B/op	       1 allocs/op
+BenchmarkClientgoGet-8          	 4164686	       316.3 ns/op	       7 B/op	       0 allocs/op
+BenchmarkClientgoAddAndGet-8    	 2485596	       484.9 ns/op	      57 B/op	       1 allocs/op
+BenchmarkWorkqueueAdd-8         	 1639712	       669.6 ns/op	      95 B/op	       2 allocs/op
+BenchmarkWorkqueueGet-8         	 3914792	       327.0 ns/op	      25 B/op	       0 allocs/op
+BenchmarkWorkqueueAddAndGet-8   	 1722157	       765.4 ns/op	      81 B/op	       1 allocs/op
 ```
 
 # Installation
