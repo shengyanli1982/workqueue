@@ -1,11 +1,12 @@
 <div align="center">
 	<h1>WorkQueue</h1>
-	<img src="assets/logo.png" alt="logo" width="300px">
+	<p>A versatile, user-friendly, high-performance Go work queue, designed for simplicity and easy extensibility across multiple queue types.</p>
+	<img src="assets/logo.png" alt="logo" width="400px">
 </div>
 
 # Introduction
 
-WorkQueue is a simple, fast, reliable work queue written in Go. It supports multiple queue types and is designed to be easily extensible which mean you can easily write a new queue type and use it with WorkQueue.
+WorkQueue is a versatile, user-friendly, high-performance Go work queue. It supports multiple queue types and is designed for simplicity and easy extensibility. You can easily write a new queue type and use it with WorkQueue.
 
 # Queue Types
 
@@ -17,24 +18,24 @@ WorkQueue is a simple, fast, reliable work queue written in Go. It supports mult
 
 # Advantage
 
--   Simple and easy to use
--   No third-party dependencies
--   High performance
--   Low memory usage
--   Use `quadruple heap`
--   Support action callback functions
+-   Simple and user-friendly
+-   No external dependencies
+-   High-performance
+-   Low memory footprint
+-   Utilizes a quadruple heap
+-   Supports action callback functions
 
 # Benchmark
 
 ## 1. STL
 
-All Queue types can be based on `Queue` and `Simple Queue`.
+All Queue types are based on `Queue` and `Simple Queue`.
 
-`Queue` use `deque` to store elements and use `set` to track the state of the queue. `Queue` is **default**.
+`Queue` uses `deque` to store elements and `set` to track the state of the queue. It is the **default** queue type.
 
-`Simple Queue` also use `deque` to store elements. No `set` be used, so no element state is tracked and no element priority is maintained.
+`Simple Queue` also uses `deque` to store elements. It does not track element state or maintain element priority.
 
-`Delaying Queue` and `Priority Queue` will use `heap` to maintain the expiration time and priority of the element.
+`Delaying Queue` and `Priority Queue` use `heap` to manage element expiration time and priority.
 
 ### 1.1. Deque
 
@@ -77,18 +78,16 @@ BenchmarkSet_Has-8      	11896728	       136.4 ns/op	       0 B/op	       0 allo
 
 ## 2. Queue
 
-Compare to [kubernetes/client-go](https://github.com/kubernetes/client-go) workqueue, WorkQueue has better performance and lower memory usage.
+When comparing WorkQueue to [kubernetes/client-go](https://github.com/kubernetes/client-go) workqueue, WorkQueue demonstrates better performance and lower memory usage.
 
 > [!NOTE]
-> All types of queues are based on `Queue` which the same as `kubernetes/client-go` workqueue. So the performance and memory usage of all types of queues are the same as `Queue`.
+> All types of queues in WorkQueue are based on the `Queue` implementation, which is the same as the `kubernetes/client-go` workqueue. Therefore, the performance and memory usage of all queue types are equivalent to that of the `Queue`.
 >
-> Why not compare to others? I think workqueue too close to the process of use and it is difficult to compare. If you have a better idea, please let me know.
+> Why not compare to other implementations? I believe workqueue is closely tied to its usage context, making it difficult to compare with other solutions. If you have any better ideas, please let me know.
 
-`WorkQueue` is same as `kubernetes/client-go` workqueue, no used `channel`, `WorkQueue` use `deque` to store elements and use `set` to track the state of the queue. `kubernetes/client-go` workqueue use `slice` to store elements and use `set` to track the state of the queue.
+In WorkQueue, elements are stored in a `deque` and the state of the queue is tracked using a `set`. Similarly, in the `kubernetes/client-go` workqueue, elements are stored in a `slice` and the state is tracked using a `set`.
 
-`slice` is faster than `deque`, preallocate memory for slice will improve performance.
-
-But `slice` will cause the element to be copied when the slice is expanded, **which will cause the memory usage to increase**.
+While `slice` is faster than `deque`, preallocating memory for the slice can improve performance. However, expanding the slice will result in element copying, leading to increased memory usage.
 
 ```bash
 $ go test -benchmem -run=^$ -bench ^Benchmark* github.com/shengyanli1982/workqueue/benchmark
@@ -112,39 +111,39 @@ go get github.com/shengyanli1982/workqueue
 
 # Quick Start
 
-Here are some examples of how to use WorkQueue. but you can also refer to the [examples](examples) directory for more examples.
+For more examples on how to use WorkQueue, you can refer to the [examples](examples) directory.
 
 ## 1. Queue
 
-`Queue` is a simple queue in project, all queues are based on it. It is a FIFO queue and has `dirty` and `processing` set to track the state of the queue. If you want to `Add` an exist element to the queue, unfortunately, it will not be added to the queue again.
+The `Queue` is a simple FIFO queue used as the foundation for all other queues in the project. It maintains a `dirty` set and a `processing` set to track the state of the queue. When adding an existing element to the queue using the `Add` method, it will not be added again.
 
 > [!IMPORTANT]
-> Here is an very important thing to note, if you want to add exist one to the queue again, you must call `Done` method to mark the element as done.
+> It is important to note that if you want to add an existing element to the queue again, you must first call the `Done` method to mark the element as done.
 >
-> `Done` method is required after `Get` method, don't forget it.
+> After calling the `Get` method, it is required to call the `Done` method. Don't forget this step.
 
 ### Create
 
--   `NewQueue` create a queue, use `QConfig` to set config options. If the config is `nil`, the default config will be used.
--   `DefaultQueue` create a queue with default config. It is equivalent to `NewQueue(nil)`, but return value implementing the `Interface` interface.
+-   `NewQueue`: Creates a queue with the provided `QConfig` options. If the config is `nil`, the default config will be used.
+-   `DefaultQueue`: Creates a queue with the default config. It is equivalent to `NewQueue(nil)` and returns a value that implements the `Interface` interface.
 
 ### Config
 
-The `Queue` has some config options, you can set it when create a queue.
+The `Queue` has some config options that can be set when creating a queue.
 
--   `WithCallback` set callback functions
+-   `WithCallback`: Sets callback functions.
 
 ### Methods
 
--   `Add` adds an element to the workqueue. If the element is already in the queue, it will not be added again.
--   `Get` gets an element from the workqueue. If the workqueue is empty, it will **`nonblock`** and return immediately.
--   `GetWithBlock` gets an element from the workqueue. If the workqueue is empty, it will **`blocking`** and waiting new element be added into queue.
--   `GetValues` returns the elements of the workqueue. elements are `snapshot` of the workqueue, so it is safe to iterate over them.
--   `Done` marks an element as done with the workqueue. If the element is not in the workqueue, it will not be marked as done.
--   `Len` returns the elements count of the workqueue.
--   `Range` calls `fn` for each element in the workqueue. elements are `current` of the workqueue, so it block the workqueue.
--   `Stop` shuts down the workqueue and waits for all the goroutines to finish.
--   `IsClosed` returns true if the workqueue is shutting down.
+-   `Add`: Adds an element to the workqueue. If the element is already in the queue, it will not be added again.
+-   `Get`: Gets an element from the workqueue. If the workqueue is empty, it will **`nonblock`** and return immediately.
+-   `GetWithBlock`: Gets an element from the workqueue. If the workqueue is empty, it will **`block`** and wait for a new element to be added.
+-   `GetValues`: Returns a snapshot of the elements in the workqueue. It is safe to iterate over them.
+-   `Done`: Marks an element as done in the workqueue. If the element is not in the workqueue, it will not be marked as done.
+-   `Len`: Returns the number of elements in the workqueue.
+-   `Range`: Calls a function `fn` for each element in the workqueue. It blocks the workqueue.
+-   `Stop`: Shuts down the workqueue and waits for all goroutines to finish.
+-   `IsClosed`: Returns `true` if the workqueue is shutting down.
 
 ### Example
 
@@ -160,31 +159,61 @@ import (
 )
 
 func main() {
+	// 创建一个新的队列
+	// Create a new queue
 	q := workqueue.NewQueue(nil)
 
+	// 启动一个新的 goroutine 来处理队列中的元素
+	// Start a new goroutine to handle elements in the queue
 	go func() {
+		// 循环获取队列中的元素
+		// Loop to get elements from the queue
 		for {
+			// 从队列中获取一个元素
+			// Get an element from the queue
 			element, err := q.Get()
+
+			// 如果获取元素时发生错误，则处理错误
+			// If an error occurs when getting the element, handle the error
 			if err != nil {
+				// 如果错误不是因为队列为空，则打印错误并返回
+				// If the error is not because the queue is empty, print the error and return
 				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
 					fmt.Println(err)
 					return
 				} else {
+					// 如果错误是因为队列为空，则继续循环
+					// If the error is because the queue is empty, continue the loop
 					continue
 				}
 			}
+
+			// 打印获取到的元素
+			// Print the obtained element
 			fmt.Println("get element:", element)
-			q.Done(element) // mark element as done, 'Done' is required after 'Get'
+
+			// 标记元素为已处理，'Done' 是在 'Get' 之后必需的
+			// Mark the element as done, 'Done' is required after 'Get'
+			q.Done(element)
 		}
 	}()
 
+	// 向队列中添加元素
+	// Add elements to the queue
 	_ = q.Add("hello")
 	_ = q.Add("world")
-	_ = q.Add("hello") // duplicate element, can't add duplicate element
-	_ = q.Add("world") // duplicate element, can't add duplicate element
 
-	time.Sleep(time.Second) // wait for element to be executed
+	// 添加重复元素，队列不允许添加重复元素
+	// Add duplicate elements, the queue does not allow adding duplicate elements
+	_ = q.Add("hello")
+	_ = q.Add("world")
 
+	// 等待元素被执行
+	// Wait for the elements to be executed
+	time.Sleep(time.Second)
+
+	// 停止队列
+	// Stop the queue
 	q.Stop()
 }
 ```
@@ -199,35 +228,37 @@ get element: world
 
 ## 2. Simple Queue
 
-`Simple Queue` is a simple queue that does not track the state of the element. It is simple version of `Queue`, which mean it is a FIFO queue and has no `dirty` and `processing` set to track the state of the queue. If you want to `Add` an exist element to the queue, it will be added to the queue again.
+## Simple Queue
+
+`Simple Queue` is a simplified version of `Queue` that operates as a FIFO queue without tracking the state of elements. It does not have a `dirty` or `processing` set to track the state of the queue. If you add an existing element to the queue using the `Add` method, it will be added again.
 
 > [!TIP]
-> The `Simple Queue` have no `dirty` and `processing` set to track the state of the queue, so `Done` method is not required after `Get` method.
+> The `Simple Queue` does not track the state of the queue, so the `Done` method is not required after calling the `Get` method.
 >
-> The `Done` method is left for compatibility
+> The `Done` method is provided for compatibility purposes.
 
 ### Create
 
--   `NewSimpleQueue` create a simple queue, use `QConfig` to set config options. If the config is `nil`, the default config will be used.
--   `DefaultSimpleQueue` create a simple queue with default config. It is equivalent to `NewSimpleQueue(nil)`, but return value implementing the `Interface` interface.
+-   `NewSimpleQueue`: Creates a simple queue with the provided `QConfig` options. If the config is `nil`, the default config will be used.
+-   `DefaultSimpleQueue`: Creates a simple queue with the default config. It is equivalent to `NewSimpleQueue(nil)` and returns a value that implements the `Interface` interface.
 
 ### Config
 
-The `Queue` has some config options, you can set it when create a queue.
+The `Simple Queue` has some config options that can be set when creating a queue.
 
--   `WithCallback` set callback functions
+-   `WithCallback`: Sets callback functions.
 
 ### Methods
 
--   `Add` adds an element to the workqueue. If the element is already in the queue, it will not be added again.
--   `Get` gets an element from the workqueue. If the workqueue is empty, it will **`nonblock`** and return immediately.
--   `GetWithBlock` gets an element from the workqueue. If the workqueue is empty, it will **`blocking`** and waiting new element be added into queue.
--   `GetValues` returns the elements of the workqueue. elements are `snapshot` of the workqueue, so it is safe to iterate over them.
--   `Done` marks an element as done with the workqueue. In fact in `Simple Queue`, it does nothing. Only left for compatibility.
--   `Len` returns the elements count of the workqueue.
--   `Range` calls `fn` for each element in the workqueue. elements are `current` of the workqueue, so it block the workqueue.
--   `Stop` shuts down the workqueue and waits for all the goroutines to finish.
--   `IsClosed` returns true if the workqueue is shutting down.
+-   `Add`: Adds an element to the workqueue. If the element is already in the queue, it will not be added again.
+-   `Get`: Gets an element from the workqueue. If the workqueue is empty, it will **`nonblock`** and return immediately.
+-   `GetWithBlock`: Gets an element from the workqueue. If the workqueue is empty, it will **`block`** and wait for a new element to be added.
+-   `GetValues`: Returns a snapshot of the elements in the workqueue. It is safe to iterate over them.
+-   `Done`: Marks an element as done in the workqueue. In the `Simple Queue`, this method does nothing and is only provided for compatibility.
+-   `Len`: Returns the number of elements in the workqueue.
+-   `Range`: Calls a function `fn` for each element in the workqueue. It blocks the workqueue.
+-   `Stop`: Shuts down the workqueue and waits for all goroutines to finish.
+-   `IsClosed`: Returns `true` if the workqueue is shutting down.
 
 ### Example
 
@@ -242,32 +273,64 @@ import (
 	"github.com/shengyanli1982/workqueue"
 )
 
+// "main" 函数是程序的入口点
+// The "main" function is the entry point of the program
 func main() {
+	// 创建一个新的简单队列
+	// Create a new simple queue
 	q := workqueue.NewSimpleQueue(nil)
 
+	// 启动一个新的 goroutine 来处理队列中的元素
+	// Start a new goroutine to handle elements in the queue
 	go func() {
+		// 循环处理队列中的元素
+		// Loop to handle elements in the queue
 		for {
+			// 从队列中获取一个元素
+			// Get an element from the queue
 			element, err := q.Get()
+
+			// 如果获取元素时出错，则处理错误
+			// If an error occurs when getting the element, handle the error
 			if err != nil {
+				// 如果错误不是因为队列为空，则打印错误并返回
+				// If the error is not because the queue is empty, print the error and return
 				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
 					fmt.Println(err)
 					return
 				} else {
+					// 如果错误是因为队列为空，则继续循环
+					// If the error is because the queue is empty, continue the loop
 					continue
 				}
 			}
+
+			// 打印获取到的元素
+			// Print the obtained element
 			fmt.Println("get element:", element)
-			q.Done(element) // mark element as done, 'Done' is required after 'Get'
+
+			// 标记元素为已处理，'Done' 是在 'Get' 之后必需的
+			// Mark the element as done, 'Done' is required after 'Get'
+			q.Done(element)
 		}
 	}()
 
+	// 向队列中添加元素
+	// Add elements to the queue
 	_ = q.Add("hello")
 	_ = q.Add("world")
-	_ = q.Add("hello") // duplicate element
-	_ = q.Add("world") // duplicate element
 
-	time.Sleep(time.Second) // wait for element to be executed
+	// 添加重复元素，队列不允许添加重复元素
+	// Add duplicate elements, the queue does not allow adding duplicate elements
+	_ = q.Add("hello")
+	_ = q.Add("world")
 
+	// 等待元素被执行
+	// Wait for the element to be executed
+	time.Sleep(time.Second)
+
+	// 停止队列
+	// Stop the queue
 	q.Stop()
 }
 ```
@@ -284,33 +347,33 @@ get element: world
 
 ## 3. Delaying Queue
 
-`Delaying Queue` is a queue that supports delaying execution. It is based on `Queue` and uses a `heap` to maintain the expiration time of the element. When you add an element to the queue, you can specify the delay time, and the element will be executed after the delay time.
+The `Delaying Queue` is a queue that supports delaying execution. It is based on the `Queue` and uses a `heap` to maintain the expiration time of the elements. When you add an element to the queue, you can specify the delay time, and the element will be executed after the specified delay.
 
 > [!IMPORTANT]
-> The `Delaying Queue` has a `goroutine` that is sync the current time, used to update timeout scale. It can not be shut down and modified.
+> The `Delaying Queue` has a `goroutine` that synchronizes the current time to update the timeout scale. This goroutine cannot be shut down or modified.
 >
-> Timer minimum resync time is `500ms`, which mean if you set the element's delay time less than `500ms`, it will be processed after `500ms`.
+> The minimum resync time for the timer is `500ms`. If you set the delay time of an element to less than `500ms`, it will be processed after `500ms`.
 
 ### Create
 
--   `NewDelayingQueue` create a delaying queue, use `DelayingQConfig` to set config options. If the config is `nil`, the default config will be used.
+-   `NewDelayingQueue`: Creates a delaying queue and uses `DelayingQConfig` to set configuration options. If the config is `nil`, the default config will be used.
 
--   `DefaultDelayingQueue` create a delaying queue with default config. It is equivalent to `NewDelayingQueue(nil)`, but return value implementing the `DelayingInterface` interface.
+-   `DefaultDelayingQueue`: Creates a delaying queue with the default config. It is equivalent to `NewDelayingQueue(nil)`, but the return value implements the `DelayingInterface` interface.
 
 ### Config
 
-The `Delaying Queue` has some config options, you can set it when create a queue.
+The `Delaying Queue` has some configuration options that can be set when creating a queue.
 
--   `WithCallback` set callback functions
+-   `WithCallback`: Sets callback functions.
 
 > [!NOTE]
-> Don't set the capacity too small, it will cause the element from `heap` to be added to Queue failed.
+> Avoid setting the capacity too small, as it may cause the elements from the `heap` to fail to be added to the queue.
 >
-> Then the element will be set new delay time(`1500ms`) and added to `heap` again, which will cause the element to be executed after a long time.
+> In such cases, the element will be assigned a new delay time of `1500ms` and added to the `heap` again, resulting in a longer execution delay.
 
 ### Methods
 
--   `AddAfter` adds an element to the workqueue after the specified delay time. If the element is already in the queue, it will not be added again.
+-   `AddAfter`: Adds an element to the workqueue after the specified delay time. If the element is already in the queue, it will not be added again.
 
 ### Example
 
@@ -326,31 +389,61 @@ import (
 )
 
 func main() {
+	// 创建一个新的延迟队列
+	// Create a new delaying queue
 	q := workqueue.NewDelayingQueue(nil)
 
+	// 启动一个新的 goroutine 来处理队列中的元素
+	// Start a new goroutine to handle elements in the queue
 	go func() {
+		// 循环获取队列中的元素
+		// Loop to get elements from the queue
 		for {
+			// 从队列中获取一个元素
+			// Get an element from the queue
 			element, err := q.Get()
+
+			// 如果获取元素时发生错误，则处理错误
+			// If an error occurs when getting the element, handle the error
 			if err != nil {
+				// 如果错误不是因为队列为空，则打印错误并返回
+				// If the error is not because the queue is empty, print the error and return
 				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
 					fmt.Println(err)
 					return
 				} else {
+					// 如果错误是因为队列为空，则继续循环
+					// If the error is because the queue is empty, continue the loop
 					continue
 				}
 			}
+
+			// 打印获取到的元素
+			// Print the obtained element
 			fmt.Println("get element:", element)
-			q.Done(element) // mark element as done, 'Done' is required after 'Get'
+
+			// 标记元素为已处理，'Done' 是在 'Get' 之后必需的
+			// Mark the element as done, 'Done' is required after 'Get'
+			q.Done(element)
 		}
 	}()
 
+	// 向队列中添加元素
+	// Add elements to the queue
 	_ = q.Add("hello")
 	_ = q.Add("world")
+
+	// 向队列中添加延迟元素
+	// Add delayed elements to the queue
 	_ = q.AddAfter("delay 1 sec", time.Second)
 	_ = q.AddAfter("delay 2 sec", time.Second*2)
 
-	time.Sleep(time.Second * 4) // wait for element to be executed
+	// 等待元素被执行
+	// Wait for the elements to be executed
+	time.Sleep(time.Second * 4)
 
+	// 停止队列
+	// Stop the queue
 	q.Stop()
 }
 ```
@@ -368,30 +461,32 @@ get element: delay 2 sec
 
 ## 4. Priority Queue
 
-`Priority Queue` is a queue that supports priority execution. It is based on `Queue` and uses a `heap` to maintain the priority of the element. When you add an element to the queue, you can specify the priority of the element, and the element will be executed according to the priority.
+## Priority Queue
+
+The `Priority Queue` is a queue that supports priority execution. It is based on the `Queue` and uses a `heap` to maintain the priority of the elements. When adding an element to the queue, you can specify its priority, and the element will be executed according to the priority.
 
 > [!CAUTION]
-> The `Priority Queue` requires a window to sort the elements currently added to the Queue. The elements in this time window are sorted in order of `priority` from smallest to largestl The order of elements in two different time Windows is not guaranteed to be sorted by `priority`, even if the two Windows are immediately adjacent.
+> The `Priority Queue` requires a time window to sort the elements currently added to the queue. The elements within this time window are sorted in ascending order of priority. However, the order of elements in two different time windows is not guaranteed to be sorted by priority, even if the two windows are immediately adjacent.
 >
-> The default window size is `500ms`, you can set it when create a queue.
+> The default window size is `500ms`, but you can set it when creating a queue.
 >
-> -   Don't set the window size too small, it will cause the queue to be sorted frequently, which will affect the performance of the queue.
-> -   Don't set the window size too large, it will cause the elements sorted to wait for a long time, which will affect elements to be executed in time.
+> -   Avoid setting the window size too small, as it will cause frequent sorting of the queue, impacting performance.
+> -   Avoid setting the window size too large, as it will cause sorted elements to wait for a long time, potentially delaying their execution.
 
 ### Create
 
--   `NewPriorityQueue` create a priority queue, use `PriorityQConfig` to set config options. If the config is `nil`, the default config will be used.
+-   `NewPriorityQueue`: Creates a priority queue using the `PriorityQConfig` to set configuration options. If the config is `nil`, the default config will be used.
 
--   `DefaultPriorityQueue` create a priority queue with default config. It is equivalent to `NewPriorityQueue(nil)`, but return value implementing the `PriorityInterface` interface.
+-   `DefaultPriorityQueue`: Creates a priority queue with the default config. It is equivalent to `NewPriorityQueue(nil)`, but the return value implements the `PriorityInterface` interface.
 
 ### Config
 
--   `WithCallback` set callback functions
--   `WithWindow` set the sort window size of the queue, default is `500` ms.
+-   `WithCallback`: Sets callback functions.
+-   `WithWindow`: Sets the sort window size of the queue. The default is `500ms`.
 
 ### Methods
 
--   `AddWeight` adds an element to the workqueue with the specified priority. If the element is already in the queue, it will not be added again.
+-   `AddWeight`: Adds an element to the workqueue with the specified priority. If the element is already in the queue, it will not be added again.
 
 ### Example
 
@@ -407,31 +502,62 @@ import (
 )
 
 func main() {
+	// 创建一个新的优先级队列
+	// Create a new priority queue
 	q := workqueue.NewPriorityQueue(nil)
 
+	// 启动一个新的 goroutine 来处理队列中的元素
+	// Start a new goroutine to handle elements in the queue
 	go func() {
+		// 无限循环，直到队列为空
+		// Infinite loop until the queue is empty
 		for {
+			// 从队列中获取元素
+			// Get an element from the queue
 			element, err := q.Get()
+
+			// 如果获取元素时出现错误
+			// If there is an error when getting the element
 			if err != nil {
+				// 如果错误不是因为队列为空
+				// If the error is not because the queue is empty
 				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
+					// 打印错误并返回
+					// Print the error and return
 					fmt.Println(err)
 					return
 				} else {
+					// 如果错误是因为队列为空，继续循环
+					// If the error is because the queue is empty, continue the loop
 					continue
 				}
 			}
+
+			// 打印获取到的元素
+			// Print the obtained element
 			fmt.Println("get element:", element)
-			q.Done(element) // mark element as done, 'Done' is required after 'Get'
+
+			// 标记元素已完成，'Done' 是 'Get' 之后必须的
+			// Mark the element as done, 'Done' is required after 'Get'
+			q.Done(element)
 		}
 	}()
 
+	// 向队列中添加元素
+	// Add elements to the queue
 	_ = q.Add("hello")
 	_ = q.Add("world")
-	_ = q.AddWeight("priority: 1", 1) // add element with priority
-	_ = q.AddWeight("priority: 2", 2) // add element with priority
+	// 添加带有优先级的元素
+	// Add elements with priority
+	_ = q.AddWeight("priority: 1", 1)
+	_ = q.AddWeight("priority: 2", 2)
 
-	time.Sleep(time.Second * 1) // wait for element to be executed
+	// 等待元素被执行
+	// Wait for the element to be executed
+	time.Sleep(time.Second * 1)
 
+	// 停止队列
+	// Stop the queue
 	q.Stop()
 }
 ```
@@ -449,26 +575,26 @@ get element: priority: 2
 
 ## 5. RateLimiting Queue
 
-`RateLimiting Queue` is a queue that supports rate limiting execution. It is based on `Queue` and uses a `heap` to maintain the expiration time of the element. When you add an element to the queue, you can specify the rate limit of the element, and the element will be executed according to the rate limit.
+The `RateLimiting Queue` is a queue that supports rate limiting execution. It is based on the `Queue` and uses a `heap` to maintain the expiration time of the elements. When adding an element to the queue, you can specify the rate limit, and the element will be executed according to the rate limit.
 
 > [!TIP]
-> Default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `RateLimiter` interface.
+> The default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `RateLimiter` interface.
 
 ### Create
 
--   `NewRateLimitingQueue` create a rate limiting queue, use `RateLimitingQConfig` to set config options. If the config is `nil`, the default config will be used.
--   `DefaultRateLimitingQueue` create a rate limiting queue with default config. It is equivalent to `NewRateLimitingQueue(nil)`, but return value implementing the `RateLimitingInterface` interface.
+-   `NewRateLimitingQueue`: Creates a rate limiting queue using the `RateLimitingQConfig` to set configuration options. If the config is `nil`, the default config will be used.
+-   `DefaultRateLimitingQueue`: Creates a rate limiting queue with the default config. It is equivalent to `NewRateLimitingQueue(nil)`, but the return value implements the `RateLimitingInterface` interface.
 
 ### Config
 
--   `WithCallback` set callback functions
--   `WithLimiter` set the rate limiter of the queue, default is `TokenBucketRateLimiter`.
+-   `WithCallback`: Sets callback functions.
+-   `WithLimiter`: Sets the rate limiter of the queue. The default is `TokenBucketRateLimiter`.
 
 ### Methods
 
--   `AddLimited` adds an element to the workqueue with the specified rate limit. If the element is already in the queue, it will not be added again.
--   `Forget` forgets about an element in the rate limiter. Which mean the element not limit anymore.
--   `NumLimitTimes` returns the number of times an element has been limited.
+-   `AddLimited`: Adds an element to the workqueue with the specified rate limit. If the element is already in the queue, it will not be added again.
+-   `Forget`: Forgets about an element in the rate limiter, which means the element is no longer limited.
+-   `NumLimitTimes`: Returns the number of times an element has been limited.
 
 ### Example
 
@@ -484,33 +610,70 @@ import (
 )
 
 func main() {
-	q := workqueue.NewRateLimitingQueue(nil)
+	// 创建一个新的限速队列配置
+	// Create a new rate limiting queue configuration
+	conf := workqueue.NewRateLimitingQConfig()
 
+	// 使用桶形限速器，参数为令牌生成速率和桶的大小
+	// Use a bucket rate limiter, the parameters are the token generation rate and the size of the bucket
+	conf.WithLimiter(workqueue.NewBucketRateLimiter(float64(4), 1))
+
+	// 创建一个新的限速队列
+	// Create a new rate limiting queue
+	q := workqueue.NewRateLimitingQueue(conf)
+
+	// 启动一个新的 goroutine 来处理队列中的元素
+	// Start a new goroutine to handle elements in the queue
 	go func() {
+		// 循环获取队列中的元素
+		// Loop to get elements from the queue
 		for {
+			// 从队列中获取一个元素
+			// Get an element from the queue
 			element, err := q.Get()
+
+			// 如果获取元素时发生错误，则处理错误
+			// If an error occurs when getting the element, handle the error
 			if err != nil {
+				// 如果错误不是因为队列为空，则打印错误并返回
+				// If the error is not because the queue is empty, print the error and return
 				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
 					fmt.Println(err)
 					return
 				} else {
+					// 如果错误是因为队列为空，则继续循环
+					// If the error is because the queue is empty, continue the loop
 					continue
 				}
 			}
-			fmt.Println("get element:", element)
-			q.Done(element) // mark element as done, 'Done' is required after 'Get'
+
+			// 打印获取到的元素和当前时间
+			// Print the obtained element and the current time
+			fmt.Printf("[%s] get element: %s\n", time.Now().Format("04:05"), element)
+
+			// 标记元素为已处理，'Done' 是在 'Get' 之后必需的
+			// Mark the element as done, 'Done' is required after 'Get'
+			q.Done(element)
 		}
 	}()
 
+	// 向队列中添加元素
+	// Add elements to the queue
 	_ = q.Add("hello")
 	_ = q.Add("world")
 
+	// 向队列中添加限速元素
+	// Add rate-limited elements to the queue
 	for i := 0; i < 10; i++ {
-		_ = q.AddLimited(fmt.Sprintf(">>> %s %d", time.Now().String(), i))
+		_ = q.AddLimited(fmt.Sprintf(">>> %d", i))
 	}
 
-	time.Sleep(time.Second * 3) // wait for element to be executed
+	// 等待元素被执行
+	// Wait for the elements to be executed
+	time.Sleep(time.Second * 3)
 
+	// 停止队列
+	// Stop the queue
 	q.Stop()
 }
 ```
@@ -536,20 +699,18 @@ get element: >>> 2024-02-03 15:04:33.111479 +0800 CST m=+0.000362747 9
 
 # Features
 
-`WorkQueue` also has interesting properties. It is designed to be easily extensible which mean you can easily write a new queue type and use it with WorkQueue.
+`WorkQueue` is designed to be easily extensible, allowing you to write and use custom queue types.
 
-## 1. Callback
+## Callbacks
 
-`WorkQueue` supports action callback function. Specify a callback functions when create a queue, and the callback function will be called when do some action.
+`WorkQueue` supports callback functions that can be specified when creating a queue. These callbacks are invoked when performing certain actions.
 
 > [!TIP]
-> Callback functions is not required that you can use `WorkQueue` without callback functions. Set `nil` when create a queue, and the callback function will not be called.
+> Callback functions are optional. You can create a queue without specifying any callbacks by setting them to `nil`.
 
 ### Example
 
 ```go
-package main
-
 import (
 	"fmt"
 	"time"
@@ -557,83 +718,118 @@ import (
 	"github.com/shengyanli1982/workqueue"
 )
 
+// 定义一个回调结构体
+// Define a callback struct
 type callback struct {}
 
-func (c *callback) OnAdd(element interface{}) { // OnAdd will be called when add an element to the queue
+// "OnAdd" 方法会在元素被添加到队列时调用
+// The "OnAdd" method will be called when an element is added to the queue
+func (c *callback) OnAdd(element interface{}) {
 	fmt.Println("add element:", element)
 }
 
-func (c *callback) OnGet(element interface{}) { // OnGet will be called when get an element from the queue
+// "OnGet" 方法会在从队列获取元素时调用
+// The "OnGet" method will be called when an element is obtained from the queue
+func (c *callback) OnGet(element interface{}) {
 	fmt.Println("get element:", element)
 }
 
-func (c *callback) OnDone(element interface{}) { // OnDone will be called when done an element from the queue
+// "OnDone" 方法会在队列中的元素处理完成时调用
+// The "OnDone" method will be called when an element in the queue is done
+func (c *callback) OnDone(element interface{}) {
 	fmt.Println("done element:", element)
 }
 
+// "main" 函数是程序的入口点
+// The "main" function is the entry point of the program
 func main() {
+	// 创建一个新的队列配置
+	// Create a new queue configuration
 	conf := workqueue.NewQConfig()
-	conf.WithCallback(&callback{}) // set callback functions
 
+	// 设置回调函数
+	// Set the callback functions
+	conf.WithCallback(&callback{})
+
+	// 使用配置创建一个新的队列
+	// Create a new queue with the configuration
 	q := workqueue.NewQueue(conf)
 
+	// 启动一个新的 goroutine 来处理队列中的元素
+	// Start a new goroutine to handle elements in the queue
 	go func() {
+		// 循环处理队列中的元素
+		// Loop to handle elements in the queue
 		for {
+			// 从队列中获取一个元素
+			// Get an element from the queue
 			element, err := q.Get()
+
+			// 如果获取元素时出错，则打印错误并返回
+			// If an error occurs when getting the element, print the error and return
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
+
+			// 标记元素为已处理
+			// Mark the element as done
 			q.Done(element)
 		}
 	}()
 
+	// 向队列中添加元素
+	// Add elements to the queue
 	_ = q.Add("hello")
 	_ = q.Add("world")
 
-	time.Sleep(time.Second * 2) // wait for element to be executed
+	// 等待元素被执行
+	// Wait for the element to be executed
+	time.Sleep(time.Second * 2)
 
+	// 停止队列
+	// Stop the queue
 	q.Stop()
 }
 ```
 
 ### Reference
 
-The queue callback functions are loosely used and can be easily extended, you can use it as you like.
+The queue callback functions are flexible and can be easily extended to suit your needs.
 
 #### Queue / Simple Queue
 
--   `OnAdd` will be called when add an element to the queue
--   `OnGet` will be called when get an element from the queue
--   `OnDone` will be called when done an element from the queue
+-   `OnAdd`: Called when adding an element to the queue.
+-   `OnGet`: Called when retrieving an element from the queue.
+-   `OnDone`: Called when completing processing of an element.
 
 #### Delaying Queue
 
--   `OnAddAfter` will be called when add an specified delay time element to the delaying queue
+-   `OnAddAfter`: Called when adding an element with a specified delay time to the delaying queue.
 
 #### Priority Queue
 
--   `OnAddWeight` will be called when add an specified priority element to the priority queue
+-   `OnAddWeight`: Called when adding an element with a specified priority to the priority queue.
 
 #### RateLimiting Queue
 
--   `OnAddLimited` will be called when add an specified rate limit element to the rate limiting queue
--   `OnForget` will be called when forget an element from the rate limiting queue
--   `OnGetTimes` will be called when get the number of times an element has been limited from the rate limiting queue
+-   `OnAddLimited`: Called when adding an element with a specified rate limit to the rate limiting queue.
+-   `OnForget`: Called when removing an element from the rate limiting queue.
+-   `OnGetTimes`: Called when retrieving the number of times an element has been limited in the rate limiting queue.
 
 ## 2. With Custom Queue
 
-`WorkQueue` is designed to be easily extensible which mean you can easily write a new queue type and use it with WorkQueue. You can implement the `Interface`, `Callback` interfaces and reference `QConfig` to create a new queue type.
+`WorkQueue` is designed to be easily extensible, allowing you to create your own queue types by implementing the `Interface` and `Callback` interfaces and referencing the `QConfig`.
 
-`WorkQueue` provides two queue types, `Queue` and `Simple Queue`. You can refer to them to create your own queue type.
+The `WorkQueue` library provides two built-in queue types: `Queue` and `Simple Queue`. You can use them as a reference to create your own custom queue types.
 
-Following is used the `Simple Queue` as an example to set base for `Delaying Queue`.
+For example, you can use the `Simple Queue` as a base to create a `Delaying Queue`.
 
 ### Example
 
 ```go
-package main
-
+// 导入需要的包
+// Import the required packages
 import (
 	"errors"
 	"fmt"
@@ -642,32 +838,64 @@ import (
 	"github.com/shengyanli1982/workqueue"
 )
 
+// "main" 函数是程序的入口点
+// The "main" function is the entry point of the program
 func main() {
+	// 创建一个新的延迟队列
+	// Create a new delaying queue
 	q := workqueue.NewDelayingQueueWithCustomQueue(nil, workqueue.NewSimpleQueue(nil))
 
+	// 启动一个新的 goroutine 来处理队列中的元素
+	// Start a new goroutine to handle elements in the queue
 	go func() {
+		// 循环处理队列中的元素
+		// Loop to handle elements in the queue
 		for {
+			// 从队列中获取一个元素
+			// Get an element from the queue
 			element, err := q.Get()
+
+			// 如果获取元素时出错，则处理错误
+			// If an error occurs when getting the element, handle the error
 			if err != nil {
+				// 如果错误不是因为队列为空，则打印错误并返回
+				// If the error is not because the queue is empty, print the error and return
 				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
 					fmt.Println(err)
 					return
 				} else {
+					// 如果错误是因为队列为空，则继续循环
+					// If the error is because the queue is empty, continue the loop
 					continue
 				}
 			}
+
+			// 打印获取到的元素
+			// Print the obtained element
 			fmt.Println("get element:", element)
-			q.Done(element) // mark element as done, 'Done' is required after 'Get'
+
+			// 标记元素为已处理，'Done' 是在 'Get' 之后必需的
+			// Mark the element as done, 'Done' is required after 'Get'
+			q.Done(element)
 		}
 	}()
 
+	// 向队列中添加元素
+	// Add elements to the queue
 	_ = q.Add("hello")
 	_ = q.Add("world")
+
+	// 向队列中添加延迟元素
+	// Add delayed elements to the queue
 	_ = q.AddAfter("delay 1 sec", time.Second)
 	_ = q.AddAfter("delay 2 sec", time.Second*2)
 
-	time.Sleep(time.Second * 4) // wait for element to be executed
+	// 等待元素被执行
+	// Wait for the element to be executed
+	time.Sleep(time.Second * 4)
 
+	// 停止队列
+	// Stop the queue
 	q.Stop()
 }
 ```
@@ -685,13 +913,13 @@ get element: delay 2 sec
 
 ## 3. Limiter
 
-The limiter only works for `RateLimiting Queue`, it determines the rate limit of the element. Default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `RateLimiter` interface.
+The limiter only works for the `RateLimiting Queue` and determines the rate limit for each element. By default, the rate limit is based on the `token bucket` algorithm. You can implement your own rate limit algorithm by implementing the `RateLimiter` interface.
 
 ### Example
 
 ```go
-package main
-
+// 导入需要的包
+// Import the required packages
 import (
 	"errors"
 	"fmt"
@@ -700,37 +928,70 @@ import (
 	"github.com/shengyanli1982/workqueue"
 )
 
+
 func main() {
+	// 创建一个新的限速队列配置
+	// Create a new rate limiting queue configuration
 	conf := workqueue.NewRateLimitingQConfig()
+	// 设置限速器
+	// Set the limiter
 	conf.WithLimiter(workqueue.NewBucketRateLimiter(float64(4), 1))
 
+	// 使用配置创建一个新的限速队列
+	// Create a new rate limiting queue with the configuration
 	q := workqueue.NewRateLimitingQueue(conf)
 
+	// 启动一个新的 goroutine 来处理队列中的元素
+	// Start a new goroutine to handle elements in the queue
 	go func() {
+		// 循环处理队列中的元素
+		// Loop to handle elements in the queue
 		for {
+			// 从队列中获取一个元素
+			// Get an element from the queue
 			element, err := q.Get()
+
+			// 如果获取元素时出错，则处理错误
+			// If an error occurs when getting the element, handle the error
 			if err != nil {
+				// 如果错误不是因为队列为空，则打印错误并返回
+				// If the error is not because the queue is empty, print the error and return
 				if !errors.Is(err, workqueue.ErrorQueueEmpty) {
 					fmt.Println(err)
 					return
 				} else {
+					// 如果错误是因为队列为空，则继续循环
+					// If the error is because the queue is empty, continue the loop
 					continue
 				}
 			}
+			// 打印获取到的元素和当前时间
+			// Print the obtained element and the current time
 			fmt.Printf("[%s] get element: %s\n", time.Now().Format("04:05"), element)
-			q.Done(element) // mark element as done, 'Done' is required after 'Get'
+
+			// 标记元素为已处理，'Done' 是在 'Get' 之后必需的
+			// Mark the element as done, 'Done' is required after 'Get'
+			q.Done(element)
 		}
 	}()
 
+	// 向队列中添加元素
+	// Add elements to the queue
 	_ = q.Add("hello")
 	_ = q.Add("world")
 
+	// 向队列中添加限速元素
+	// Add limited elements to the queue
 	for i := 0; i < 10; i++ {
 		_ = q.AddLimited(fmt.Sprintf(">>> %d", i))
 	}
 
-	time.Sleep(time.Second * 3) // wait for element to be executed
+	// 等待元素被执行
+	// Wait for the element to be executed
+	time.Sleep(time.Second * 3)
 
+	// 停止队列
+	// Stop the queue
 	q.Stop()
 }
 ```
