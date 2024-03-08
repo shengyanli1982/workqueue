@@ -1,7 +1,5 @@
 <div align="center">
-	<h1>WorkQueue</h1>
-	<p>A versatile, user-friendly, high-performance Go work queue, designed for simplicity and easy extensibility across multiple queue types.</p>
-	<img src="assets/logo.png" alt="logo" width="400px">
+	<img src="assets/logo.png" alt="logo" width="500px">
 </div>
 
 # Introduction
