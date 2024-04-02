@@ -12,150 +12,226 @@ import (
 // DelayingQInterface 是 Queue 方法接口的延迟版本
 // DelayingQInterface is the delayed version of the Queue method interface
 type DelayingQInterface interface {
-	// 继承 Queue 接口
-	// Inherit Queue interface
+	// 继承 Queue 接口，包含了队列的一些基本操作
+	// Inherits Queue interface, includes some basic operations of the queue
 	QInterface
 
-	// AddAfter 添加一个元素，延迟一段时间后再执行
-	// AddAfter adds an element, and executes it after a delay
+	// AddAfter 方法用于添加一个元素到队列中，该元素会在延迟一段时间后再被处理
+	// The AddAfter method is used to add an element to the queue, which will be processed after a delay
 	AddAfter(element any, delay time.Duration) error
 }
 
 // DelayingQCallback 是 Queue 的回调接口的延迟版本
 // DelayingQCallback is the delayed version of the Queue callback interface
 type DelayingQCallback interface {
-	// 继承 Callback 接口
-	// Inherit Callback interface
+	// 继承 Callback 接口，包含了队列的一些基本操作的回调
+	// Inherits Callback interface, includes callbacks for some basic operations of the queue
 	QCallback
 
-	// OnAddAfter 添加元素后的回调
-	// OnAddAfter is the callback after adding an element
+	// OnAddAfter 是添加元素后的回调，参数 any 是添加的元素，time.Duration 是元素的延迟时间
+	// OnAddAfter is the callback after adding an element, the parameter any is the added element, and time.Duration is the delay time of the element
 	OnAddAfter(any, time.Duration)
 }
 
-// DelayingQConfig 是 Queue 的配置的延迟版本
-// DelayingQConfig is the delayed version of the Queue configuration
+// DelayingQConfig 结构体定义了延迟队列的配置信息
+// The DelayingQConfig struct defines the configuration information of the delayed queue
 type DelayingQConfig struct {
+	// QConfig 是队列的基本配置，包含了队列的一些通用配置信息
+	// QConfig is the basic configuration of the queue, containing some common configuration information of the queue
 	QConfig
+
+	// callback 是一个延迟队列回调接口，用于实现队列元素的处理
+	// callback is a delayed queue callback interface, used to implement the processing of queue elements
 	callback DelayingQCallback
 }
 
-// NewDelayingQConfig 创建一个 DelayingQConfig 实例
-// NewDelayingQConfig creates a new DelayingQConfig instance
+// NewDelayingQConfig 函数用于创建一个新的 DelayingQConfig 实例
+// The NewDelayingQConfig function is used to create a new DelayingQConfig instance
 func NewDelayingQConfig() *DelayingQConfig {
+	// 返回一个新的 DelayingQConfig 实例
+	// Return a new DelayingQConfig instance
 	return &DelayingQConfig{}
 }
 
-// WithCallback 设置 Queue 的回调接口
-// WithCallback sets the Queue callback interface
+// WithCallback 方法用于设置 DelayingQConfig 的回调接口
+// The WithCallback method is used to set the callback interface of DelayingQConfig
 func (c *DelayingQConfig) WithCallback(cb DelayingQCallback) *DelayingQConfig {
+	// 设置回调接口
+	// Set the callback interface
 	c.callback = cb
+
+	// 返回 DelayingQConfig 实例
+	// Return the DelayingQConfig instance
 	return c
 }
 
-// 验证队列的配置是否有效
-// Verify that the queue configuration is valid
+// isDelayingQConfigValid 函数用于验证 DelayingQConfig 的配置是否有效
+// The isDelayingQConfigValid function is used to verify whether the configuration of DelayingQConfig is valid
 func isDelayingQConfigValid(conf *DelayingQConfig) *DelayingQConfig {
+	// 如果配置为空，则创建一个新的配置，并设置一个空的回调接口
+	// If the configuration is nil, create a new configuration and set an empty callback interface
 	if conf == nil {
-		// 如果 conf 为 nil，创建一个新的 DelayingQConfig 实例，并设置一个空的回调接口
-		// If conf is nil, create a new DelayingQConfig instance and set an empty callback interface
-		conf = NewDelayingQConfig()
-		conf.WithCallback(newEmptyCallback())
+		conf = NewDelayingQConfig().WithCallback(newEmptyCallback())
 	} else {
-		// 如果 conf 不为 nil，但回调接口为 nil，设置一个空的回调接口
-		// If conf is not nil, but the callback interface is nil, set an empty callback interface
+		// 如果回调接口为空，则设置一个空的回调接口
+		// If the callback interface is nil, set an empty callback interface
 		if conf.callback == nil {
 			conf.callback = newEmptyCallback()
 		}
 	}
 
+	// 返回经过验证和可能的修改后的配置
+	// Return the configuration after verification and possible modification
 	return conf
 }
 
-// 延迟队列数据结构
-// Delayed queue data structure
+// DelayingQ 结构体定义了一个延迟队列的数据结构
+// The DelayingQ struct defines a data structure for a delayed queue
 type DelayingQ struct {
-	QInterface                        // 队列接口
-	waiting     *heap.Heap            // 等待处理的元素堆
-	elementpool *heap.HeapElementPool // 元素池，用于存储等待处理的元素
-	ctx         context.Context       // 上下文，用于控制并发操作
-	cancel      context.CancelFunc    // 取消函数，用于取消上下文
-	wg          sync.WaitGroup        // 同步等待组，用于等待并发操作完成
-	once        sync.Once             // 保证某个操作只执行一次的同步原语
-	wlock       *sync.Mutex           // 互斥锁，用于保护等待处理的元素堆
-	now         atomic.Int64          // 当前时间，用于计算元素的延迟时间
-	config      *DelayingQConfig      // 配置，包含了队列的配置和回调接口
+	// QInterface 是队列的接口，定义了队列的基本操作
+	// QInterface is the interface of the queue, defining the basic operations of the queue
+	QInterface
+
+	// waiting 是一个堆结构，用于存储等待处理的元素
+	// waiting is a heap structure used to store elements waiting for processing
+	waiting *heap.Heap
+
+	// elementpool 是一个元素池，用于存储等待处理的元素
+	// elementpool is an element pool used to store elements waiting for processing
+	elementpool *heap.HeapElementPool
+
+	// ctx 是一个上下文，用于控制并发操作
+	// ctx is a context used to control concurrent operations
+	ctx context.Context
+
+	// cancel 是一个取消函数，用于取消上下文
+	// cancel is a cancel function used to cancel the context
+	cancel context.CancelFunc
+
+	// wg 是一个同步等待组，用于等待并发操作完成
+	// wg is a sync.WaitGroup used to wait for concurrent operations to complete
+	wg sync.WaitGroup
+
+	// once 是一个 sync.Once 对象，用于确保某个操作只执行一次
+	// once is a sync.Once object used to ensure that an operation is performed only once
+	once sync.Once
+
+	// wlock 是一个互斥锁，用于保护等待处理的元素堆
+	// wlock is a mutex used to protect the heap of elements waiting for processing
+	wlock *sync.Mutex
+
+	// now 是一个原子整数，用于存储当前时间，计算元素的延迟时间
+	// now is an atomic integer used to store the current time and calculate the delay time of elements
+	now atomic.Int64
+
+	// config 是一个指向 DelayingQConfig 结构体的指针，用于存储队列的配置信息和回调接口
+	// config is a pointer to a DelayingQConfig struct used to store the configuration information and callback interface of the queue
+	config *DelayingQConfig
 }
 
-// 创建 DelayingQueue 实例
-// Create a DelayingQueue instance
+// newDelayingQueue 函数用于创建一个新的 DelayingQueue 实例
+// The newDelayingQueue function is used to create a new DelayingQueue instance
 func newDelayingQueue(conf *DelayingQConfig, queue QInterface) *DelayingQ {
+	// 如果传入的队列为空，则直接返回 nil
+	// If the passed in queue is nil, return nil directly
 	if queue == nil {
 		return nil
 	}
 
-	// 验证配置是否有效
-	// Verify the configuration is valid
+	// 验证并修正传入的配置，确保配置是有效的
+	// Verify and correct the passed in configuration to ensure that the configuration is valid
 	conf = isDelayingQConfigValid(conf)
+
+	// 将回调接口设置到队列的配置中
+	// Set the callback interface to the configuration of the queue
 	conf.QConfig.callback = conf.callback
 
-	// 初始化 DelayingQ 结构体
-	// Initialize the DelayingQ structure
+	// 创建一个新的 DelayingQ 实例
+	// Create a new DelayingQ instance
 	q := &DelayingQ{
-		QInterface:  queue,
-		waiting:     heap.NewHeap(),
+		// 设置队列接口
+		// Set the queue interface
+		QInterface: queue,
+
+		// 初始化等待队列
+		// Initialize the waiting queue
+		waiting: heap.NewHeap(),
+
+		// 初始化元素池
+		// Initialize the element pool
 		elementpool: heap.NewHeapElementPool(),
-		wlock:       &sync.Mutex{},
-		wg:          sync.WaitGroup{},
-		now:         atomic.Int64{},
-		once:        sync.Once{},
-		config:      conf,
+
+		// 初始化互斥锁
+		// Initialize the mutex
+		wlock: &sync.Mutex{},
+
+		// 初始化等待组
+		// Initialize the wait group
+		wg: sync.WaitGroup{},
+
+		// 初始化当前时间
+		// Initialize the current time
+		now: atomic.Int64{},
+
+		// 初始化 sync.Once 对象
+		// Initialize the sync.Once object
+		once: sync.Once{},
+
+		// 设置配置
+		// Set the configuration
+		config: conf,
 	}
 
 	// 创建一个新的上下文和取消函数
 	// Create a new context and cancel function
 	q.ctx, q.cancel = context.WithCancel(context.Background())
 
-	// 启动两个 goroutine，一个用于处理队列中的元素，一个用于同步当前时间
-	// Start two goroutines, one for processing elements in the queue, and one for synchronizing the current time
+	// 增加等待组的计数器，表示有两个 goroutine 需要等待
+	// Increase the counter of the wait group, indicating that there are two goroutines to wait for
 	q.wg.Add(2)
+
+	// 启动一个新的 goroutine 来处理队列中的元素
+	// Start a new goroutine to process elements in the queue
 	go q.loop()
+
+	// 启动一个新的 goroutine 来同步当前时间
+	// Start a new goroutine to synchronize the current time
 	go q.syncNow()
 
-	// 返回 DelayingQ 实例
-	// Return the DelayingQ instance
+	// 返回创建的 DelayingQ 实例
+	// Return the created DelayingQ instance
 	return q
 }
 
-// 创建一个 DelayingQueue 实例
-// Create a new DelayingQueue instance
+// NewDelayingQueue 函数用于创建一个新的 DelayingQueue 实例
+// The NewDelayingQueue function is used to create a new DelayingQueue instance
 func NewDelayingQueue(conf *DelayingQConfig) *DelayingQ {
-	// 验证并获取有效的配置
-	// Validate and get the valid configuration
+	// 验证并修正传入的配置，确保配置是有效的
+	// Verify and correct the passed in configuration to ensure that the configuration is valid
 	conf = isDelayingQConfigValid(conf)
 
-	// 设置回调函数
-	// Set the callback function
+	// 将回调接口设置到队列的配置中
+	// Set the callback interface to the configuration of the queue
 	conf.QConfig.callback = conf.callback
 
-	// 创建一个新的延迟队列实例，并返回
-	// Create a new instance of the delaying queue and return it
+	// 使用配置和新的队列创建一个新的 DelayingQueue 实例
+	// Create a new DelayingQueue instance with the configuration and a new queue
 	return newDelayingQueue(conf, NewQueue(&conf.QConfig))
 }
 
-// 创建一个 DelayingQueue 实例, 使用自定义 Queue (实现了 Q 接口)
-// Create a new DelayingQueue instance, using a custom Queue (which implements the Q interface)
+// NewDelayingQueueWithCustomQueue 函数用于创建一个新的 DelayingQueue 实例，使用自定义的 QInterface 队列
+// The NewDelayingQueueWithCustomQueue function is used to create a new DelayingQueue instance, using a custom QInterface queue
 func NewDelayingQueueWithCustomQueue(conf *DelayingQConfig, queue QInterface) *DelayingQ {
-	// 验证并获取有效的配置
-	// Validate and get the valid configuration
+	// 验证并修正传入的配置，确保配置是有效的
+	// Verify and correct the passed in configuration to ensure that the configuration is valid
 	conf = isDelayingQConfigValid(conf)
 
-	// 设置回调函数
-	// Set the callback function
+	// 将回调接口设置到队列的配置中
+	// Set the callback interface to the configuration of the queue
 	conf.QConfig.callback = conf.callback
 
-	// 使用自定义的队列创建一个新的延迟队列实例，并返回
-	// Create a new instance of the delaying queue using the custom queue and return it
+	// 使用配置和自定义的 QInterface 队列创建一个新的 DelayingQueue 实例
+	// Create a new DelayingQueue instance with the configuration and the custom QInterface queue
 	return newDelayingQueue(conf, queue)
 }
 
@@ -168,7 +244,7 @@ func DefaultDelayingQueue() DelayingQInterface {
 }
 
 // AddAfter 方法将元素添加到队列中，在延迟一段时间后处理
-// The AddAfter method adds an element to the queue and processes it after a specified delay
+// The AddAfter method adds an element to the queue and processes it after a delay
 func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
 	// 如果队列已经关闭，返回 ErrorQueueClosed 错误
 	// If the queue is already closed, return the ErrorQueueClosed error
@@ -185,19 +261,29 @@ func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
 	// 从对象池中获取一个元素
 	// Get an element from the object pool
 	elem := q.elementpool.Get()
+
 	// 设置元素的数据和值
 	// Set the data and value of the element
 	elem.SetData(element)
+
+	// 设置元素的值为当前时间加上延迟时间，单位为毫秒
+	// Set the value of the element to the current time plus the delay time, in milliseconds
 	elem.SetValue(time.Now().Add(delay).UnixMilli())
 
-	// 添加到堆中
-	// Add to the heap
+	// 首先，我们需要锁定队列以防止并发操作
+	// First, we need to lock the queue to prevent concurrent operations
 	q.wlock.Lock()
+
+	// 将元素添加到等待队列中
+	// Add the element to the waiting queue
 	q.waiting.Push(elem)
+
+	// 添加完成后，解锁队列
+	// After the addition is complete, unlock the queue
 	q.wlock.Unlock()
 
-	// 执行回调函数
-	// Execute the callback function
+	// 执行添加元素后的回调函数
+	// Execute the callback function after adding the element
 	q.config.callback.OnAddAfter(element, delay)
 
 	// 返回 nil，表示没有错误
@@ -205,18 +291,23 @@ func (q *DelayingQ) AddAfter(element any, delay time.Duration) error {
 	return nil
 }
 
-// syncNow 方法同步当前的时间
-// The syncNow method synchronizes the current time
+// syncNow 方法用于同步当前的时间
+// The syncNow method is used to synchronize the current time
 func (q *DelayingQ) syncNow() {
-	// 创建一个心跳计时器
-	// Create a heartbeat timer
+	// 创建一个心跳计时器，每隔 defaultQueueHeartbeat 毫秒就会发送一个信号
+	// Create a heartbeat timer that sends a signal every defaultQueueHeartbeat milliseconds
 	heartbeat := time.NewTicker(time.Millisecond * defaultQueueHeartbeat)
 
 	// 在函数结束时，停止心跳计时器，并通知等待组一个操作已完成
 	// At the end of the function, stop the heartbeat timer and notify the wait group that an operation has been completed
 	defer func() {
-		q.wg.Done()
+		// 停止心跳计时器
+		// Stop the heartbeat timer
 		heartbeat.Stop()
+
+		// 通知等待组一个操作已完成
+		// Notify the wait group that an operation has been completed
+		q.wg.Done()
 	}()
 
 	// 循环同步当前时间
@@ -227,9 +318,12 @@ func (q *DelayingQ) syncNow() {
 		// If the context is done, end the loop
 		case <-q.ctx.Done():
 			return
+
 		// 如果收到心跳信号，更新当前时间
 		// If a heartbeat signal is received, update the current time
 		case <-heartbeat.C:
+			// 使用 atomic 包的 Store 方法安全地更新当前时间
+			// Use the Store method of the atomic package to safely update the current time
 			q.now.Store(time.Now().UnixMilli())
 		}
 	}
@@ -238,14 +332,19 @@ func (q *DelayingQ) syncNow() {
 // loop 方法用于循环处理堆中的元素
 // The loop method is used to process elements in the heap in a loop
 func (q *DelayingQ) loop() {
-	// 创建一个心跳计时器
-	// Create a heartbeat timer
+	// 创建一个心跳计时器，每隔 defaultQueueHeartbeat 毫秒就会发送一个信号
+	// Create a heartbeat timer that sends a signal every defaultQueueHeartbeat milliseconds
 	heartbeat := time.NewTicker(time.Millisecond * defaultQueueHeartbeat)
 
 	// 在函数结束时，停止心跳计时器，并通知等待组一个操作已完成
 	// At the end of the function, stop the heartbeat timer and notify the wait group that an operation has been completed
 	defer func() {
+		// 通知等待组一个操作已完成
+		// Notify the wait group that an operation has been completed
 		q.wg.Done()
+
+		// 停止心跳计时器
+		// Stop the heartbeat timer
 		heartbeat.Stop()
 	}()
 
@@ -257,75 +356,91 @@ func (q *DelayingQ) loop() {
 		// If the context is done, end the loop
 		case <-q.ctx.Done():
 			return
+
 		default:
+			// 锁定等待队列，防止并发操作
+			// Lock the waiting queue to prevent concurrent operations
 			q.wlock.Lock()
 
-			// 如果堆中有元素
-			// If there are elements in the heap
+			// 如果等待队列中有元素
+			// If there are elements in the waiting queue
 			if q.waiting.Len() > 0 {
 				// 获取堆顶元素
 				// Get the top element of the heap
 				elem := q.waiting.Head()
 
-				// 如果堆顶元素的时间小于当前时间，意味着对象已经超时
-				// If the time of the top element of the heap is less than the current time, it means the object has timed out
+				// 如果元素的值小于等于当前时间，表示可以处理该元素
+				// If the value of the element is less than or equal to the current time, it means that the element can be processed
 				if elem.Value() <= q.now.Load() {
-					// 弹出堆顶元素
-					// Pop the top element of the heap
+					// 从堆中移除元素
+					// Remove the element from the heap
 					_ = q.waiting.Pop()
+
+					// 解锁等待队列
+					// Unlock the waiting queue
 					q.wlock.Unlock()
 
-					// 添加到队列中
-					// Add to the queue
+					// 将元素添加到队列中
+					// Add the element to the queue
 					if err := q.Add(elem.Data()); err != nil {
+						// 如果添加失败，将元素重新添加到等待队列中，并设置新的值
+						// If the addition fails, re-add the element to the waiting queue and set a new value
 						q.wlock.Lock()
-						// 重置元素的值，1500ms 后再次处理元素
-						// Reset the value of the element, process the element again after 1500ms
+
+						// 设置新的值为当前时间加上 defaultQueueHeartbeat*3 毫秒
+						// Set the new value to the current time plus defaultQueueHeartbeat*3 milliseconds
 						elem.SetValue(q.now.Load() + defaultQueueHeartbeat*3)
 
-						// 将元素重新添加到堆中
-						// Re-add the element to the heap
+						// 将元素重新添加到等待队列中
+						// Re-add the element to the waiting queue
 						q.waiting.Push(elem)
+
+						// 解锁等待队列
+						// Unlock the waiting queue
 						q.wlock.Unlock()
 					} else {
-						// 释放元素
-						// Free element
+						// 如果添加成功，将元素放回对象池
+						// If the addition is successful, put the element back into the object pool
 						q.elementpool.Put(elem)
 					}
 				} else {
+					// 如果元素的值大于当前时间，解锁等待队列，等待下一次心跳
+					// If the value of the element is greater than the current time, unlock the waiting queue and wait for the next heartbeat
 					q.wlock.Unlock()
 				}
 			} else {
+				// 如果等待队列中没有元素，解锁等待队列，等待下一次心跳
+				// If there are no elements in the waiting queue, unlock the waiting queue and wait for the next heartbeat
 				q.wlock.Unlock()
 
-				// 500ms 后再次检查堆中的元素
-				// Check the elements in the heap again after 500ms
+				// 等待下一次心跳
+				// Wait for the next heartbeat
 				<-heartbeat.C
 			}
 		}
 	}
 }
 
-// Stop 方法用于关闭队列
-// The Stop method is used to close the queue
+// Stop 方法用于停止延迟队列的操作
+// The Stop method is used to stop the operations of the delaying queue
 func (q *DelayingQ) Stop() {
-	// 调用 QInterface 的 Stop 方法，关闭队列
-	// Call the Stop method of QInterface to close the queue
+	// 调用 QInterface 的 Stop 方法，停止队列的操作
+	// Call the Stop method of QInterface to stop the operations of the queue
 	q.QInterface.Stop()
 
-	// 使用 sync.Once 确保以下操作只执行一次
-	// Use sync.Once to ensure that the following operations are only performed once
+	// 使用 sync.Once 的 Do 方法确保以下操作只执行一次
+	// Use the Do method of sync.Once to ensure that the following operations are only performed once
 	q.once.Do(func() {
-		// 调用 context 的 cancel 函数，取消所有基于该 context 的操作
-		// Call the cancel function of context to cancel all operations based on this context
+		// 调用 cancel 函数，取消上下文
+		// Call the cancel function to cancel the context
 		q.cancel()
 
-		// 调用 sync.WaitGroup 的 Wait 方法，等待所有 goroutine 完成
-		// Call the Wait method of sync.WaitGroup to wait for all goroutines to complete
+		// 等待所有的 goroutine 结束
+		// Wait for all goroutines to end
 		q.wg.Wait()
 
-		// 调用 heap 的 Reset 方法，重置等待处理的元素堆
-		// Call the Reset method of heap to reset the heap of elements waiting to be processed
+		// 重置等待队列
+		// Reset the waiting queue
 		q.waiting.Reset()
 	})
 }
