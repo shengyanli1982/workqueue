@@ -2,45 +2,68 @@ package workqueue
 
 import "time"
 
-// defaultQueueSortWin 定义了排序窗口的默认值，单位是毫秒
-// defaultQueueSortWin defines the default value of the sort window, in milliseconds
-const defaultQueueSortWin = 500 // milliseconds
+// defaultQueueSortWin 是默认的队列排序窗口大小
+// defaultQueueSortWin is the default queue sort window size
+const defaultQueueSortWin = 500
 
-// defaultQueueHeartbeat 定义了心跳间隔的默认值，单位是毫秒
-// defaultQueueHeartbeat defines the default value of the heartbeat interval, in milliseconds
-const defaultQueueHeartbeat = 500 // milliseconds
+// defaultQueueHeartbeat 是默认的队列心跳间隔（毫秒）
+// defaultQueueHeartbeat is the default queue heartbeat interval (milliseconds)
+const defaultQueueHeartbeat = 500
 
-// defaultQueueRateLimit 定义了限速设置的默认值，单位是每秒
-// defaultQueueRateLimit defines the default value of the rate limit setting, per second
-const defaultQueueRateLimit = 100 // per second
+// defaultQueueRateLimit 是默认的队列速率限制
+// defaultQueueRateLimit is the default queue rate limit
+const defaultQueueRateLimit = 100
 
-// defaultQueueRateBurst 定义了限速突发的默认值，单位是每秒
-// defaultQueueRateBurst defines the default value of the rate burst, per second
-const defaultQueueRateBurst = 100 // per second
+// defaultQueueRateBurst 是默认的队列速率突发值
+// defaultQueueRateBurst is the default queue rate burst value
+const defaultQueueRateBurst = 100
 
-// defaultQueueExpFailureBase 定义了失败指数基数的默认值，单位是毫秒
-// defaultQueueExpFailureBase defines the default value of the failure exponential base, in milliseconds
-const defaultQueueExpFailureBase = 100 // milliseconds
+// defaultQueueExpFailureBase 是默认的队列指数失败基数
+// defaultQueueExpFailureBase is the default queue exponential failure base
+const defaultQueueExpFailureBase = 100
 
-// defaultQueueExpFailureMax 定义了失败指数最大值的默认值，单位是秒
-// defaultQueueExpFailureMax defines the default value of the maximum failure exponential, in seconds
-const defaultQueueExpFailureMax = 500 // seconds
+// defaultQueueExpFailureMax 是默认的队列指数失败最大值
+// defaultQueueExpFailureMax is the default queue exponential failure maximum value
+const defaultQueueExpFailureMax = 500
 
-// emptyCallback 是一个空实现，它实现了 Callback 接口的所有方法，但这些方法的实现都是空的
-// emptyCallback is an empty implementation that implements all methods of the Callback interface, but the implementations of these methods are empty
+// emptyCallback 是一个空的回调结构体，用于在没有提供回调函数时使用
+// emptyCallback is an empty callback structure, used when no callback function is provided
 type emptyCallback struct{}
 
-func (emptyCallback) OnDone(_ any)                      {} // OnDone 方法的空实现
-func (emptyCallback) OnAdd(_ any)                       {} // OnAdd 方法的空实现
-func (emptyCallback) OnGet(_ any)                       {} // OnGet 方法的空实现
-func (emptyCallback) OnAddAfter(_ any, _ time.Duration) {} // OnAddAfter 方法的空实现
-func (emptyCallback) OnAddWeight(_ any, _ int)          {} // OnAddWeight 方法的空实现
-func (emptyCallback) OnAddLimited(_ any)                {} // OnAddLimited 方法的空实现
-func (emptyCallback) OnForget(_ any)                    {} // OnForget 方法的空实现
-func (emptyCallback) OnGetTimes(_ any, _ int)           {} // OnGetTimes 方法的空实现
+// OnDone 是一个空的完成回调函数，不执行任何操作
+// OnDone is an empty done callback function, it does not perform any operations
+func (emptyCallback) OnDone(_ any) {}
 
-// newEmptyCallback 函数创建并返回一个新的 emptyCallback 实例
-// The newEmptyCallback function creates and returns a new instance of emptyCallback
+// OnAdd 是一个空的添加回调函数，不执行任何操作
+// OnAdd is an empty add callback function, it does not perform any operations
+func (emptyCallback) OnAdd(_ any) {}
+
+// OnGet 是一个空的获取回调函数，不执行任何操作
+// OnGet is an empty get callback function, it does not perform any operations
+func (emptyCallback) OnGet(_ any) {}
+
+// OnAddAfter 是一个空的添加后回调函数，不执行任何操作
+// OnAddAfter is an empty add after callback function, it does not perform any operations
+func (emptyCallback) OnAddAfter(_ any, _ time.Duration) {}
+
+// OnAddWeight 是一个空的添加权重回调函数，不执行任何操作
+// OnAddWeight is an empty add weight callback function, it does not perform any operations
+func (emptyCallback) OnAddWeight(_ any, _ int) {}
+
+// OnAddLimited 是一个空的添加限制回调函数，不执行任何操作
+// OnAddLimited is an empty add limited callback function, it does not perform any operations
+func (emptyCallback) OnAddLimited(_ any) {}
+
+// OnForget 是一个空的忘记回调函数，不执行任何操作
+// OnForget is an empty forget callback function, it does not perform any operations
+func (emptyCallback) OnForget(_ any) {}
+
+// OnGetTimes 是一个空的获取次数回调函数，不执行任何操作
+// OnGetTimes is an empty get times callback function, it does not perform any operations
+func (emptyCallback) OnGetTimes(_ any, _ int) {}
+
+// newEmptyCallback 是一个创建新的空回调结构体的函数
+// newEmptyCallback is a function to create a new empty callback structure
 func newEmptyCallback() *emptyCallback {
 	return &emptyCallback{}
 }
