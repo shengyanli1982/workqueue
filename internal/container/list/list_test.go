@@ -61,7 +61,7 @@ func TestList_PopFront(t *testing.T) {
 	assert.Nil(t, node3.Next, "node3 next should be nil")
 }
 
-func TestList_PopAll(t *testing.T) {
+func TestList_PushAndPop(t *testing.T) {
 	l := New()
 
 	count := math.MaxUint16
@@ -90,6 +90,10 @@ func TestList_PopAll(t *testing.T) {
 	// Pop from empty list
 	nilNode := l.PopFront()
 	assert.Nil(t, nilNode, "popped node should be nil")
+}
+
+func TestList_PushAndPopWithParallel(t *testing.T) {
+
 }
 
 func TestList_Remove(t *testing.T) {
@@ -490,4 +494,61 @@ func TestList_Range(t *testing.T) {
 	// Verify the result
 	expected := []int64{1, 2, 3}
 	assert.Equal(t, expected, result, "result should match the expected values")
+}
+
+func TestList_Cleanup(t *testing.T) {
+	l := New()
+
+	// Create some nodes
+	node1 := &Node{Value: 1}
+	node2 := &Node{Value: 2}
+	node3 := &Node{Value: 3}
+
+	// Push nodes to the list
+	l.PushBack(node1)
+	l.PushBack(node2)
+	l.PushBack(node3)
+
+	// Call the Cleanup method
+	l.Cleanup()
+
+	// Verify the list state
+	assert.Equal(t, int64(0), l.Len(), "list length should be 0")
+	assert.Nil(t, l.Front(), "front node should be nil")
+	assert.Nil(t, l.Back(), "back node should be nil")
+}
+
+func TestList_PushAndPopWithPool(t *testing.T) {
+	l := New()
+	pool := NewNodePool()
+
+	count := math.MaxUint16
+
+	// Create some nodes
+	for i := 0; i < count; i++ {
+		n := pool.Get()
+		n.Value = int64(i)
+		l.PushBack(n)
+	}
+
+	// Verify
+	assert.Equal(t, int64(count), l.Len(), fmt.Sprintf("list length should be %v", count))
+	assert.Equal(t, int64(0), l.Front().Value, fmt.Sprintf("front node index should be %v", 0))
+	assert.Equal(t, int64(count-1), l.Back().Value, fmt.Sprintf("back node index should be %v", count-1))
+
+	// Pop all nodes
+	for i := 0; i < count; i++ {
+		node := l.PopFront()
+		assert.Equal(t, int64(i), node.Value, fmt.Sprintf("popped node index should be %v", i))
+		pool.Put(node)
+	}
+
+	// Verify
+	assert.Equal(t, int64(0), l.Len(), "list length should be 0")
+	assert.Nil(t, l.Front(), "front node should be nil")
+	assert.Nil(t, l.Back(), "back node should be nil")
+
+	// Pop from empty list
+	nilNode := l.PopFront()
+	assert.Nil(t, nilNode, "popped node should be nil")
 }

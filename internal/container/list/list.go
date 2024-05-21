@@ -172,3 +172,15 @@ func (l *List) Range(fn func(n *Node) bool) {
 		}
 	}
 }
+
+func (l *List) Cleanup() {
+	for l.head != nil {
+		n := l.head
+		l.head = n.Next
+		n.Reset()
+	}
+
+	l.head = nil
+	l.tail = nil
+	l.count = 0
+}
