@@ -5,7 +5,7 @@ type List struct {
 	count      int64
 }
 
-func NewList() *List { return &List{} }
+func New() *List { return &List{} }
 
 func (l *List) Len() int64 { return l.count }
 

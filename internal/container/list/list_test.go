@@ -2,13 +2,14 @@ package list
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestList_PushBack(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -32,7 +33,7 @@ func TestList_PushBack(t *testing.T) {
 }
 
 func TestList_PopFront(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -61,9 +62,9 @@ func TestList_PopFront(t *testing.T) {
 }
 
 func TestList_PopAll(t *testing.T) {
-	l := NewList()
+	l := New()
 
-	count := 3
+	count := math.MaxUint16
 
 	// Create some nodes
 	for i := 0; i < count; i++ {
@@ -77,7 +78,6 @@ func TestList_PopAll(t *testing.T) {
 
 	// Pop all nodes
 	for i := 0; i < count; i++ {
-		fmt.Printf("i: %v\n", i)
 		node := l.PopFront()
 		assert.Equal(t, int64(i), node.Value, fmt.Sprintf("popped node index should be %v", i))
 	}
@@ -86,10 +86,14 @@ func TestList_PopAll(t *testing.T) {
 	assert.Equal(t, int64(0), l.Len(), "list length should be 0")
 	assert.Nil(t, l.Front(), "front node should be nil")
 	assert.Nil(t, l.Back(), "back node should be nil")
+
+	// Pop from empty list
+	nilNode := l.PopFront()
+	assert.Nil(t, nilNode, "popped node should be nil")
 }
 
 func TestList_Remove(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -134,7 +138,7 @@ func TestList_Remove(t *testing.T) {
 }
 
 func TestList_InsertAfter(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -163,7 +167,7 @@ func TestList_InsertAfter(t *testing.T) {
 }
 
 func TestList_InsertBefore(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -192,7 +196,7 @@ func TestList_InsertBefore(t *testing.T) {
 }
 
 func TestList_InsertBefore_Head(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -221,7 +225,7 @@ func TestList_InsertBefore_Head(t *testing.T) {
 }
 
 func TestList_InsertBefore_NilNext(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -249,7 +253,7 @@ func TestList_InsertBefore_NilNext(t *testing.T) {
 }
 
 func TestList_MoveToFront(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -264,8 +268,6 @@ func TestList_MoveToFront(t *testing.T) {
 	// Move node2 to the front
 	l.MoveToFront(node2)
 
-	fmt.Printf("list: %v\n", l)
-
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
 	assert.Equal(t, node2, l.Front(), "front node should be node2")
@@ -278,8 +280,6 @@ func TestList_MoveToFront(t *testing.T) {
 
 	// Move node3 to the front
 	l.MoveToFront(node3)
-
-	fmt.Printf("list: %v\n", l)
 
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
@@ -306,7 +306,7 @@ func TestList_MoveToFront(t *testing.T) {
 }
 
 func TestList_MoveToBack(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -359,7 +359,7 @@ func TestList_MoveToBack(t *testing.T) {
 }
 
 func TestList_Swap(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -412,7 +412,7 @@ func TestList_Swap(t *testing.T) {
 }
 
 func TestList_Swap_InvalidNodes(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
@@ -465,7 +465,7 @@ func TestList_Swap_InvalidNodes(t *testing.T) {
 }
 
 func TestList_Range(t *testing.T) {
-	l := NewList()
+	l := New()
 
 	// Create some nodes
 	node1 := &Node{Value: 1}
