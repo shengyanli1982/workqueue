@@ -1,2 +1,3 @@
-# workqueue
-Spun out from kubernetes client-go, a project similar to WorkQueue.
+<div align="center">
+	<img src="assets/logo.png" alt="logo" width="550px">
+</div>
