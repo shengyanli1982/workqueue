@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func printListValues(l *List) {
+func PrintListValues(l *List) {
 	fmt.Println("List values: ============================")
-	for i := l.head; i != nil; i = i.Next {
+	for i := l.Front(); i != nil; i = i.Next {
 		fmt.Printf("Value: %v\n", i.Value)
 	}
 }
@@ -337,14 +337,14 @@ func TestList_MoveToFront(t *testing.T) {
 	l.PushBack(node2)
 	l.PushBack(node3)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move node2 to the front
 	l.MoveToFront(node2)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
@@ -371,14 +371,14 @@ func TestList_MoveToFront_FirstNode(t *testing.T) {
 	l.PushBack(node2)
 	l.PushBack(node3)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move node1 to the front
 	l.MoveToFront(node1)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
@@ -405,14 +405,14 @@ func TestList_MoveToFront_LastNode(t *testing.T) {
 	l.PushBack(node2)
 	l.PushBack(node3)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move node3 to the front
 	l.MoveToFront(node3)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
@@ -435,14 +435,14 @@ func TestList_MoveToFront_SingleNode(t *testing.T) {
 	// Push the node to the list
 	l.PushBack(node)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move the node to the front
 	l.MoveToFront(node)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(1), l.Len(), "list length should be 1")
@@ -470,14 +470,14 @@ func TestList_MoveToFront_InvalidNode(t *testing.T) {
 	// Create an invalid node
 	node4 := &Node{Value: 4}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move the invalid node to the front
 	l.MoveToFront(node4)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(4), l.Len(), "list length should be 3")
@@ -499,14 +499,14 @@ func TestList_MoveToFront_EmptyList(t *testing.T) {
 	// Create a node
 	node := &Node{Value: 1}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move the node to the front (should have no effect)
 	l.MoveToFront(node)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(1), l.Len(), "list length should be 0")
@@ -531,14 +531,14 @@ func TestList_MoveToBack(t *testing.T) {
 	l.PushBack(node2)
 	l.PushBack(node3)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move node2 to the back
 	l.MoveToBack(node2)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
@@ -565,14 +565,14 @@ func TestList_MoveToBack_LastNode(t *testing.T) {
 	l.PushBack(node2)
 	l.PushBack(node3)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move node3 to the back
 	l.MoveToBack(node3)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
@@ -595,14 +595,14 @@ func TestList_MoveToBack_SingleNode(t *testing.T) {
 	// Push the node to the list
 	l.PushBack(node)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move the node to the back
 	l.MoveToBack(node)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(1), l.Len(), "list length should be 1")
@@ -630,14 +630,14 @@ func TestList_MoveToBack_InvalidNode(t *testing.T) {
 	// Create an invalid node
 	node4 := &Node{Value: 4}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move the invalid node to the back
 	l.MoveToBack(node4)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(4), l.Len(), "list length should be 3")
@@ -658,14 +658,14 @@ func TestList_MoveToBack_EmptyList(t *testing.T) {
 	// Create a node
 	node := &Node{Value: 1}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Move the node to the front (should have no effect)
 	l.MoveToBack(node)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(1), l.Len(), "list length should be 0")
@@ -693,14 +693,14 @@ func TestList_InsertBefore(t *testing.T) {
 	// Create a new node
 	node4 := &Node{Value: 4}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Insert newNode before node2
 	l.InsertBefore(node4, node2)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(4), l.Len(), "list length should be 4")
@@ -731,14 +731,14 @@ func TestList_InsertBefore_FirstNode(t *testing.T) {
 	// Create a new node
 	node4 := &Node{Value: 4}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Insert newNode before node1
 	l.InsertBefore(node4, node1)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(4), l.Len(), "list length should be 4")
@@ -768,14 +768,14 @@ func TestList_InsertBefore_InvalidNode(t *testing.T) {
 	// Create an invalid node
 	node3 := &Node{Value: 3}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Insert the invalid node before node2
 	l.InsertBefore(node3, node2)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 2")
@@ -791,14 +791,14 @@ func TestList_InsertBefore_InvalidNode(t *testing.T) {
 	// Create an invalid node
 	node4 := &Node{Value: 4}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Insert the invalid node before node1
 	l.InsertBefore(node4, node1)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(4), l.Len(), "list length should be 2")
@@ -820,14 +820,14 @@ func TestList_InsertBefore_EmptyList(t *testing.T) {
 	// Create a node
 	node := &Node{Value: 1}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Insert the node after nil (should have no effect)
 	l.InsertBefore(node, nil)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(0), l.Len(), "list length should be 1")
@@ -849,14 +849,14 @@ func TestList_InsertAfter(t *testing.T) {
 	l.PushBack(node2)
 	l.PushBack(node3)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Insert node4 after node1
 	l.InsertAfter(node4, node1)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(4), l.Len(), "list length should be 4")
@@ -880,14 +880,14 @@ func TestList_InsertAfter_LastNode(t *testing.T) {
 	l.PushBack(node1)
 	l.PushBack(node2)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Insert node3 after node2
 	l.InsertAfter(node3, node2)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
@@ -912,14 +912,14 @@ func TestList_InsertAfter_InvalidNode(t *testing.T) {
 	// Create an invalid node
 	node3 := &Node{Value: 3}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Insert the invalid node after node2
 	l.InsertAfter(node3, node1)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 2")
@@ -933,14 +933,14 @@ func TestList_InsertAfter_InvalidNode(t *testing.T) {
 	// Create an invalid node
 	node4 := &Node{Value: 4}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Insert the invalid node after node2
 	l.InsertAfter(node4, node2)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(4), l.Len(), "list length should be 2")
@@ -962,14 +962,14 @@ func TestList_InsertAfter_EmptyList(t *testing.T) {
 	// Create a node
 	node := &Node{Value: 1}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Insert the node after nil (should have no effect)
 	l.InsertAfter(node, nil)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(0), l.Len(), "list length should be 1")
@@ -992,14 +992,14 @@ func TestList_Swap(t *testing.T) {
 	l.PushBack(node3)
 	l.PushBack(node4)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Swap node2 and node3
 	l.Swap(node2, node3)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(4), l.Len(), "list length should be 4")
@@ -1020,8 +1020,8 @@ func TestList_Swap(t *testing.T) {
 	// Swap node1 and node4
 	l.Swap(node1, node4)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(4), l.Len(), "list length should be 4")
@@ -1054,14 +1054,14 @@ func TestList_Swap_InvalidNode(t *testing.T) {
 	// Create an invalid node
 	node3 := &Node{Value: 3}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Swap the invalid node with node2
 	l.Swap(node3, node2)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(2), l.Len(), "list length should be 2")
@@ -1076,8 +1076,8 @@ func TestList_Swap_InvalidNode(t *testing.T) {
 	// Swap the invalid node with node1
 	l.Swap(node3, node1)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(2), l.Len(), "list length should be 2")
@@ -1096,17 +1096,42 @@ func TestList_Swap_EmptyList(t *testing.T) {
 	// Create a node
 	node := &Node{Value: 1}
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Swap the node with nil (should have no effect)
 	l.Swap(node, nil)
 
-	// Push the invalid node to the list
-	printListValues(l)
+	// Print the list values
+	PrintListValues(l)
 
 	// Verify the list state
 	assert.Equal(t, int64(0), l.Len(), "list length should be 0")
 	assert.Nil(t, l.Front(), "front node should be nil")
 	assert.Nil(t, l.Back(), "back node should be nil")
+}
+
+func TestList_Slice(t *testing.T) {
+	l := New()
+
+	// Create some nodes
+	node1 := &Node{Value: 1}
+	node2 := &Node{Value: 2}
+	node3 := &Node{Value: 3}
+
+	// Push nodes to the list
+	l.PushBack(node1)
+	l.PushBack(node2)
+	l.PushBack(node3)
+
+	// Call the Slice method
+	s := l.Slice()
+
+	// Verify the slice length
+	assert.Equal(t, 3, len(s), "slice length should be 3")
+
+	// Verify the slice values
+	assert.Equal(t, node1.Value, s[0], "slice[0] should be node1 value")
+	assert.Equal(t, node2.Value, s[1], "slice[1] should be node2 value")
+	assert.Equal(t, node3.Value, s[2], "slice[2] should be node3 value")
 }

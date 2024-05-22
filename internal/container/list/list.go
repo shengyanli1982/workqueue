@@ -312,3 +312,12 @@ func (l *List) Range(fn func(n *Node) bool) {
 		}
 	}
 }
+
+func (l *List) Slice() []interface{} {
+	s := make([]interface{}, 0, l.count)
+	l.Range(func(n *Node) bool {
+		s = append(s, n.Value)
+		return true
+	})
+	return s
+}
