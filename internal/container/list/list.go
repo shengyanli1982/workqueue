@@ -2,11 +2,11 @@ package list
 
 import "unsafe"
 
-func isUnsafePtrEqualToListPtr(up unsafe.Pointer, lp *List) bool {
+func isPtrEqual(up unsafe.Pointer, lp *List) bool {
 	return uintptr(up) == uintptr(unsafe.Pointer(lp))
 }
 
-func convertListPtrToUnsafePtr(lp *List) unsafe.Pointer {
+func toUnsafePtr(lp *List) unsafe.Pointer {
 	return unsafe.Pointer(lp)
 }
 
@@ -28,7 +28,7 @@ func (l *List) PushBack(n *Node) {
 		return
 	}
 
-	n.parentRef = convertListPtrToUnsafePtr(l)
+	n.parentRef = toUnsafePtr(l)
 
 	if l.head == nil {
 		l.head = n
@@ -45,7 +45,7 @@ func (l *List) PushFront(n *Node) {
 		return
 	}
 
-	n.parentRef = convertListPtrToUnsafePtr(l)
+	n.parentRef = toUnsafePtr(l)
 
 	if l.head == nil {
 		l.tail = n
@@ -134,7 +134,7 @@ func (l *List) MoveToFront(n *Node) {
 		n.Prev.Next = n.Next
 	} else if n != l.head {
 		// The node is not in the list, add it to the front
-		n.parentRef = convertListPtrToUnsafePtr(l)
+		n.parentRef = toUnsafePtr(l)
 		n.Next = l.head
 		l.head.Prev = n
 		l.head = n
@@ -179,7 +179,7 @@ func (l *List) MoveToBack(n *Node) {
 		n.Prev.Next = n.Next
 	} else if n != l.head {
 		// The node is not in the list, add it to the back
-		n.parentRef = convertListPtrToUnsafePtr(l)
+		n.parentRef = toUnsafePtr(l)
 		n.Prev = l.tail
 		l.tail.Next = n
 		l.tail = n
@@ -206,7 +206,7 @@ func (l *List) InsertBefore(n, mark *Node) {
 		return
 	}
 
-	n.parentRef = convertListPtrToUnsafePtr(l)
+	n.parentRef = toUnsafePtr(l)
 
 	if mark.Prev == nil {
 		l.head = n
@@ -224,7 +224,7 @@ func (l *List) InsertAfter(n, mark *Node) {
 		return
 	}
 
-	n.parentRef = convertListPtrToUnsafePtr(l)
+	n.parentRef = toUnsafePtr(l)
 
 	if mark.Next == nil {
 		l.tail = n
@@ -247,7 +247,7 @@ func (l *List) Swap(n, mark *Node) {
 	}
 
 	// Check if n and mark are in the same list
-	if !isUnsafePtrEqualToListPtr(n.parentRef, l) || !isUnsafePtrEqualToListPtr(mark.parentRef, l) {
+	if !isPtrEqual(n.parentRef, l) || !isPtrEqual(mark.parentRef, l) {
 		return
 	}
 
