@@ -1,14 +1,19 @@
 package list
 
-import "sync"
+import (
+	"sync"
+	"unsafe"
+)
 
 type Node struct {
 	Value      interface{}
 	Next, Prev *Node
 	Index      int64
+	parentRef  unsafe.Pointer
 }
 
 func (n *Node) Reset() {
+	n.parentRef = nil
 	n.Value = nil
 	n.Next = nil
 	n.Prev = nil
