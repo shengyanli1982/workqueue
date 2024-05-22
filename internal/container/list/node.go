@@ -2,11 +2,11 @@ package list
 
 import "sync"
 
-// type Node struct {
-// 	Value      interface{}
-// 	Next, Prev *Node
-// 	Index      int64
-// }
+type Node struct {
+	Value      interface{}
+	Next, Prev *Node
+	Index      int64
+}
 
 func (n *Node) Reset() {
 	n.Value = nil

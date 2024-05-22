@@ -1,11 +1,5 @@
 package list
 
-type Node struct {
-	Value      interface{}
-	Next, Prev *Node
-	Index      int64
-}
-
 type List struct {
 	head, tail *Node
 	count      int64

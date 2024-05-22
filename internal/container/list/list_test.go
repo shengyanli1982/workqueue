@@ -1014,3 +1014,163 @@ func TestList_Swap_EmptyList(t *testing.T) {
 	assert.Nil(t, l.Front(), "front node should be nil")
 	assert.Nil(t, l.Back(), "back node should be nil")
 }
+
+func BenchmarkList_PushBack(b *testing.B) {
+	l := New()
+	nodes := make([]*Node, b.N)
+
+	for i := 0; i < b.N; i++ {
+		nodes[i] = &Node{Value: int64(i)}
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		l.PushBack(nodes[i])
+	}
+}
+
+func BenchmarkList_PushFront(b *testing.B) {
+	l := New()
+	nodes := make([]*Node, b.N)
+
+	for i := 0; i < b.N; i++ {
+		nodes[i] = &Node{Value: int64(i)}
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		l.PushFront(nodes[i])
+	}
+}
+
+func BenchmarkList_PopBack(b *testing.B) {
+	l := New()
+	nodes := make([]*Node, b.N)
+
+	for i := 0; i < b.N; i++ {
+		nodes[i] = &Node{Value: int64(i)}
+		l.PushBack(nodes[i])
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		l.PopBack()
+	}
+}
+
+func BenchmarkList_PopFront(b *testing.B) {
+	l := New()
+	nodes := make([]*Node, b.N)
+
+	for i := 0; i < b.N; i++ {
+		nodes[i] = &Node{Value: int64(i)}
+		l.PushBack(nodes[i])
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		l.PopFront()
+	}
+}
+
+func BenchmarkList_InsertBefore(b *testing.B) {
+	l := New()
+	n := &Node{Value: int64(-1)}
+	l.PushBack(n)
+	nodes := make([]*Node, b.N)
+
+	for i := 0; i < b.N; i++ {
+		nodes[i] = &Node{Value: int64(i)}
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		l.InsertBefore(nodes[i], n)
+	}
+}
+
+func BenchmarkList_InsertAfter(b *testing.B) {
+	l := New()
+	n := &Node{Value: int64(-1)}
+	l.PushBack(n)
+	nodes := make([]*Node, b.N)
+
+	for i := 0; i < b.N; i++ {
+		nodes[i] = &Node{Value: int64(i)}
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		l.InsertAfter(nodes[i], n)
+	}
+}
+
+func BenchmarkList_Remove(b *testing.B) {
+	l := New()
+	nodes := make([]*Node, b.N)
+
+	for i := 0; i < b.N; i++ {
+		nodes[i] = &Node{Value: int64(i)}
+		l.PushBack(nodes[i])
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		l.Remove(nodes[i])
+	}
+}
+
+func BenchmarkList_MoveToFront(b *testing.B) {
+	l := New()
+	nodes := make([]*Node, b.N)
+
+	for i := 0; i < b.N; i++ {
+		nodes[i] = &Node{Value: int64(i)}
+		l.PushBack(nodes[i])
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		l.MoveToFront(nodes[i])
+	}
+}
+
+func BenchmarkList_MoveToBack(b *testing.B) {
+	l := New()
+	nodes := make([]*Node, b.N)
+
+	for i := 0; i < b.N; i++ {
+		nodes[i] = &Node{Value: int64(i)}
+		l.PushBack(nodes[i])
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		l.MoveToBack(nodes[i])
+	}
+}
+
+func BenchmarkList_Swap(b *testing.B) {
+	l := New()
+	nodes := make([]*Node, b.N)
+
+	for i := 0; i < b.N; i++ {
+		nodes[i] = &Node{Value: int64(i)}
+		l.PushBack(nodes[i])
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N-1; i++ {
+		l.Swap(nodes[i], nodes[i+1])
+	}
+}
