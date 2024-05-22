@@ -2,15 +2,16 @@ package list
 
 import "sync"
 
-type Node struct {
-	Value interface{}
-	Next  *Node
-	Index int64
-}
+// type Node struct {
+// 	Value      interface{}
+// 	Next, Prev *Node
+// 	Index      int64
+// }
 
 func (n *Node) Reset() {
 	n.Value = nil
 	n.Next = nil
+	n.Prev = nil
 	n.Index = 0
 }
 

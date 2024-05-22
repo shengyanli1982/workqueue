@@ -10,6 +10,7 @@ func TestNode_Reset(t *testing.T) {
 	node := NewNode()
 	node.Value = "test"
 	node.Next = nil
+	node.Prev = nil
 	node.Index = 10
 
 	node.Reset()
@@ -30,6 +31,7 @@ func TestNodePool_Get(t *testing.T) {
 	// Verify that the value, index, next ptr is default
 	assert.Nil(t, node.Value)
 	assert.Nil(t, node.Next)
+	assert.Nil(t, node.Prev)
 	assert.Equal(t, int64(0), node.Index)
 }
 
@@ -39,6 +41,7 @@ func TestNodePool_Put(t *testing.T) {
 	node := NewNode()
 	node.Value = "test"
 	node.Next = nil
+	node.Prev = nil
 	node.Index = 10
 
 	// Put the node back
@@ -47,6 +50,7 @@ func TestNodePool_Put(t *testing.T) {
 	// Verify that the value, index, next ptr is default
 	assert.Nil(t, node.Value)
 	assert.Nil(t, node.Next)
+	assert.Nil(t, node.Prev)
 	assert.Equal(t, int64(0), node.Index)
 }
 
@@ -66,6 +70,7 @@ func TestNodePool_PutAndGet(t *testing.T) {
 	// Verify that the value, index, next ptr is default
 	assert.Nil(t, node.Value)
 	assert.Nil(t, node.Next)
+	assert.Nil(t, node.Prev)
 	assert.Equal(t, int64(0), node.Index)
 }
 

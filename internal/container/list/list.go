@@ -1,5 +1,11 @@
 package list
 
+type Node struct {
+	Value      interface{}
+	Next, Prev *Node
+	Index      int64
+}
+
 type List struct {
 	head, tail *Node
 	count      int64
@@ -14,155 +20,288 @@ func (l *List) Front() *Node { return l.head }
 func (l *List) Back() *Node { return l.tail }
 
 func (l *List) PushBack(n *Node) {
+	if n == nil {
+		return
+	}
+
 	if l.head == nil {
 		l.head = n
-		l.tail = n
 	} else {
 		l.tail.Next = n
-		l.tail = n
+		n.Prev = l.tail
 	}
+	l.tail = n
 	l.count++
+}
+
+func (l *List) PushFront(n *Node) {
+	if n == nil {
+		return
+	}
+
+	if l.head == nil {
+		l.tail = n
+	} else {
+		l.head.Prev = n
+		n.Next = l.head
+	}
+	l.head = n
+	l.count++
+}
+
+func (l *List) PopBack() *Node {
+	if l.tail == nil {
+		return nil
+	}
+	n := l.tail
+	l.tail = n.Prev
+	if l.tail == nil {
+		l.head = nil
+	} else {
+		l.tail.Next = nil
+	}
+
+	l.count--
+	return n
 }
 
 func (l *List) PopFront() *Node {
 	if l.head == nil {
 		return nil
 	}
-
 	n := l.head
 	l.head = n.Next
-	l.count--
-
 	if l.head == nil {
 		l.tail = nil
+	} else {
+		l.head.Prev = nil
 	}
 
+	l.count--
 	return n
 }
 
 func (l *List) Remove(n *Node) {
-	if l.head == nil {
+	if n == nil {
 		return
 	}
 
-	if l.head == n {
+	if n.Prev == nil {
 		l.head = n.Next
-		l.count--
-
-		if l.head == nil {
-			l.tail = nil
-		}
-
-		return
-	}
-
-	prev := l.head
-	for prev.Next != nil {
-		if prev.Next == n {
-			prev.Next = n.Next
-			l.count--
-			return
-		}
-		prev = prev.Next
-	}
-}
-
-func (l *List) Swap(prev, n *Node) {
-	if prev == nil || n == nil {
-		return
-	}
-
-	if prev == n {
-		return
-	}
-
-	if l.head == prev {
-		l.head = n
-	} else if l.head == n {
-		l.head = prev
-	}
-
-	if l.tail == prev {
-		l.tail = n
-	} else if l.tail == n {
-		l.tail = prev
-	}
-
-	if prev.Next == n {
-		prev.Next = n.Next
-		n.Next = prev
-	} else if n.Next == prev {
-		n.Next = prev.Next
-		prev.Next = n
 	} else {
-		prev.Next, n.Next = n.Next, prev.Next
+		n.Prev.Next = n.Next
 	}
+
+	if n.Next == nil {
+		l.tail = n.Prev
+	} else {
+		n.Next.Prev = n.Prev
+	}
+
+	l.count--
 }
 
-func (l *List) InsertBefore(next, n *Node) {
-	if next == nil {
+func (l *List) MoveToFront(n *Node) {
+	if n == nil {
 		return
 	}
 
-	if l.head == next {
-		n.Next = l.head
+	// If the list is empty, add the node as the first element
+	if l.head == nil && l.tail == nil {
+		n.Prev = nil
+		n.Next = nil
 		l.head = n
+		l.tail = n
 		l.count++
 		return
 	}
 
-	prev := l.head
-	for prev.Next != nil {
-		if prev.Next == next {
-			n.Next = next
-			prev.Next = n
-			l.count++
-			return
-		}
-		prev = prev.Next
-	}
-}
-
-func (l *List) InsertAfter(prev, n *Node) {
-	if prev == nil {
+	// If the node is already at the front, no need to do anything
+	if n == l.head {
 		return
 	}
 
-	n.Next = prev.Next
-	prev.Next = n
-	l.count++
-}
-
-func (l *List) MoveToFront(n *Node) {
-	if l.head == nil {
+	// Disconnect the node from its current position
+	if n.Prev != nil {
+		n.Prev.Next = n.Next
+	} else if n != l.head {
+		// The node is not in the list, add it to the front
+		n.Next = l.head
+		l.head.Prev = n
+		l.head = n
+		l.count++
 		return
 	}
-
-	if l.head == n {
-		return
+	if n.Next != nil {
+		n.Next.Prev = n.Prev
+	} else {
+		l.tail = n.Prev
 	}
 
-	l.Remove(n)
-	l.InsertBefore(l.head, n)
-
+	// Move the node to the front
+	n.Prev = nil
+	n.Next = l.head
+	l.head.Prev = n
 	l.head = n
-	l.tail.Next = nil
 }
 
 func (l *List) MoveToBack(n *Node) {
-	if l.head == nil {
+	if n == nil {
 		return
 	}
 
-	if l.tail == n {
+	// If the list is empty, add the node as the last element
+	if l.head == nil && l.tail == nil {
+		n.Prev = nil
+		n.Next = nil
+		l.head = n
+		l.tail = n
+		l.count++
 		return
 	}
 
-	l.Remove(n)
-	l.InsertAfter(l.tail, n)
+	// If the node is already at the back, no need to do anything
+	if n == l.tail {
+		return
+	}
 
+	// Disconnect the node from its current position
+	if n.Prev != nil {
+		n.Prev.Next = n.Next
+	} else if n != l.head {
+		// The node is not in the list, add it to the back
+		n.Prev = l.tail
+		l.tail.Next = n
+		l.tail = n
+		l.count++
+		return
+	}
+	if n.Next != nil {
+		n.Next.Prev = n.Prev
+	} else {
+		l.head = n.Next
+	}
+
+	// Move the node to the back
+	n.Prev = l.tail
+	n.Next = nil
+	if l.tail != nil {
+		l.tail.Next = n
+	}
 	l.tail = n
-	l.tail.Next = nil
+}
+
+func (l *List) InsertBefore(n, mark *Node) {
+	if n == nil || mark == nil {
+		return
+	}
+
+	if mark.Prev == nil {
+		l.head = n
+	} else {
+		mark.Prev.Next = n
+	}
+	n.Prev = mark.Prev
+	n.Next = mark
+	mark.Prev = n
+	l.count++
+}
+
+func (l *List) InsertAfter(n, mark *Node) {
+	if n == nil || mark == nil {
+		return
+	}
+
+	if mark.Next == nil {
+		l.tail = n
+	} else {
+		mark.Next.Prev = n
+	}
+	n.Next = mark.Next
+	n.Prev = mark
+	mark.Next = n
+	l.count++
+}
+
+func (l *List) Swap(n, mark *Node) {
+	if n == nil || mark == nil {
+		return
+	}
+
+	if n == mark {
+		return
+	}
+
+	// Check if n and mark are in the list
+	nInList, markInList := false, false
+	for node := l.head; node != nil; node = node.Next {
+		if node == n {
+			nInList = true
+		}
+		if node == mark {
+			markInList = true
+		}
+		if nInList && markInList {
+			break
+		}
+	}
+
+	if !nInList || !markInList {
+		return
+	}
+
+	if n.Next == mark {
+		l.Remove(n)
+		l.InsertAfter(n, mark)
+		return
+	}
+
+	if n.Prev == mark {
+		l.Remove(n)
+		l.InsertBefore(n, mark)
+		return
+	}
+
+	n.Prev, mark.Prev = mark.Prev, n.Prev
+	n.Next, mark.Next = mark.Next, n.Next
+
+	if n.Prev != nil {
+		n.Prev.Next = n
+	} else {
+		l.head = n
+	}
+
+	if n.Next != nil {
+		n.Next.Prev = n
+	} else {
+		l.tail = n
+	}
+
+	if mark.Prev != nil {
+		mark.Prev.Next = mark
+	} else {
+		l.head = mark
+	}
+
+	if mark.Next != nil {
+		mark.Next.Prev = mark
+	} else {
+		l.tail = mark
+	}
+}
+
+func (l *List) Cleanup() {
+	for n := l.head; n != nil; {
+		next := n.Next
+		n.Next = nil
+		n.Prev = nil
+		n.Value = nil
+		n = next
+	}
+
+	l.head = nil
+	l.tail = nil
+	l.count = 0
 }
 
 func (l *List) Range(fn func(n *Node) bool) {
@@ -171,16 +310,4 @@ func (l *List) Range(fn func(n *Node) bool) {
 			break
 		}
 	}
-}
-
-func (l *List) Cleanup() {
-	for l.head != nil {
-		n := l.head
-		l.head = n.Next
-		n.Reset()
-	}
-
-	l.head = nil
-	l.tail = nil
-	l.count = 0
 }
