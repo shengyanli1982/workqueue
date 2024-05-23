@@ -246,3 +246,47 @@ func TestQueueImpl_IsClosed(t *testing.T) {
 	// Verify that the queue is closed
 	assert.True(t, q.IsClosed(), "Queue should be closed")
 }
+
+type testCallback struct {
+	puts, gets, dones []interface{}
+}
+
+func (c *testCallback) OnPut(value interface{}) {
+	c.puts = append(c.puts, value)
+}
+
+func (c *testCallback) OnGet(value interface{}) {
+	c.gets = append(c.gets, value)
+}
+
+func (c *testCallback) OnDone(value interface{}) {
+	c.dones = append(c.dones, value)
+}
+
+func TestQueueImpl_Callback(t *testing.T) {
+	callback := &testCallback{}
+	config := NewQueueConfig().WithCallback(callback)
+	q := NewQueue(config)
+	defer q.Shutdown()
+
+	// Put content into queue
+	err := q.Put("test1")
+	assert.NoError(t, err, "Put should not return an error")
+	err = q.Put("test2")
+	assert.NoError(t, err, "Put should not return an error")
+	err = q.Put("test3")
+	assert.NoError(t, err, "Put should not return an error")
+
+	// Get content from queue
+	v, err := q.Get()
+	assert.NoError(t, err, "Get should not return an error")
+	assert.Equal(t, "test1", v, "Get value should be test1")
+
+	// Done content from queue
+	q.Done(v)
+
+	// Verify the callback state
+	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, callback.puts, "Callback puts should be [test1, test2, test3]")
+	assert.Equal(t, []interface{}{"test1"}, callback.gets, "Callback gets should be [test1]")
+	assert.Equal(t, []interface{}{"test1"}, callback.dones, "Callback dones should be [test1]")
+}

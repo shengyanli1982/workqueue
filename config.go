@@ -27,24 +27,31 @@ func isQueueConfigEffective(c *QueueConfig) *QueueConfig {
 }
 
 type DelayingQueueConfig struct {
+	QueueConfig
+
 	callback DelayingQueueCallback
 }
 
 func NewDelayingQueueConfig() *DelayingQueueConfig {
 	return &DelayingQueueConfig{
-		callback: NewNopDelayingQueueCallbackImpl(),
+		QueueConfig: *NewQueueConfig(),
+		callback:    NewNopDelayingQueueCallbackImpl(),
 	}
 }
 
-func (impl *DelayingQueueConfig) WithCallback(cb DelayingQueueCallback) *DelayingQueueConfig {
-	impl.callback = cb
-	return impl
+func (c *DelayingQueueConfig) WithCallback(cb DelayingQueueCallback) *DelayingQueueConfig {
+	c.callback = cb
+	c.QueueConfig.callback = cb
+	return c
 }
 
 func isDelayingQueueConfigEffective(c *DelayingQueueConfig) *DelayingQueueConfig {
 	if c != nil {
 		if c.callback == nil {
 			c.callback = NewNopDelayingQueueCallbackImpl()
+		}
+		if c.QueueConfig.callback == nil {
+			c.QueueConfig.callback = NewNopQueueCallbackImpl()
 		}
 	} else {
 		c = NewDelayingQueueConfig()
@@ -53,17 +60,21 @@ func isDelayingQueueConfigEffective(c *DelayingQueueConfig) *DelayingQueueConfig
 }
 
 type PriorityQueueConfig struct {
+	QueueConfig
+
 	callback PriorityQueueCallback
 }
 
 func NewPriorityQueueConfig() *PriorityQueueConfig {
 	return &PriorityQueueConfig{
-		callback: NewNopPriorityQueueCallbackImpl(),
+		QueueConfig: *NewQueueConfig(),
+		callback:    NewNopPriorityQueueCallbackImpl(),
 	}
 }
 
 func (c *PriorityQueueConfig) WithCallback(cb PriorityQueueCallback) *PriorityQueueConfig {
 	c.callback = cb
+	c.QueueConfig.callback = cb
 	return c
 }
 
@@ -79,6 +90,8 @@ func isPriorityQueueConfigEffective(c *PriorityQueueConfig) *PriorityQueueConfig
 }
 
 type RateLimitingQueueConfig struct {
+	DelayingQueueConfig
+
 	callback RateLimitingQueueCallback
 
 	limiter Limiter
@@ -86,13 +99,16 @@ type RateLimitingQueueConfig struct {
 
 func NewRateLimitingQueueConfig() *RateLimitingQueueConfig {
 	return &RateLimitingQueueConfig{
-		callback: NewNopRateLimitingQueueCallbackImpl(),
-		limiter:  NewNopRateLimiterImpl(),
+		DelayingQueueConfig: *NewDelayingQueueConfig(),
+		callback:            NewNopRateLimitingQueueCallbackImpl(),
+		limiter:             NewNopRateLimiterImpl(),
 	}
 }
 
 func (c *RateLimitingQueueConfig) WithCallback(cb RateLimitingQueueCallback) *RateLimitingQueueConfig {
 	c.callback = cb
+	c.DelayingQueueConfig.callback = cb
+	c.DelayingQueueConfig.QueueConfig.callback = cb
 	return c
 }
 
@@ -105,6 +121,12 @@ func isRateLimitingQueueConfigEffective(c *RateLimitingQueueConfig) *RateLimitin
 	if c != nil {
 		if c.callback == nil {
 			c.callback = NewNopRateLimitingQueueCallbackImpl()
+		}
+		if c.DelayingQueueConfig.callback == nil {
+			c.DelayingQueueConfig.callback = NewNopDelayingQueueCallbackImpl()
+		}
+		if c.DelayingQueueConfig.QueueConfig.callback == nil {
+			c.DelayingQueueConfig.QueueConfig.callback = NewNopQueueCallbackImpl()
 		}
 		if c.limiter == nil {
 			c.limiter = NewNopRateLimiterImpl()
