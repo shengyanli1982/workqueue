@@ -116,6 +116,7 @@ func (l *List) MoveToFront(n *Node) {
 
 	// If the list is empty, add the node as the first element
 	if l.head == nil && l.tail == nil {
+		n.parentRef = toUnsafePtr(l)
 		n.Prev = nil
 		n.Next = nil
 		l.head = n
@@ -161,6 +162,7 @@ func (l *List) MoveToBack(n *Node) {
 
 	// If the list is empty, add the node as the last element
 	if l.head == nil && l.tail == nil {
+		n.parentRef = toUnsafePtr(l)
 		n.Prev = nil
 		n.Next = nil
 		l.head = n
