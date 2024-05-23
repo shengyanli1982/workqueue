@@ -4,8 +4,9 @@ import "time"
 
 type Queue interface {
 	Put(interface{}) error
-	Len() int
 	Get() (interface{}, error)
+	Done(interface{})
+	Len() int
 	Values() []interface{}
 	Shutdown()
 	IsClosed() bool
@@ -53,27 +54,6 @@ type RateLimitingQueueCallback interface {
 	OnLimited(interface{})
 }
 
-type QueueConfig interface {
-	WithCallback(QueueCallback) QueueConfig
-	Effective()
-}
-
-type DelayingQueueConfig interface {
-	WithCallback(DelayingQueueCallback) DelayingQueueConfig
-	Effective()
-}
-
-type PriorityQueueConfig interface {
-	WithCallback(PriorityQueueCallback) PriorityQueueConfig
-	Effective()
-}
-
 type Limiter interface {
-	When() time.Duration
-}
-
-type RateLimitingQueueConfig interface {
-	WithCallback(RateLimitingQueueCallback) RateLimitingQueueConfig
-	WithRateLimiter(Limiter) RateLimitingQueueConfig
-	Effective()
+	When(interface{}) time.Duration
 }

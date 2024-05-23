@@ -1,8 +1,6 @@
 package heap
 
-import (
-	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
-)
+import lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 
 type Heap struct {
 	elements *lst.List
