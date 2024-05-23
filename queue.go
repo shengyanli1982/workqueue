@@ -61,6 +61,10 @@ func (q *QueueImpl) Put(value interface{}) error {
 		return ErrQueueIsClosed
 	}
 
+	if value == nil {
+		return ErrElementIsNil
+	}
+
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
