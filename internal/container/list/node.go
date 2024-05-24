@@ -6,10 +6,10 @@ import (
 )
 
 type Node struct {
-	Value      interface{}
-	Next, Prev *Node
-	Index      int64
-	parentRef  unsafe.Pointer
+	Value           interface{}
+	Index, Priority int64
+	Next, Prev      *Node
+	parentRef       unsafe.Pointer
 }
 
 func (n *Node) Reset() {
@@ -18,6 +18,7 @@ func (n *Node) Reset() {
 	n.Next = nil
 	n.Prev = nil
 	n.Index = 0
+	n.Priority = 0
 }
 
 func NewNode() *Node { return &Node{} }

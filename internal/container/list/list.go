@@ -68,7 +68,7 @@ func (l *List) PopBack() *Node {
 	} else {
 		l.tail.Next = nil
 	}
-	
+
 	n.parentRef = nil
 	n.Prev = nil
 	n.Next = nil
@@ -252,11 +252,7 @@ func (l *List) InsertAfter(n, mark *Node) {
 }
 
 func (l *List) Swap(n, mark *Node) {
-	if n == nil || mark == nil {
-		return
-	}
-
-	if n == mark {
+	if n == nil || mark == nil || n == mark {
 		return
 	}
 

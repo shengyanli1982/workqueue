@@ -1,7 +1,6 @@
 package workqueue
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -66,16 +65,6 @@ func (q *DelayingQueueImpl) PutWithDelay(value interface{}, delay time.Duration)
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	e := q.elementpool.Get()
-	e.Value = value
-	e.Index = toDelay(delay)
-
-	fmt.Printf("Value: %v, Time: %v\n", value, e.Index)
-
-	q.sorting.Push(e)
-
-	q.config.callback.OnDelay(value, delay)
-
 	return nil
 }
 
@@ -86,34 +75,6 @@ func (q *DelayingQueueImpl) puller() {
 		q.wg.Done()
 	}()
 
-	now := time.Now().UnixMilli()
+	// now := time.Now().UnixMilli()
 
-	for {
-		if q.IsClosed() {
-			break
-		}
-
-		select {
-		case t := <-heartbeat.C:
-			now = t.UnixMilli()
-		default:
-			q.lock.Lock()
-			if q.sorting.Len() > 0 {
-				e := q.sorting.Front()
-				if e.Index <= now {
-					fmt.Printf("Heap: %v\n", q.sorting.Slice())
-					v := e.Value
-					q.sorting.Pop()
-					q.elementpool.Put(e)
-					q.lock.Unlock()
-					fmt.Printf("Value: %v\n", v)
-					if err := q.Queue.Put(v); err != nil {
-						q.config.callback.OnPullError(v, err)
-					}
-					continue
-				}
-			}
-			q.lock.Unlock()
-		}
-	}
 }

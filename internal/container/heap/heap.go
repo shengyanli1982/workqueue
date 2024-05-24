@@ -1,8 +1,8 @@
 package heap
 
-import lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
-
-const MINIHEAPSIZE = 4
+import (
+	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
+)
 
 type Heap struct {
 	list    *lst.List
@@ -16,40 +16,52 @@ func New() *Heap {
 	}
 }
 
-func (h *Heap) less(i, j *lst.Node) bool { return i.Index < j.Index }
+func (h *Heap) less(i, j *lst.Node) bool { return i.Priority < j.Priority }
 
-func (h *Heap) getChildIndex(node *lst.Node, childCount int) int64 {
-	var minIndex int64 = -1
-	var minNode *lst.Node
-	currentNode := node.Next
-	for i := 0; i < childCount && currentNode != nil; i++ {
-		if minNode == nil || h.less(currentNode, minNode) {
-			minNode = currentNode
-			minIndex = currentNode.Index
-		}
-		currentNode = currentNode.Next
-	}
-	return minIndex
+func (h *Heap) swap(i, j *lst.Node) {
+	h.list.Swap(i, j)
+	h.mapping[i.Index], h.mapping[j.Index] = j, i
+	i.Index, j.Index = j.Index, i.Index
 }
 
-func (h *Heap) moveUp(node *lst.Node) {
-	for node.Prev != nil && h.less(node, node.Prev) {
-		h.list.Swap(node, node.Prev)
+func (h *Heap) moveUp(n *lst.Node) {
+	var parent *lst.Node
+	for n != nil && n.Index > 0 {
+		parentIndex := (n.Index - 1) / 2
+
+		parent = h.mapping[parentIndex]
+
+		if parent == nil || h.less(parent, n) {
+			break
+		}
+		h.swap(parent, n)
+		n = parent
 	}
 }
 
-func (h *Heap) moveDown(node *lst.Node) {
-	for {
-		childIndex := h.getChildIndex(node, MINIHEAPSIZE)
-		if childIndex == -1 {
+func (h *Heap) moveDown(n *lst.Node) {
+	var left, right, smallest *lst.Node
+	for n != nil {
+		smallest = n
+
+		leftIndex := n.Index*2 + 1
+		rightIndex := n.Index*2 + 2
+
+		left = h.mapping[leftIndex]
+		right = h.mapping[rightIndex]
+
+		if left != nil && h.less(left, smallest) {
+			smallest = left
+		}
+		if right != nil && h.less(right, smallest) {
+			smallest = right
+		}
+		if smallest == n {
 			break
 		}
-		if childNode, ok := h.mapping[childIndex]; ok && !h.less(node, childNode) {
-			h.list.Swap(node, childNode)
-			node = childNode
-		} else {
-			break
-		}
+
+		h.swap(n, smallest)
+		n = smallest
 	}
 }
 
@@ -73,16 +85,16 @@ func (h *Heap) Remove(node *lst.Node) {
 		return
 	}
 	h.list.Remove(node)
-	delete(h.mapping, node.Index)
 }
 
-func (h *Heap) Push(node *lst.Node) {
-	if node == nil {
+func (h *Heap) Push(n *lst.Node) {
+	if n == nil {
 		return
 	}
-	h.list.PushBack(node)
-	h.mapping[node.Index] = node
-	h.moveUp(node)
+	n.Index = h.list.Len()
+	h.mapping[n.Index] = n
+	h.list.PushBack(n)
+	h.moveUp(n)
 }
 
 func (h *Heap) Pop() *lst.Node {
@@ -90,13 +102,9 @@ func (h *Heap) Pop() *lst.Node {
 		return nil
 	}
 
-	minNode := h.list.PopFront()
-	if minNode == nil {
-		return nil
-	}
-	delete(h.mapping, minNode.Index)
-	if h.list.Len() > 0 {
-		h.moveDown(h.Front())
-	}
-	return minNode
+	n := h.list.PopFront()
+	delete(h.mapping, n.Index)
+	n.Index = 0
+	h.moveDown(h.Front())
+	return n
 }
