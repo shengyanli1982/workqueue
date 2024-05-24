@@ -2,78 +2,101 @@ package heap
 
 import lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 
+const MINIHEAPSIZE = 4
+
 type Heap struct {
-	elements *lst.List
+	list    *lst.List
+	mapping map[int64]*lst.Node
 }
 
 func New() *Heap {
-	return &Heap{elements: lst.New()}
+	return &Heap{
+		list:    lst.New(),
+		mapping: make(map[int64]*lst.Node),
+	}
 }
 
 func (h *Heap) less(i, j *lst.Node) bool { return i.Index < j.Index }
 
-func (h *Heap) up(i *lst.Node) {
-	for i != nil {
-		parent := i.Prev
-		if parent == nil || h.less(parent, i) {
-			break
+func (h *Heap) getChildIndex(node *lst.Node, childCount int) int64 {
+	var minIndex int64 = -1
+	var minNode *lst.Node
+	currentNode := node.Next
+	for i := 0; i < childCount && currentNode != nil; i++ {
+		if minNode == nil || h.less(currentNode, minNode) {
+			minNode = currentNode
+			minIndex = currentNode.Index
 		}
-		h.elements.Swap(parent, i)
-		i = parent
+		currentNode = currentNode.Next
+	}
+	return minIndex
+}
+
+func (h *Heap) moveUp(node *lst.Node) {
+	for node.Prev != nil && h.less(node, node.Prev) {
+		h.list.Swap(node, node.Prev)
 	}
 }
 
-func (h *Heap) down(i *lst.Node) {
-	for i != nil {
-		left := i.Next
-		if left == nil {
+func (h *Heap) moveDown(node *lst.Node) {
+	for {
+		childIndex := h.getChildIndex(node, MINIHEAPSIZE)
+		if childIndex == -1 {
 			break
 		}
-		right := left.Next
-		if right != nil && h.less(right, left) {
-			left = right
-		}
-		if h.less(i, left) {
+		if childNode, ok := h.mapping[childIndex]; ok && !h.less(node, childNode) {
+			h.list.Swap(node, childNode)
+			node = childNode
+		} else {
 			break
 		}
-		h.elements.Swap(i, left)
-		i = left
 	}
 }
 
-func (h *Heap) Len() int64 { return h.elements.Len() }
+func (h *Heap) Len() int64 { return h.list.Len() }
 
-func (h *Heap) Front() *lst.Node { return h.elements.Front() }
+func (h *Heap) Front() *lst.Node { return h.list.Front() }
 
-func (h *Heap) Back() *lst.Node { return h.elements.Back() }
+func (h *Heap) Back() *lst.Node { return h.list.Back() }
 
-func (h *Heap) Cleanup() { h.elements.Cleanup() }
+func (h *Heap) Range(f func(*lst.Node) bool) { h.list.Range(f) }
 
-func (h *Heap) Range(f func(*lst.Node) bool) { h.elements.Range(f) }
+func (h *Heap) Slice() []interface{} { return h.list.Slice() }
 
-func (h *Heap) Slice() []interface{} { return h.elements.Slice() }
+func (h *Heap) Cleanup() {
+	h.list.Cleanup()
+	h.mapping = make(map[int64]*lst.Node)
+}
 
-func (h *Heap) Remove(n *lst.Node) {
-	if n == nil {
+func (h *Heap) Remove(node *lst.Node) {
+	if node == nil {
 		return
 	}
-	h.elements.Remove(n)
-	h.down(n)
+	h.list.Remove(node)
+	delete(h.mapping, node.Index)
 }
 
-func (h *Heap) Push(n *lst.Node) {
-	if n == nil {
+func (h *Heap) Push(node *lst.Node) {
+	if node == nil {
 		return
 	}
-	h.elements.PushFront(n)
-	h.up(n)
+	h.list.PushBack(node)
+	h.mapping[node.Index] = node
+	h.moveUp(node)
 }
 
 func (h *Heap) Pop() *lst.Node {
-	if h.Len() <= 0 {
+	if h.list.Len() <= 0 {
 		return nil
 	}
-	n := h.elements.PopFront()
-	h.down(h.Front())
-	return n
+
+	minNode := h.list.PopFront()
+	if minNode == nil {
+		return nil
+	}
+	delete(h.mapping, minNode.Index)
+	if h.list.Len() > 0 {
+		h.moveDown(h.Front())
+	}
+	return minNode
 }

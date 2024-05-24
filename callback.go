@@ -21,6 +21,7 @@ func NewNopDelayingQueueCallbackImpl() *DelayingQueueCallbackImpl {
 }
 
 func (impl *DelayingQueueCallbackImpl) OnDelay(interface{}, time.Duration) {}
+func (impl *DelayingQueueCallbackImpl) OnPullError(interface{}, error)     {}
 
 type PriorityQueueCallbackImpl struct {
 	QueueCallbackImpl

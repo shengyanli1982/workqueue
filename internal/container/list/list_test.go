@@ -320,6 +320,52 @@ func TestList_Remove(t *testing.T) {
 	assert.Nil(t, l.Back(), "back node should be nil")
 }
 
+func TestList_Remove_InvalidNode(t *testing.T) {
+	l := New()
+
+	// Create some nodes
+	node1 := &Node{Value: 1}
+	node2 := &Node{Value: 2}
+	node3 := &Node{Value: 3}
+
+	// Push nodes to the list
+	l.PushBack(node1)
+	l.PushBack(node2)
+	l.PushBack(node3)
+
+	// Create an invalid node
+	node4 := &Node{Value: 4}
+
+	// Remove the invalid node from the list
+	l.Remove(node4)
+
+	// Verify the list state
+	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
+	assert.Equal(t, node1, l.Front(), "front node should be node1")
+	assert.Equal(t, node3, l.Back(), "back node should be node3")
+
+	// Verify the node order
+	assert.Equal(t, node2, node1.Next, "node1 next should be node2")
+	assert.Equal(t, node3, node2.Next, "node2 next should be node3")
+	assert.Nil(t, node3.Next, "node3 next should be nil")
+}
+
+func TestList_Remove_EmptyList(t *testing.T) {
+	l := New()
+
+	// Create a node
+	node := &Node{Value: 1}
+	node.parentRef = toUnsafePtr(l)
+
+	// Remove the node from the list (should have no effect)
+	l.Remove(node)
+
+	// Verify the list state
+	assert.Equal(t, int64(0), l.Len(), "list length should be 0")
+	assert.Nil(t, l.Front(), "front node should be nil")
+	assert.Nil(t, l.Back(), "back node should be nil")
+}
+
 func TestList_MoveToFront(t *testing.T) {
 	l := New()
 
@@ -1056,6 +1102,50 @@ func TestList_Swap(t *testing.T) {
 	assert.Equal(t, node3, node2.Prev, "node2 prev should be node3")
 	assert.Equal(t, node2, node1.Prev, "node1 prev should be node2")
 	assert.Nil(t, node4.Prev, "node2 prev should be nil")
+
+	// Swap node2 and node4
+	l.Swap(node2, node4)
+
+	// Print the list values
+	PrintListValues(l)
+
+	// Verify the list state
+	assert.Equal(t, int64(4), l.Len(), "list length should be 4")
+	assert.Equal(t, node2, l.Front(), "front node should be node4")
+	assert.Equal(t, node1, l.Back(), "back node should be node1")
+
+	// Verify the node order
+	assert.Equal(t, node3, node2.Next, "node2 next should be node3")
+	assert.Equal(t, node4, node3.Next, "node3 next should be node4")
+	assert.Equal(t, node1, node4.Next, "node4 next should be node1")
+	assert.Nil(t, node1.Next, "node1 next should be nil")
+
+	assert.Equal(t, node2, node3.Prev, "node3 prev should be node2")
+	assert.Equal(t, node3, node4.Prev, "node4 prev should be node3")
+	assert.Equal(t, node4, node1.Prev, "node1 prev should be node4")
+	assert.Nil(t, node2.Prev, "node2 prev should be nil")
+
+	// Swap node1 and node3
+	l.Swap(node1, node3)
+
+	// Print the list values
+	PrintListValues(l)
+
+	// Verify the list state
+	assert.Equal(t, int64(4), l.Len(), "list length should be 4")
+	assert.Equal(t, node2, l.Front(), "front node should be node4")
+	assert.Equal(t, node3, l.Back(), "back node should be node1")
+
+	// Verify the node order
+	assert.Equal(t, node1, node2.Next, "node2 next should be node1")
+	assert.Equal(t, node4, node1.Next, "node1 next should be node4")
+	assert.Equal(t, node3, node4.Next, "node4 next should be node3")
+	assert.Nil(t, node3.Next, "node1 next should be nil")
+
+	assert.Equal(t, node2, node1.Prev, "node1 prev should be node2")
+	assert.Equal(t, node1, node4.Prev, "node4 prev should be node1")
+	assert.Equal(t, node2, node1.Prev, "node1 prev should be node2")
+	assert.Nil(t, node2.Prev, "node2 prev should be nil")
 }
 
 func TestList_Swap_InvalidNode(t *testing.T) {

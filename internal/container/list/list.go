@@ -68,6 +68,10 @@ func (l *List) PopBack() *Node {
 	} else {
 		l.tail.Next = nil
 	}
+	
+	n.parentRef = nil
+	n.Prev = nil
+	n.Next = nil
 
 	l.count--
 	return n
@@ -85,12 +89,16 @@ func (l *List) PopFront() *Node {
 		l.head.Prev = nil
 	}
 
+	n.parentRef = nil
+	n.Prev = nil
+	n.Next = nil
+
 	l.count--
 	return n
 }
 
 func (l *List) Remove(n *Node) {
-	if n == nil {
+	if n == nil || l.count == 0 || !isPtrEqual(n.parentRef, l) {
 		return
 	}
 
@@ -105,6 +113,10 @@ func (l *List) Remove(n *Node) {
 	} else {
 		n.Next.Prev = n.Prev
 	}
+
+	n.parentRef = nil
+	n.Prev = nil
+	n.Next = nil
 
 	l.count--
 }

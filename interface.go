@@ -40,6 +40,7 @@ type DelayingQueueCallback interface {
 	QueueCallback
 
 	OnDelay(interface{}, time.Duration)
+	OnPullError(interface{}, error)
 }
 
 type PriorityQueueCallback interface {
