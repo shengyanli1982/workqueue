@@ -120,7 +120,11 @@ func TestHeap_Pop(t *testing.T) {
 		n := h.Pop()
 		assert.NotNil(t, n, "pop value should not be nil")
 		assert.Equal(t, int64(i), n.Priority, fmt.Sprintf("pop value should be %d", i))
+		assert.Equal(t, int64(i), n.Index, fmt.Sprintf("pop index should be %d", i))
 	}
+
+	// Print the list indexs
+	PrintListIndexs(h.list)
 
 	// Verify the heap state
 	assert.Equal(t, int64(0), h.Len(), "heap length should be 0")

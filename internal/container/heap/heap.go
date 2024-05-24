@@ -4,64 +4,69 @@ import (
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 )
 
+const (
+	INIT_NODE_SIZE = 8
+	// UPWORD_LEVEL   = INIT_NODE_SIZE << 5
+	// DOWNWORD_LEVEL = INIT_NODE_SIZE >> 5
+)
+
 type Heap struct {
 	list    *lst.List
-	mapping map[int64]*lst.Node
+	mapping []*lst.Node
 }
 
 func New() *Heap {
 	return &Heap{
 		list:    lst.New(),
-		mapping: make(map[int64]*lst.Node),
+		mapping: make([]*lst.Node, 0, INIT_NODE_SIZE),
 	}
 }
 
 func (h *Heap) less(i, j *lst.Node) bool { return i.Priority < j.Priority }
 
 func (h *Heap) swap(i, j *lst.Node) {
-	h.list.Swap(i, j)
 	h.mapping[i.Index], h.mapping[j.Index] = j, i
-	i.Index, j.Index = j.Index, i.Index
+	h.mapping[i.Index].Index, h.mapping[j.Index].Index = i.Index, j.Index
+	h.list.Swap(i, j)
 }
 
-func (h *Heap) moveUp(n *lst.Node) {
-	var parent *lst.Node
-	for n != nil && n.Index > 0 {
-		parentIndex := (n.Index - 1) / 2
+func (h *Heap) moveUp(node *lst.Node) {
+	for node != nil && node.Index > 0 {
+		parentIndex := (node.Index - 1) / 2
 
-		parent = h.mapping[parentIndex]
+		parent := h.mapping[parentIndex]
 
-		if parent == nil || h.less(parent, n) {
+		if parent == nil || !h.less(node, parent) {
 			break
 		}
-		h.swap(parent, n)
-		n = parent
+
+		h.swap(node, parent)
 	}
 }
 
-func (h *Heap) moveDown(n *lst.Node) {
-	var left, right, smallest *lst.Node
-	for n != nil {
-		smallest = n
+func (h *Heap) moveDown(node *lst.Node) {
+	count := h.list.Len() - 1
 
-		leftIndex := n.Index*2 + 1
-		rightIndex := n.Index*2 + 2
-
-		left = h.mapping[leftIndex]
-		right = h.mapping[rightIndex]
-
-		if left != nil && h.less(left, smallest) {
-			smallest = left
-		}
-		if right != nil && h.less(right, smallest) {
-			smallest = right
-		}
-		if smallest == n {
+	for node != nil {
+		child1 := node.Index*2 + 1
+		if child1 >= count {
 			break
 		}
 
-		h.swap(n, smallest)
-		n = smallest
+		child2 := child1 + 1
+
+		j := child1
+		if child2 < count && h.less(h.mapping[child2], h.mapping[child1]) {
+			j = child2
+		}
+
+		if !h.less(h.mapping[j], node) {
+			break
+		}
+
+		h.swap(node, h.mapping[j])
+
+		node = h.mapping[j]
 	}
 }
 
@@ -77,7 +82,7 @@ func (h *Heap) Slice() []interface{} { return h.list.Slice() }
 
 func (h *Heap) Cleanup() {
 	h.list.Cleanup()
-	h.mapping = make(map[int64]*lst.Node)
+	h.mapping = h.mapping[:0]
 }
 
 func (h *Heap) Remove(node *lst.Node) {
@@ -92,19 +97,18 @@ func (h *Heap) Push(n *lst.Node) {
 		return
 	}
 	n.Index = h.list.Len()
-	h.mapping[n.Index] = n
+	h.mapping = append(h.mapping, n)
 	h.list.PushBack(n)
 	h.moveUp(n)
 }
 
 func (h *Heap) Pop() *lst.Node {
-	if h.list.Len() <= 0 {
+	if h.Len() <= 0 {
 		return nil
 	}
 
 	n := h.list.PopFront()
-	delete(h.mapping, n.Index)
-	n.Index = 0
+	h.mapping[n.Index] = nil
 	h.moveDown(h.Front())
 	return n
 }
