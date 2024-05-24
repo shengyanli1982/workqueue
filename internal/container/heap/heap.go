@@ -31,7 +31,7 @@ func (h *Heap) swap(i, j *lst.Node) {
 }
 
 func (h *Heap) moveUp(node *lst.Node) {
-	for node != nil && node.Index > 0 {
+	for node != nil && node.Index >= 0 {
 		parentIndex := (node.Index - 1) / 2
 
 		parent := h.mapping[parentIndex]
@@ -45,7 +45,7 @@ func (h *Heap) moveUp(node *lst.Node) {
 }
 
 func (h *Heap) moveDown(node *lst.Node) {
-	count := h.list.Len() - 1
+	count := h.list.Len()
 
 	for node != nil {
 		child1 := node.Index*2 + 1
@@ -96,6 +96,7 @@ func (h *Heap) Push(n *lst.Node) {
 	if n == nil {
 		return
 	}
+
 	n.Index = h.list.Len()
 	h.mapping = append(h.mapping, n)
 	h.list.PushBack(n)
