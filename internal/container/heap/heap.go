@@ -19,12 +19,6 @@ func (h *Heap) less(i, j *lst.Node) bool {
 	return i.Priority < j.Priority
 }
 
-// func (h *Heap) swap(i, j *lst.Node) {
-// 	h.mapping[i.Index], h.mapping[j.Index] = j, i
-// 	h.mapping[i.Index].Index, h.mapping[j.Index].Index = i.Index, j.Index
-// 	h.list.Swap(i, j)
-// }
-
 func (h *Heap) moveUp(node *lst.Node) {
 	if node == nil || node.Prev == nil {
 		return
@@ -36,7 +30,7 @@ func (h *Heap) moveUp(node *lst.Node) {
 	}
 
 	if current != node {
-		h.list.Remove(node)
+		h.list.PopBack()
 		h.list.InsertBefore(node, current)
 	}
 }
