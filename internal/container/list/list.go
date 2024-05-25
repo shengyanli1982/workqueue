@@ -223,11 +223,13 @@ func (l *List) InsertBefore(n, mark *Node) {
 	n.parentRef = toUnsafePtr(l)
 
 	if mark.Prev == nil {
+		n.Prev = nil
 		l.head = n
 	} else {
+		n.Prev = mark.Prev
 		mark.Prev.Next = n
 	}
-	n.Prev = mark.Prev
+
 	n.Next = mark
 	mark.Prev = n
 	l.count++
@@ -241,11 +243,14 @@ func (l *List) InsertAfter(n, mark *Node) {
 	n.parentRef = toUnsafePtr(l)
 
 	if mark.Next == nil {
+		n.Next = nil
 		l.tail = n
+
 	} else {
+		n.Next = mark.Next
 		mark.Next.Prev = n
 	}
-	n.Next = mark.Next
+
 	n.Prev = mark
 	mark.Next = n
 	l.count++
