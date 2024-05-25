@@ -2,6 +2,7 @@ package heap
 
 import (
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
+	"github.com/shengyanli1982/workqueue/v2/internal/lockfree/stack"
 )
 
 const (
@@ -13,60 +14,69 @@ const (
 type Heap struct {
 	list    *lst.List
 	mapping []*lst.Node
+	cache   *stack.Stack
 }
 
 func New() *Heap {
 	return &Heap{
 		list:    lst.New(),
+		cache:   stack.New(),
 		mapping: make([]*lst.Node, 0, INIT_NODE_SIZE),
 	}
 }
 
 func (h *Heap) less(i, j *lst.Node) bool { return i.Priority < j.Priority }
 
-func (h *Heap) swap(i, j *lst.Node) {
-	h.mapping[i.Index], h.mapping[j.Index] = j, i
-	h.mapping[i.Index].Index, h.mapping[j.Index].Index = i.Index, j.Index
-	h.list.Swap(i, j)
+// func (h *Heap) swap(i, j *lst.Node) {
+// 	h.mapping[i.Index], h.mapping[j.Index] = j, i
+// 	h.mapping[i.Index].Index, h.mapping[j.Index].Index = i.Index, j.Index
+// 	h.list.Swap(i, j)
+// }
+
+func getMiddleNode(low, high *lst.Node) *lst.Node {
+	if low == nil || high == nil {
+		return nil
+	}
+
+	slow := low
+	fast := low
+
+	for fast != high && fast.Next != high {
+		slow = slow.Next
+		fast = fast.Next.Next
+	}
+
+	return slow
 }
 
 func (h *Heap) moveUp(node *lst.Node) {
-	for node != nil && node.Index >= 0 {
-		parentIndex := (node.Index - 1) / 2
-
-		parent := h.mapping[parentIndex]
-
-		if parent == nil || !h.less(node, parent) {
-			break
-		}
-
-		h.swap(node, parent)
+	if node == nil || node.Prev == nil {
+		return
 	}
-}
 
-func (h *Heap) moveDown(node *lst.Node) {
-	count := h.list.Len()
+	low := h.list.Front()
+	high := h.list.Back()
 
-	for node != nil {
-		child1 := node.Index*2 + 1
-		if child1 >= count {
-			break
+	for low != high {
+		mid := getMiddleNode(low, high)
+
+		if h.less(node, mid) {
+			high = mid
+		} else {
+			low = mid.Next
 		}
+	}
 
-		child2 := child1 + 1
+	for high != nil && h.less(node, high) {
+		high = high.Prev
+	}
 
-		j := child1
-		if child2 < count && h.less(h.mapping[child2], h.mapping[child1]) {
-			j = child2
-		}
+	h.list.Remove(node)
 
-		if !h.less(h.mapping[j], node) {
-			break
-		}
-
-		h.swap(node, h.mapping[j])
-
-		node = h.mapping[j]
+	if high == nil {
+		h.list.PushFront(node)
+	} else {
+		h.list.InsertAfter(node, high)
 	}
 }
 
@@ -97,8 +107,14 @@ func (h *Heap) Push(n *lst.Node) {
 		return
 	}
 
-	n.Index = h.list.Len()
-	h.mapping = append(h.mapping, n)
+	if h.cache.Len() > 0 {
+		n.Index = h.cache.Pop()
+		h.mapping[n.Index] = n
+	} else {
+		n.Index = h.list.Len()
+		h.mapping = append(h.mapping, n)
+	}
+
 	h.list.PushBack(n)
 	h.moveUp(n)
 }
@@ -110,6 +126,5 @@ func (h *Heap) Pop() *lst.Node {
 
 	n := h.list.PopFront()
 	h.mapping[n.Index] = nil
-	h.moveDown(h.Front())
 	return n
 }
