@@ -29,7 +29,7 @@ func BenchmarkHeap_Push(b *testing.B) {
 
 	// Push the nodes
 	for i := 0; i < b.N; i++ {
-		nodes[i] = &lst.Node{Priority: int64(b.N - i - 1)}
+		nodes[i] = &lst.Node{Priority: int32(b.N - i - 1)}
 	}
 
 	b.ResetTimer()
@@ -45,7 +45,7 @@ func BenchmarkHeap_Pop(b *testing.B) {
 
 	// Push the nodes
 	for i := 0; i < b.N; i++ {
-		h.Push(&lst.Node{Priority: int64(b.N - i - 1)})
+		h.Push(&lst.Node{Priority: int32(b.N - i - 1)})
 	}
 
 	b.ResetTimer()
@@ -62,7 +62,7 @@ func BenchmarkHeap_Remove(b *testing.B) {
 
 	// Push the nodes
 	for i := 0; i < b.N; i++ {
-		h.Push(&lst.Node{Priority: int64(b.N - i - 1)})
+		h.Push(&lst.Node{Priority: int32(b.N - i - 1)})
 	}
 
 	b.ResetTimer()
@@ -81,7 +81,7 @@ func BenchmarkCompareGoStdHeap_Push(b *testing.B) {
 
 	// Push the nodes
 	for i := 0; i < b.N; i++ {
-		heap.Push(h, &lst.Node{Priority: int64(b.N - i - 1)})
+		heap.Push(h, &lst.Node{Priority: int32(b.N - i - 1)})
 	}
 }
 
@@ -91,7 +91,7 @@ func BenchmarkCompareGoStdHeap_Pop(b *testing.B) {
 
 	// Push the nodes
 	for i := 0; i < b.N; i++ {
-		heap.Push(h, &lst.Node{Priority: int64(b.N - i - 1)})
+		heap.Push(h, &lst.Node{Priority: int32(b.N - i - 1)})
 	}
 
 	b.ResetTimer()
@@ -108,7 +108,7 @@ func BenchmarkCompareWQHeap_Push(b *testing.B) {
 
 	// Push the nodes
 	for i := 0; i < b.N; i++ {
-		h.Push(&lst.Node{Priority: int64(b.N - i - 1)})
+		h.Push(&lst.Node{Priority: int32(b.N - i - 1)})
 	}
 }
 
@@ -117,7 +117,7 @@ func BenchmarkCompareWQHeap_Pop(b *testing.B) {
 
 	// Push the nodes
 	for i := 0; i < b.N; i++ {
-		h.Push(&lst.Node{Priority: int64(b.N - i - 1)})
+		h.Push(&lst.Node{Priority: int32(b.N - i - 1)})
 	}
 
 	b.ResetTimer()

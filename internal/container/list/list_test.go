@@ -762,6 +762,47 @@ func TestList_InsertBefore(t *testing.T) {
 	assert.Nil(t, node3.Next, "node3 next should be nil")
 }
 
+func TestList_InsertBefore_SameValue(t *testing.T) {
+	l := New()
+
+	// Create some nodes
+	node1 := &Node{Value: 1, Priority: 0}
+	node2 := &Node{Value: 1, Priority: 1}
+	node3 := &Node{Value: 1, Priority: 2}
+
+	// Push nodes to the list
+	l.PushBack(node1)
+	l.PushBack(node2)
+	l.PushBack(node3)
+
+	// Create a new node
+	node4 := &Node{Value: 1, Priority: 3}
+
+	// Print the list values
+	PrintListValues(l)
+
+	// Insert newNode before node2
+	l.InsertBefore(node4, node2)
+
+	// Print the list values
+	PrintListValues(l)
+
+	// Verify the list state
+	assert.Equal(t, int64(4), l.Len(), "list length should be 4")
+	assert.Equal(t, node1, l.Front(), "front node should be node1")
+	assert.Equal(t, node3, l.Back(), "back node should be node3")
+	assert.Equal(t, node4.parentRef, toUnsafePtr(l), "node4 parentRef should be the list")
+
+	// Verify the node order
+	assert.Equal(t, node4, node1.Next, "node1 next should be newNode")
+	assert.Equal(t, node2, node4.Next, "newNode next should be node2")
+	assert.Equal(t, node4, node2.Prev, "node2 prev should be newNode")
+	assert.Equal(t, node1, node4.Prev, "newNode prev should be node1")
+	assert.Equal(t, node3, node2.Next, "node2 next should be node3")
+	assert.Nil(t, node3.Next, "node3 next should be nil")
+
+}
+
 func TestList_InsertBefore_FirstNode(t *testing.T) {
 	l := New()
 
@@ -800,6 +841,41 @@ func TestList_InsertBefore_FirstNode(t *testing.T) {
 	assert.Equal(t, node3, node2.Next, "node2 next should be node3")
 	assert.Equal(t, node2, node3.Prev, "node3 prev should be node2")
 	assert.Nil(t, node3.Next, "node3 next should be nil")
+}
+
+func TestList_InsertBefore_Nil(t *testing.T) {
+	l := New()
+
+	// Create some nodes
+	node1 := &Node{Value: 1}
+	node2 := &Node{Value: 2}
+
+	// Push nodes to the list
+	l.PushBack(node1)
+
+	// Print the list values
+	PrintListValues(l)
+
+	// Insert nil after node1 (should have no effect)
+	l.InsertBefore(nil, node1)
+
+	// Print the list values
+	PrintListValues(l)
+
+	// Verify the list state
+	assert.Equal(t, int64(1), l.Len(), "list length should be 1")
+	assert.Equal(t, node1, l.Front(), "front node should be node1")
+	assert.Equal(t, node1, l.Back(), "back node should be node1")
+	assert.Equal(t, node1.parentRef, toUnsafePtr(l), "node1 parentRef should be the list")
+
+	// Insert node after nil (should have no effect)
+	l.InsertBefore(node2, nil)
+
+	// Verify the list state
+	assert.Equal(t, int64(1), l.Len(), "list length should be 1")
+	assert.Equal(t, node1, l.Front(), "front node should be node1")
+	assert.Equal(t, node1, l.Back(), "back node should be node1")
+	assert.Equal(t, node1.parentRef, toUnsafePtr(l), "node1 parentRef should be the list")
 }
 
 func TestList_InsertBefore_InvalidNode(t *testing.T) {
@@ -922,6 +998,42 @@ func TestList_InsertAfter(t *testing.T) {
 	assert.Equal(t, node1, node4.Prev, "node4 prev should be node1")
 }
 
+func TestList_InsertAfter_SameValue(t *testing.T) {
+	l := New()
+
+	// Create some nodes
+	node1 := &Node{Value: 1, Priority: 0}
+	node2 := &Node{Value: 1, Priority: 1}
+	node3 := &Node{Value: 1, Priority: 2}
+	node4 := &Node{Value: 1, Priority: 3}
+
+	// Push nodes to the list
+	l.PushBack(node1)
+	l.PushBack(node2)
+	l.PushBack(node3)
+
+	// Print the list values
+	PrintListValues(l)
+
+	// Insert node4 after node1
+	l.InsertAfter(node4, node1)
+
+	// Print the list values
+	PrintListValues(l)
+
+	// Verify the list state
+	assert.Equal(t, int64(4), l.Len(), "list length should be 4")
+	assert.Equal(t, node1, l.Front(), "front node should be node1")
+	assert.Equal(t, node3, l.Back(), "back node should be node3")
+	assert.Equal(t, node4.parentRef, toUnsafePtr(l), "node4 parentRef should be the list")
+
+	// Verify the node order
+	assert.Equal(t, node4, node1.Next, "node1 next should be node4")
+	assert.Equal(t, node2, node4.Next, "node4 next should be node2")
+	assert.Equal(t, node4, node2.Prev, "node2 prev should be node4")
+	assert.Equal(t, node1, node4.Prev, "node4 prev should be node1")
+}
+
 func TestList_InsertAfter_LastNode(t *testing.T) {
 	l := New()
 
@@ -953,6 +1065,41 @@ func TestList_InsertAfter_LastNode(t *testing.T) {
 	assert.Equal(t, node2, node1.Next, "node1 next should be node2")
 	assert.Equal(t, node3, node2.Next, "node2 next should be node3")
 	assert.Nil(t, node3.Next, "node3 next should be nil")
+}
+
+func TestList_InsertAfter_Nil(t *testing.T) {
+	l := New()
+
+	// Create some nodes
+	node1 := &Node{Value: 1}
+	node2 := &Node{Value: 2}
+
+	// Push nodes to the list
+	l.PushBack(node1)
+
+	// Print the list values
+	PrintListValues(l)
+
+	// Insert nil after node1 (should have no effect)
+	l.InsertAfter(nil, node1)
+
+	// Print the list values
+	PrintListValues(l)
+
+	// Verify the list state
+	assert.Equal(t, int64(1), l.Len(), "list length should be 1")
+	assert.Equal(t, node1, l.Front(), "front node should be node1")
+	assert.Equal(t, node1, l.Back(), "back node should be node1")
+	assert.Equal(t, node1.parentRef, toUnsafePtr(l), "node1 parentRef should be the list")
+
+	// Insert node after nil (should have no effect)
+	l.InsertAfter(node2, nil)
+
+	// Verify the list state
+	assert.Equal(t, int64(1), l.Len(), "list length should be 1")
+	assert.Equal(t, node1, l.Front(), "front node should be node1")
+	assert.Equal(t, node1, l.Back(), "back node should be node1")
+	assert.Equal(t, node1.parentRef, toUnsafePtr(l), "node1 parentRef should be the list")
 }
 
 func TestList_InsertAfter_InvalidNode(t *testing.T) {

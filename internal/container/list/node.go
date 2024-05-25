@@ -6,10 +6,11 @@ import (
 )
 
 type Node struct {
-	Value           interface{}
-	Index, Priority int64
-	Next, Prev      *Node
-	parentRef       unsafe.Pointer
+	Value      interface{}
+	Index      uint64
+	Priority   int32
+	Next, Prev *Node
+	parentRef  unsafe.Pointer
 }
 
 func (n *Node) Reset() {
