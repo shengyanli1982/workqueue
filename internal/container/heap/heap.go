@@ -6,7 +6,6 @@ import (
 
 type Heap struct {
 	list *lst.List
-	id   uint64
 }
 
 func New() *Heap {
