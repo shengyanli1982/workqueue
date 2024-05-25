@@ -61,8 +61,6 @@ func (h *Heap) Push(n *lst.Node) {
 		return
 	}
 
-	n.Index = h.id
-	h.id++
 	h.list.PushBack(n)
 	h.moveUp(n)
 }

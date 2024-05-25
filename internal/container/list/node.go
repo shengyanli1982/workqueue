@@ -7,8 +7,7 @@ import (
 
 type Node struct {
 	Value      interface{}
-	Index      uint64
-	Priority   int32
+	Priority   int64
 	Next, Prev *Node
 	parentRef  unsafe.Pointer
 }
@@ -18,7 +17,6 @@ func (n *Node) Reset() {
 	n.Value = nil
 	n.Next = nil
 	n.Prev = nil
-	n.Index = 0
 	n.Priority = 0
 }
 

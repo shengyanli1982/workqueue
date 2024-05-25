@@ -18,7 +18,6 @@ func TestNode_Reset(t *testing.T) {
 	assert.Nil(t, node.Value)
 	assert.Nil(t, node.Next)
 	assert.Nil(t, node.Prev)
-	assert.Equal(t, int64(0), node.Index)
 	assert.Equal(t, int64(0), node.Priority)
 }
 
@@ -33,7 +32,6 @@ func TestNodePool_Get(t *testing.T) {
 	assert.Nil(t, node.Value)
 	assert.Nil(t, node.Next)
 	assert.Nil(t, node.Prev)
-	assert.Equal(t, int64(0), node.Index)
 	assert.Equal(t, int64(0), node.Priority)
 }
 
@@ -44,7 +42,6 @@ func TestNodePool_Put(t *testing.T) {
 	node.Value = "test"
 	node.Next = NewNode()
 	node.Prev = NewNode()
-	node.Index = 1
 	node.Priority = 1
 
 	// Put the node back
@@ -54,7 +51,6 @@ func TestNodePool_Put(t *testing.T) {
 	assert.Nil(t, node.Value)
 	assert.Nil(t, node.Next)
 	assert.Nil(t, node.Prev)
-	assert.Equal(t, int64(0), node.Index)
 	assert.Equal(t, int64(0), node.Priority)
 }
 
@@ -75,6 +71,5 @@ func TestNodePool_PutAndGet(t *testing.T) {
 	assert.Nil(t, node.Value)
 	assert.Nil(t, node.Next)
 	assert.Nil(t, node.Prev)
-	assert.Equal(t, int64(0), node.Index)
 	assert.Equal(t, int64(0), node.Priority)
 }
