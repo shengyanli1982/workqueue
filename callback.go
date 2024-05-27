@@ -1,7 +1,5 @@
 package workqueue
 
-import "time"
-
 type QueueCallbackImpl struct{}
 
 func NewNopQueueCallbackImpl() *QueueCallbackImpl { return &QueueCallbackImpl{} }
@@ -20,8 +18,8 @@ func NewNopDelayingQueueCallbackImpl() *DelayingQueueCallbackImpl {
 	}
 }
 
-func (impl *DelayingQueueCallbackImpl) OnDelay(interface{}, time.Duration) {}
-func (impl *DelayingQueueCallbackImpl) OnPullError(interface{}, error)     {}
+func (impl *DelayingQueueCallbackImpl) OnDelay(interface{}, int64)     {}
+func (impl *DelayingQueueCallbackImpl) OnPullError(interface{}, error) {}
 
 type PriorityQueueCallbackImpl struct {
 	QueueCallbackImpl
@@ -33,7 +31,7 @@ func NewNopPriorityQueueCallbackImpl() *PriorityQueueCallbackImpl {
 	}
 }
 
-func (impl *PriorityQueueCallbackImpl) OnPriority(interface{}, int) {}
+func (impl *PriorityQueueCallbackImpl) OnPriority(interface{}, int64) {}
 
 type RateLimitingQueueCallbackImpl struct {
 	DelayingQueueCallbackImpl

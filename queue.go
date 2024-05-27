@@ -65,15 +65,16 @@ func (q *QueueImpl) Put(value interface{}) error {
 		return ErrElementIsNil
 	}
 
-	q.lock.Lock()
-	defer q.lock.Unlock()
-
 	e := q.elementpool.Get()
 	e.Value = value
+
+	q.lock.Lock()
 
 	q.elementlist.PushBack(e)
 
 	q.config.callback.OnPut(value)
+
+	q.lock.Unlock()
 
 	return nil
 }
@@ -84,17 +85,20 @@ func (q *QueueImpl) Get() (interface{}, error) {
 	}
 
 	q.lock.Lock()
-	defer q.lock.Unlock()
 
 	e := q.elementlist.PopFront()
 	if e == nil {
+		q.lock.Unlock()
 		return nil, ErrQueueIsEmpty
 	}
 
 	value := e.Value
-	q.elementpool.Put(e)
 
 	q.config.callback.OnGet(value)
+
+	q.lock.Unlock()
+
+	q.elementpool.Put(e)
 
 	return value, nil
 }

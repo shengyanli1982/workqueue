@@ -15,13 +15,13 @@ type Queue interface {
 type DelayingQueue interface {
 	Queue
 
-	PutWithDelay(interface{}, time.Duration) error
+	PutWithDelay(interface{}, int64) error
 }
 
 type PriorityQueue interface {
 	Queue
 
-	PutWithPriority(interface{}, int) error
+	PutWithPriority(interface{}, int64) error
 }
 
 type RateLimitingQueue interface {
@@ -39,14 +39,14 @@ type QueueCallback interface {
 type DelayingQueueCallback interface {
 	QueueCallback
 
-	OnDelay(interface{}, time.Duration)
+	OnDelay(interface{}, int64)
 	OnPullError(interface{}, error)
 }
 
 type PriorityQueueCallback interface {
 	QueueCallback
 
-	OnPriority(interface{}, int)
+	OnPriority(interface{}, int64)
 }
 
 type RateLimitingQueueCallback interface {

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var DELAYDUCRATION = time.Duration(100)
+var DELAYDUCRATION = int64(150)
 
 func TestDelayingQueueImpl_PutWithDelay(t *testing.T) {
 	q := NewDelayingQueue(nil)
@@ -16,14 +16,14 @@ func TestDelayingQueueImpl_PutWithDelay(t *testing.T) {
 	// Put content into queue
 	err := q.PutWithDelay("test1", DELAYDUCRATION)
 	assert.NoError(t, err, "Put should not return an error")
-	time.Sleep(50 * time.Millisecond)
 
 	err = q.PutWithDelay("test2", DELAYDUCRATION)
 	assert.NoError(t, err, "Put should not return an error")
-	time.Sleep(50 * time.Millisecond)
 
 	err = q.PutWithDelay("test3", DELAYDUCRATION)
 	assert.NoError(t, err, "Put should not return an error")
+
+	time.Sleep(time.Second)
 
 	// Verify the queue state
 	assert.Equal(t, 3, q.Len(), "Queue length should be 3")

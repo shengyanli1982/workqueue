@@ -8,8 +8,8 @@ import (
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 )
 
-func toDelay(duration time.Duration) int64 {
-	return time.Now().Add(time.Millisecond * duration).UnixMilli()
+func toDelay(duration int64) int64 {
+	return time.Now().Add(time.Millisecond * time.Duration(duration)).UnixMilli()
 }
 
 type DelayingQueueImpl struct {
@@ -53,7 +53,7 @@ func (q *DelayingQueueImpl) Shutdown() {
 	})
 }
 
-func (q *DelayingQueueImpl) PutWithDelay(value interface{}, delay time.Duration) error {
+func (q *DelayingQueueImpl) PutWithDelay(value interface{}, delay int64) error {
 	if q.IsClosed() {
 		return ErrQueueIsClosed
 	}
@@ -62,8 +62,14 @@ func (q *DelayingQueueImpl) PutWithDelay(value interface{}, delay time.Duration)
 		return ErrElementIsNil
 	}
 
+	last := q.elementpool.Get()
+	last.Value = value
+	last.Priority = toDelay(delay)
+
 	q.lock.Lock()
-	defer q.lock.Unlock()
+	q.sorting.Push(last)
+	q.config.callback.OnDelay(value, delay)
+	q.lock.Unlock()
 
 	return nil
 }
@@ -75,6 +81,26 @@ func (q *DelayingQueueImpl) puller() {
 		q.wg.Done()
 	}()
 
-	// now := time.Now().UnixMilli()
+	for {
+		if q.IsClosed() {
+			break
+		}
 
+		q.lock.Lock()
+
+		if q.sorting.Len() > 0 {
+			top := q.sorting.Pop()
+			value := top.Value
+			q.lock.Unlock()
+
+			q.elementpool.Put(top)
+
+			if err := q.Queue.Put(value); err != nil {
+				q.config.callback.OnPullError(value, err)
+			}
+		} else {
+			q.lock.Unlock()
+			<-heartbeat.C
+		}
+	}
 }
