@@ -109,7 +109,8 @@ func (q *QueueImpl) Done(value interface{}) {
 	}
 
 	q.lock.Lock()
-	defer q.lock.Unlock()
 
 	q.config.callback.OnDone(value)
+
+	q.lock.Unlock()
 }
