@@ -9,19 +9,23 @@ import (
 
 type QueueImpl struct {
 	config      *QueueConfig
-	elementlist *lst.List
+	list        *lst.List
 	elementpool *lst.NodePool
-	lock        sync.Mutex
+	lock        *sync.Mutex
 	once        sync.Once
 	closed      atomic.Bool
 }
 
 func NewQueue(config *QueueConfig) Queue {
+	return newQueue(lst.New(), lst.NewNodePool(), config)
+}
+
+func newQueue(list *lst.List, elementpool *lst.NodePool, config *QueueConfig) *QueueImpl {
 	return &QueueImpl{
 		config:      isQueueConfigEffective(config),
-		elementlist: lst.New(),
-		elementpool: lst.NewNodePool(),
-		lock:        sync.Mutex{},
+		list:        list,
+		elementpool: elementpool,
+		lock:        &sync.Mutex{},
 		once:        sync.Once{},
 		closed:      atomic.Bool{},
 	}
@@ -31,11 +35,11 @@ func (q *QueueImpl) Shutdown() {
 	q.once.Do(func() {
 		q.closed.Store(true)
 		q.lock.Lock()
-		q.elementlist.Range(func(n *lst.Node) bool {
+		q.list.Range(func(n *lst.Node) bool {
 			q.elementpool.Put(n)
 			return true
 		})
-		q.elementlist.Cleanup()
+		q.list.Cleanup()
 		q.lock.Unlock()
 	})
 }
@@ -47,13 +51,13 @@ func (q *QueueImpl) IsClosed() bool {
 func (q *QueueImpl) Len() int {
 	q.lock.Lock()
 	defer q.lock.Unlock()
-	return int(q.elementlist.Len())
+	return int(q.list.Len())
 }
 
 func (q *QueueImpl) Values() []interface{} {
 	q.lock.Lock()
 	defer q.lock.Unlock()
-	return q.elementlist.Slice()
+	return q.list.Slice()
 }
 
 func (q *QueueImpl) Put(value interface{}) error {
@@ -65,16 +69,16 @@ func (q *QueueImpl) Put(value interface{}) error {
 		return ErrElementIsNil
 	}
 
-	e := q.elementpool.Get()
-	e.Value = value
+	last := q.elementpool.Get()
+	last.Value = value
 
 	q.lock.Lock()
 
-	q.elementlist.PushBack(e)
-
-	q.config.callback.OnPut(value)
+	q.list.PushBack(last)
 
 	q.lock.Unlock()
+
+	q.config.callback.OnPut(value)
 
 	return nil
 }
@@ -86,19 +90,20 @@ func (q *QueueImpl) Get() (interface{}, error) {
 
 	q.lock.Lock()
 
-	e := q.elementlist.PopFront()
-	if e == nil {
+	if q.list.Len() == 0 {
 		q.lock.Unlock()
 		return nil, ErrQueueIsEmpty
 	}
 
-	value := e.Value
+	front := q.list.PopFront()
 
-	q.config.callback.OnGet(value)
+	value := front.Value
 
 	q.lock.Unlock()
 
-	q.elementpool.Put(e)
+	q.elementpool.Put(front)
+
+	q.config.callback.OnGet(value)
 
 	return value, nil
 }
@@ -108,9 +113,5 @@ func (q *QueueImpl) Done(value interface{}) {
 		return
 	}
 
-	q.lock.Lock()
-
 	q.config.callback.OnDone(value)
-
-	q.lock.Unlock()
 }

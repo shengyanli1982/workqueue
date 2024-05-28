@@ -27,13 +27,14 @@ func NewDelayingQueue(config *DelayingQueueConfig) DelayingQueue {
 
 	q := &DelayingQueueImpl{
 		config:      config,
-		Queue:       NewQueue(&config.QueueConfig),
 		sorting:     hp.New(),
 		elementpool: lst.NewNodePool(),
 		lock:        sync.Mutex{},
 		once:        sync.Once{},
 		wg:          sync.WaitGroup{},
 	}
+
+	q.Queue = newQueue(lst.New(), q.elementpool, &config.QueueConfig)
 
 	q.wg.Add(1)
 	go q.puller()
@@ -67,9 +68,12 @@ func (q *DelayingQueueImpl) PutWithDelay(value interface{}, delay int64) error {
 	last.Priority = toDelay(delay)
 
 	q.lock.Lock()
+
 	q.sorting.Push(last)
-	q.config.callback.OnDelay(value, delay)
+
 	q.lock.Unlock()
+
+	q.config.callback.OnDelay(value, delay)
 
 	return nil
 }

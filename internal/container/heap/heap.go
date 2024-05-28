@@ -71,3 +71,7 @@ func (h *Heap) Pop() *lst.Node {
 
 	return h.list.PopFront()
 }
+
+func (h *Heap) GetList() *lst.List {
+	return h.list
+}

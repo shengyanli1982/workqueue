@@ -83,6 +83,9 @@ func isPriorityQueueConfigEffective(c *PriorityQueueConfig) *PriorityQueueConfig
 		if c.callback == nil {
 			c.callback = NewNopPriorityQueueCallbackImpl()
 		}
+		if c.QueueConfig.callback == nil {
+			c.QueueConfig.callback = NewNopQueueCallbackImpl()
+		}
 	} else {
 		c = NewPriorityQueueConfig()
 	}

@@ -32,7 +32,7 @@ func TestQueueImpl_Put_Closed(t *testing.T) {
 
 	// Put content into closed queue
 	err := q.Put("test1")
-	assert.Error(t, err, "Put should return an error")
+	assert.ErrorIs(t, err, ErrQueueIsClosed, "Put should return ErrQueueIsClosed")
 }
 
 func TestQueueImpl_Put_Nil(t *testing.T) {
@@ -41,7 +41,7 @@ func TestQueueImpl_Put_Nil(t *testing.T) {
 
 	// Put nil content into queue
 	err := q.Put(nil)
-	assert.Error(t, err, "Put should return an error")
+	assert.ErrorIs(t, err, ErrElementIsNil, "Put should return ErrElementIsNil")
 }
 
 func TestQueueImpl_Put_Parallel(t *testing.T) {

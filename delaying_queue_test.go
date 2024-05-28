@@ -36,8 +36,8 @@ func TestDelayingQueueImpl_PutWithDelay_Closed(t *testing.T) {
 	q.Shutdown()
 
 	// Put nil content into queue
-	err := q.PutWithDelay(nil, 0)
-	assert.Error(t, err, "Put should return an error")
+	err := q.PutWithDelay("test", 0)
+	assert.ErrorIs(t, err, ErrQueueIsClosed, "Put should return ErrQueueIsClosed")
 
 	time.Sleep(time.Second)
 }
@@ -48,7 +48,7 @@ func TestDelayingQueueImpl_PutWithDelay_Nil(t *testing.T) {
 
 	// Put nil content into queue
 	err := q.PutWithDelay(nil, 0)
-	assert.Error(t, err, "Put should return an error")
+	assert.ErrorIs(t, err, ErrElementIsNil, "Put should return ErrElementIsNil")
 
 	time.Sleep(time.Second)
 }
