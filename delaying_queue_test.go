@@ -1,6 +1,7 @@
 package workqueue
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -136,4 +137,36 @@ func TestDelayingQueueImpl_Callback(t *testing.T) {
 	assert.Equal(t, []interface{}{"test1"}, callback.gets, "Callback gets should be [test1]")
 	assert.Equal(t, []interface{}{"test1"}, callback.dones, "Callback dones should be [test1]")
 	assert.Equal(t, []interface{}(nil), callback.errors, "Callback errors should be []")
+}
+
+type testAccNode struct {
+	value interface{}
+	ts    int64
+}
+
+func TestDelayingQueueImpl_Accuracy(t *testing.T) {
+	q := NewDelayingQueue(nil)
+	defer q.Shutdown()
+
+	// Put content into queue
+	err := q.PutWithDelay(&testAccNode{value: "test1", ts: time.Now().UnixMilli()}, DELAYDUCRATION)
+	assert.NoError(t, err, "Put should not return an error")
+
+	err = q.PutWithDelay(&testAccNode{value: "test2", ts: time.Now().UnixMilli()}, DELAYDUCRATION)
+	assert.NoError(t, err, "Put should not return an error")
+
+	err = q.PutWithDelay(&testAccNode{value: "test3", ts: time.Now().UnixMilli()}, DELAYDUCRATION)
+	assert.NoError(t, err, "Put should not return an error")
+
+	time.Sleep(time.Second)
+
+	// Verify the queue state
+	assert.Equal(t, 3, q.Len(), "Queue length should be 3")
+
+	values := q.Values()
+	for i, v := range values {
+		node := v.(*testAccNode)
+		assert.Equal(t, fmt.Sprintf("test%d", i+1), node.value, fmt.Sprintf("Value should be test%d", i+1))
+		assert.True(t, time.Now().UnixMilli()-node.ts > DELAYDUCRATION, "Delay duration should be greater than 150ms")
+	}
 }
