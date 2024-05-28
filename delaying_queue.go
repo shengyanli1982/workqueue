@@ -17,7 +17,7 @@ type DelayingQueueImpl struct {
 	config      *DelayingQueueConfig
 	sorting     *hp.Heap
 	elementpool *lst.NodePool
-	lock        sync.Mutex
+	lock        *sync.Mutex
 	once        sync.Once
 	wg          sync.WaitGroup
 }
@@ -29,12 +29,12 @@ func NewDelayingQueue(config *DelayingQueueConfig) DelayingQueue {
 		config:      config,
 		sorting:     hp.New(),
 		elementpool: lst.NewNodePool(),
-		lock:        sync.Mutex{},
 		once:        sync.Once{},
 		wg:          sync.WaitGroup{},
 	}
 
 	q.Queue = newQueue(lst.New(), q.elementpool, &config.QueueConfig)
+	q.lock = q.Queue.(*QueueImpl).lock
 
 	q.wg.Add(1)
 	go q.puller()

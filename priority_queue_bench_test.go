@@ -43,3 +43,13 @@ func BenchmarkPriorityQueue_PutAndGet(b *testing.B) {
 		_, _ = q.Get()
 	}
 }
+
+func BenchmarkPriorityQueue_PutWithPriorityAndGet(b *testing.B) {
+	q := NewPriorityQueue(nil)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = q.PutWithPriority(i, int64(b.N))
+		_, _ = q.Get()
+	}
+}
