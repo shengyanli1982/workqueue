@@ -247,24 +247,24 @@ func TestQueueImpl_IsClosed(t *testing.T) {
 	assert.True(t, q.IsClosed(), "Queue should be closed")
 }
 
-type testCallback struct {
+type testQueueCallback struct {
 	puts, gets, dones []interface{}
 }
 
-func (c *testCallback) OnPut(value interface{}) {
+func (c *testQueueCallback) OnPut(value interface{}) {
 	c.puts = append(c.puts, value)
 }
 
-func (c *testCallback) OnGet(value interface{}) {
+func (c *testQueueCallback) OnGet(value interface{}) {
 	c.gets = append(c.gets, value)
 }
 
-func (c *testCallback) OnDone(value interface{}) {
+func (c *testQueueCallback) OnDone(value interface{}) {
 	c.dones = append(c.dones, value)
 }
 
 func TestQueueImpl_Callback(t *testing.T) {
-	callback := &testCallback{}
+	callback := &testQueueCallback{}
 	config := NewQueueConfig().WithCallback(callback)
 	q := NewQueue(config)
 	defer q.Shutdown()
