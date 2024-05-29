@@ -5,15 +5,17 @@ import (
 	"sync/atomic"
 
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
+	"github.com/shengyanli1982/workqueue/v2/internal/container/set"
 )
 
 type QueueImpl struct {
-	config      *QueueConfig
-	list        *lst.List
-	elementpool *lst.NodePool
-	lock        *sync.Mutex
-	once        sync.Once
-	closed      atomic.Bool
+	config            *QueueConfig
+	list              *lst.List
+	elementpool       *lst.NodePool
+	processing, dirty *set.Set
+	lock              *sync.Mutex
+	once              sync.Once
+	closed            atomic.Bool
 }
 
 func NewQueue(config *QueueConfig) Queue {
@@ -25,6 +27,8 @@ func newQueue(list *lst.List, elementpool *lst.NodePool, config *QueueConfig) *Q
 		config:      isQueueConfigEffective(config),
 		list:        list,
 		elementpool: elementpool,
+		processing:  set.New(),
+		dirty:       set.New(),
 		lock:        &sync.Mutex{},
 		once:        sync.Once{},
 		closed:      atomic.Bool{},
@@ -40,6 +44,8 @@ func (q *QueueImpl) Shutdown() {
 			return true
 		})
 		q.list.Cleanup()
+		q.processing.Clear()
+		q.dirty.Clear()
 		q.lock.Unlock()
 	})
 }
@@ -69,12 +75,20 @@ func (q *QueueImpl) Put(value interface{}) error {
 		return ErrElementIsNil
 	}
 
+	if q.config.idempotent && q.isElementMarked(value) {
+		return ErrElementAlreadyExist
+	}
+
 	last := q.elementpool.Get()
 	last.Value = value
 
 	q.lock.Lock()
 
 	q.list.PushBack(last)
+
+	if q.config.idempotent {
+		q.dirty.Add(value)
+	}
 
 	q.lock.Unlock()
 
@@ -99,6 +113,11 @@ func (q *QueueImpl) Get() (interface{}, error) {
 
 	value := front.Value
 
+	if q.config.idempotent {
+		q.processing.Add(value)
+		q.dirty.Remove(value)
+	}
+
 	q.lock.Unlock()
 
 	q.elementpool.Put(front)
@@ -113,5 +132,18 @@ func (q *QueueImpl) Done(value interface{}) {
 		return
 	}
 
+	if q.config.idempotent {
+		q.lock.Lock()
+		q.processing.Remove(value)
+		q.lock.Unlock()
+	}
+
 	q.config.callback.OnDone(value)
+}
+
+func (q *QueueImpl) isElementMarked(value interface{}) (result bool) {
+	q.lock.Lock()
+	result = q.dirty.Contains(value) || q.processing.Contains(value)
+	q.lock.Unlock()
+	return
 }

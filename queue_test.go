@@ -290,3 +290,46 @@ func TestQueueImpl_Callback(t *testing.T) {
 	assert.Equal(t, []interface{}{"test1"}, callback.gets, "Callback gets should be [test1]")
 	assert.Equal(t, []interface{}{"test1"}, callback.dones, "Callback dones should be [test1]")
 }
+
+func TestQueueImpl_Idempotent_Put(t *testing.T) {
+	callback := &testQueueCallback{}
+	config := NewQueueConfig().WithCallback(callback).WithValueIdempotent()
+	q := NewQueue(config)
+	defer q.Shutdown()
+
+	// Put content into queue
+	err := q.Put("test1")
+	assert.NoError(t, err, "Put should not return an error")
+	err = q.Put("test1")
+	assert.ErrorIs(t, err, ErrElementAlreadyExist, "Put should return ErrElementAlreadyExist")
+}
+
+func TestQueueImpl_Idempotent_Get(t *testing.T) {
+	callback := &testQueueCallback{}
+	config := NewQueueConfig().WithCallback(callback).WithValueIdempotent()
+	q := NewQueue(config)
+	defer q.Shutdown()
+
+	// Put content into queue
+	err := q.Put("test1")
+	assert.NoError(t, err, "Put should not return an error")
+	err = q.Put("test2")
+	assert.NoError(t, err, "Put should not return an error")
+
+	// Get content from queue
+	v, err := q.Get()
+	assert.NoError(t, err, "Get should not return an error")
+	assert.Equal(t, "test1", v, "Get value should be test1")
+
+	// Done content from queue
+	q.Done(v)
+
+	// Verify the queue state
+	assert.Equal(t, 1, q.Len(), "Queue length should be 1")
+	assert.Equal(t, q.Values(), []interface{}{"test2"}, "Queue values should be [test2]")
+
+	// Verify the queue details
+	queue := q.(*QueueImpl)
+	assert.Equal(t, queue.dirty.List(), []interface{}{"test2"}, "Queue dirty should be [test2]")
+	assert.Equal(t, queue.processing.List(), []interface{}{}, "Queue processing should be []")
+}

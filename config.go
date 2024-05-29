@@ -1,7 +1,8 @@
 package workqueue
 
 type QueueConfig struct {
-	callback QueueCallback
+	callback   QueueCallback
+	idempotent bool
 }
 
 func NewQueueConfig() *QueueConfig {
@@ -12,6 +13,11 @@ func NewQueueConfig() *QueueConfig {
 
 func (c *QueueConfig) WithCallback(cb QueueCallback) *QueueConfig {
 	c.callback = cb
+	return c
+}
+
+func (c *QueueConfig) WithValueIdempotent() *QueueConfig {
+	c.idempotent = true
 	return c
 }
 
