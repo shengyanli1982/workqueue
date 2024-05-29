@@ -22,7 +22,7 @@ WorkQueue(v2) offers a diverse set of queue implementations to cater to differen
 
 The development of WorkQueue(v2) has been heavily influenced by user feedback and real-world usage, resulting in a library that better meets the needs of its users. By addressing user-reported issues and incorporating feature requests, WorkQueue(v2) offers a more refined and user-centric experience.
 
-Choosing WorkQueue(v2) for your application or project could be a great decision. :):)
+Choosing WorkQueue(v2) for your application or project could be a great decision. :)
 
 # Advantages
 
@@ -203,3 +203,578 @@ BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12    	 1000000	     16531 ns/op
 ```
 
 # Quick Start
+
+For more examples on how to use WorkQueue, please refer to the `examples` directory.
+
+## 1. Queue
+
+The `Queue` is a simple FIFO (First In, First Out) queue that serves as the base for all other queues in this project. It maintains a `dirty` set and a `processing` set to keep track of the queue's state.
+
+The `dirty` set contains items that have been added to the queue but have not yet been processed. The `processing` set contains items that are currently being processed.
+
+> [!IMPORTANT]
+>
+> If you create a new queue with the `WithValueIdempotent` configuration, the queue will automatically remove duplicate items. This means that if you put the same item into the queue, the queue will only keep one instance of that item.
+
+### Config
+
+The `Queue` has several configuration options that can be set when creating a queue.
+
+-   `WithCallback`: Sets callback functions.
+-   `WithValueIdempotent`: Enables item idempotency for the queue.
+
+### Methods
+
+-   `Shutdown`: Terminates the queue, preventing it from accepting new tasks.
+-   `IsClosed`: Checks if the queue is closed, returns a boolean.
+-   `Len`: Returns the number of elements in the queue.
+-   `Values`: Returns all elements in the queue as a slice.
+-   `Put`: Adds an element to the queue.
+-   `Get`: Retrieves an element from the queue.
+-   `Done`: Notifies the queue that an element has been processed.
+
+> [!NOTE]
+>
+> The `Done` function is only used when the queue is created with the `WithValueIdempotent` option. If you don't use this option, you don't need to call this function.
+
+### Callbacks
+
+-   `OnPut`: Invoked when an item is added to the queue.
+-   `OnGet`: Invoked when an item is retrieved from the queue.
+-   `OnDone`: Invoked when an item has been processed.
+
+### Example
+
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	wkq "github.com/shengyanli1982/workqueue/v2"
+)
+
+// consumer 函数是一个消费者函数，它从队列中获取元素并处理它们
+// The consumer function is a consumer function that gets elements from the queue and processes them
+func consumer(queue wkq.Queue, wg *sync.WaitGroup) {
+	// 当函数返回时，调用 wg.Done() 来通知 WaitGroup 一个任务已经完成
+	// When the function returns, call wg.Done() to notify the WaitGroup that a task has been completed
+	defer wg.Done()
+
+	// 无限循环，直到函数返回
+	// Infinite loop until the function returns
+	for {
+		// 从队列中获取一个元素
+		// Get an element from the queue
+		element, err := queue.Get()
+
+		// 如果获取元素时发生错误，则处理错误
+		// If an error occurs when getting the element, handle the error
+		if err != nil {
+			// 如果错误不是因为队列为空，则打印错误并返回
+			// If the error is not because the queue is empty, print the error and return
+			if !errors.Is(err, wkq.ErrQueueIsEmpty) {
+				fmt.Println(err)
+				return
+			} else {
+				// 如果错误是因为队列为空，则继续循环
+				// If the error is because the queue is empty, continue the loop
+				continue
+			}
+		}
+
+		// 打印获取到的元素
+		// Print the obtained element
+		fmt.Println("> get element:", element)
+
+		// 标记元素为已处理，'Done' 是在 'Get' 之后必需的
+		// Mark the element as done, 'Done' is required after 'Get'
+		queue.Done(element)
+	}
+}
+
+func main() {
+	// 创建一个 WaitGroup，用于等待所有的 goroutine 完成
+	// Create a WaitGroup to wait for all goroutines to complete
+	wg := sync.WaitGroup{}
+
+	// 创建一个新的队列
+	// Create a new queue
+	queue := wkq.NewQueue(nil)
+
+	// 增加 WaitGroup 的计数器
+	// Increase the counter of the WaitGroup
+	wg.Add(1)
+
+	// 启动一个新的 goroutine 来运行 comsumer 函数
+	// Start a new goroutine to run the comsumer function
+	go consumer(queue, &wg)
+
+	// 将 "hello" 放入队列
+	// Put "hello" into the queue
+	_ = queue.Put("hello")
+
+	// 将 "world" 放入队列
+	// Put "world" into the queue
+	_ = queue.Put("world")
+
+	// 等待一秒钟，让 comsumer 有机会处理队列中的元素
+	// Wait for a second to give the comsumer a chance to process the elements in the queue
+	time.Sleep(time.Second)
+
+	// 关闭队列
+	// Shut down the queue
+	queue.Shutdown()
+
+	// 等待所有的 goroutine 完成
+	// Wait for all goroutines to complete
+	wg.Wait()
+}
+
+```
+
+**Result**
+
+```bash
+$ go run demo.go
+> get element: hello
+> get element: world
+queue is shutting down
+```
+
+## 2. Delaying Queue
+
+The `Delaying Queue` is a queue that supports delayed execution. It builds upon the `Queue` and uses a `Heap` to manage the expiration times of the elements. When you add an element to the queue, you can specify a delay time. The elements are then sorted by this delay time and executed after the specified delay has passed.
+
+### Configuration
+
+The `Delaying Queue` inherits the configuration of the `Queue`.
+
+-   `WithCallback`: Sets callback functions.
+
+### Methods
+
+The `Delaying Queue` inherits the methods of the `Queue`. Additionally, it introduces the following method:
+
+-   `PutWithDelay`: Adds an element to the queue with a specified delay.
+
+### Callbacks
+
+The `Delaying Queue` inherits the callbacks of the `Queue`. Additionally, it introduces the following callbacks:
+
+-   `OnDelay`: Invoked when an element is added to the queue with a specified delay.
+-   `OnPullError`: Invoked when an error occurs while pulling an element from the heap to the queue.
+
+### Example
+
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	wkq "github.com/shengyanli1982/workqueue/v2"
+)
+
+// consumer 函数是一个消费者函数，它从队列中获取元素并处理它们
+// The consumer function is a consumer function that gets elements from the queue and processes them
+func consumer(queue wkq.Queue, wg *sync.WaitGroup) {
+	// 当函数返回时，调用 wg.Done() 来通知 WaitGroup 一个任务已经完成
+	// When the function returns, call wg.Done() to notify the WaitGroup that a task has been completed
+	defer wg.Done()
+
+	// 无限循环，直到函数返回
+	// Infinite loop until the function returns
+	for {
+		// 从队列中获取一个元素
+		// Get an element from the queue
+		element, err := queue.Get()
+
+		// 如果获取元素时发生错误，则处理错误
+		// If an error occurs when getting the element, handle the error
+		if err != nil {
+			// 如果错误不是因为队列为空，则打印错误并返回
+			// If the error is not because the queue is empty, print the error and return
+			if !errors.Is(err, wkq.ErrQueueIsEmpty) {
+				fmt.Println(err)
+				return
+			} else {
+				// 如果错误是因为队列为空，则继续循环
+				// If the error is because the queue is empty, continue the loop
+				continue
+			}
+		}
+
+		// 打印获取到的元素
+		// Print the obtained element
+		fmt.Println("> get element:", element)
+
+		// 标记元素为已处理，'Done' 是在 'Get' 之后必需的
+		// Mark the element as done, 'Done' is required after 'Get'
+		queue.Done(element)
+	}
+}
+
+func main() {
+	// 创建一个 WaitGroup，用于等待所有的 goroutine 完成
+	// Create a WaitGroup to wait for all goroutines to complete
+	wg := sync.WaitGroup{}
+
+	// 创建一个新的队列
+	// Create a new queue
+	queue := wkq.NewDelayingQueue(nil)
+
+	// 增加 WaitGroup 的计数器
+	// Increase the counter of the WaitGroup
+	wg.Add(1)
+
+	// 启动一个新的 goroutine 来运行 consumer 函数
+	// Start a new goroutine to run the consumer function
+	go consumer(queue, &wg)
+
+	// 将 "delay 1" 放入队列，并设置其延迟时间为 200 毫秒
+	// Put "delay 1" into the queue and set its delay time to 200 milliseconds
+	_ = queue.PutWithDelay("delay 1", 200)
+
+	// 将 "delay 2" 放入队列，并设置其延迟时间为 100 毫秒
+	// Put "delay 2" into the queue and set its delay time to 100 milliseconds
+	_ = queue.PutWithDelay("delay 2", 100)
+
+	// 将 "hello" 放入队列
+	// Put "hello" into the queue
+	_ = queue.Put("hello")
+
+	// 将 "world" 放入队列
+	// Put "world" into the queue
+	_ = queue.Put("world")
+
+	// 等待一秒钟，让 comsumer 有机会处理队列中的元素
+	// Wait for a second to give the comsumer a chance to process the elements in the queue
+	time.Sleep(time.Second)
+
+	// 关闭队列
+	// Shut down the queue
+	queue.Shutdown()
+
+	// 等待所有的 goroutine 完成
+	// Wait for all goroutines to complete
+	wg.Wait()
+}
+
+```
+
+**Result**
+
+```bash
+$ go run demo.go
+> get element: hello
+> get element: world
+> get element: delay 2
+> get element: delay 1
+queue is shutting down
+```
+
+## 3. Priority Queue
+
+The `Priority Queue` is a queue that supports prioritized execution. It is built on top of the `Queue` and uses a `Heap` to manage the priorities of the elements. When adding an element to the queue, you can specify its priority. The elements are then sorted and executed based on their priorities.
+
+### Configuration
+
+The `Priority Queue` inherits the configuration of the `Queue`.
+
+-   `WithCallback`: Sets callback functions.
+
+### Methods
+
+The `Priority Queue` inherits the methods of the `Queue`. Additionally, it provides the following methods:
+
+-   `PutWithPriority`: Adds an element to the queue with a specified priority.
+-   `Put`: Adds an element to the queue with a default priority (`math.MinInt64`).
+
+### Callbacks
+
+The `Priority Queue` inherits the callbacks of the `Queue`. Additionally, it provides the following callback:
+
+-   `OnPriority`: Invoked when an element is added to the queue with a specified priority.
+
+### Example
+
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	wkq "github.com/shengyanli1982/workqueue/v2"
+)
+
+// consumer 函数是一个消费者函数，它从队列中获取元素并处理它们
+// The consumer function is a consumer function that gets elements from the queue and processes them
+func consumer(queue wkq.Queue, wg *sync.WaitGroup) {
+	// 当函数返回时，调用 wg.Done() 来通知 WaitGroup 一个任务已经完成
+	// When the function returns, call wg.Done() to notify the WaitGroup that a task has been completed
+	defer wg.Done()
+
+	// 无限循环，直到函数返回
+	// Infinite loop until the function returns
+	for {
+		// 从队列中获取一个元素
+		// Get an element from the queue
+		element, err := queue.Get()
+
+		// 如果获取元素时发生错误，则处理错误
+		// If an error occurs when getting the element, handle the error
+		if err != nil {
+			// 如果错误不是因为队列为空，则打印错误并返回
+			// If the error is not because the queue is empty, print the error and return
+			if !errors.Is(err, wkq.ErrQueueIsEmpty) {
+				fmt.Println(err)
+				return
+			} else {
+				// 如果错误是因为队列为空，则继续循环
+				// If the error is because the queue is empty, continue the loop
+				continue
+			}
+		}
+
+		// 打印获取到的元素
+		// Print the obtained element
+		fmt.Println("> get element:", element)
+
+		// 标记元素为已处理，'Done' 是在 'Get' 之后必需的
+		// Mark the element as done, 'Done' is required after 'Get'
+		queue.Done(element)
+	}
+}
+
+func main() {
+	// 创建一个 WaitGroup，用于等待所有的 goroutine 完成
+	// Create a WaitGroup to wait for all goroutines to complete
+	wg := sync.WaitGroup{}
+
+	// 创建一个新的队列
+	// Create a new queue
+	queue := wkq.NewPriorityQueue(nil)
+
+	// 增加 WaitGroup 的计数器
+	// Increase the counter of the WaitGroup
+	wg.Add(1)
+
+	// 启动一个新的 goroutine 来运行 consumer 函数
+	// Start a new goroutine to run the consumer function
+	go consumer(queue, &wg)
+
+	// 将 "delay 1" 放入队列，并设置其优先级为 200
+	// Put "delay 1" into the queue and set its priority to 200
+	_ = queue.PutWithPriority("priority 1", 200)
+
+	// 将 "delay 2" 放入队列，并设置其优先级为 100
+	// Put "delay 2" into the queue and set its priority to 100
+	_ = queue.PutWithPriority("priority 2", 100)
+
+	// 将 "hello" 放入队列
+	// Put "hello" into the queue
+	_ = queue.Put("hello")
+
+	// 将 "world" 放入队列
+	// Put "world" into the queue
+	_ = queue.Put("world")
+
+	// 等待一秒钟，让 comsumer 有机会处理队列中的元素
+	// Wait for a second to give the comsumer a chance to process the elements in the queue
+	time.Sleep(time.Second)
+
+	// 关闭队列
+	// Shut down the queue
+	queue.Shutdown()
+
+	// 等待所有的 goroutine 完成
+	// Wait for all goroutines to complete
+	wg.Wait()
+}
+
+```
+
+**Result**
+
+```bash
+$ go run demo.go
+> get element: hello
+> get element: world
+> get element: priority 2
+> get element: priority 1
+queue is shutting down
+```
+
+## 4. RateLimiting Queue
+
+The `RateLimiting Queue` is a queue that supports rate-limited execution. It is built on top of the `Delaying Queue`. When adding an element to the queue, you can specify the rate limit, and the element will be processed according to this rate limit.
+
+> [!TIP]
+> The default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `Limiter` interface.
+
+### Config
+
+The `RateLimiting Queue` inherits the configuration of the `Delaying Queue`.
+
+-   `WithCallback`: Sets callback functions.
+-   `WithLimiter`: Sets the rate limiter for the queue.
+
+### Methods
+
+The `RateLimiting Queue` inherits the methods of the `Delaying Queue`. Additionally, it has the following method:
+
+-   `PutWithLimited`: Adds an element to the queue. The delay time of the element is determined by the limiter.
+
+### Callback
+
+The `RateLimiting Queue` inherits the callback of the `Delaying Queue`. Additionally, it has the following method:
+
+-   `OnLimited`: Invoked when an element is added to the queue by `PutWithLimited`.
+
+### Example
+
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	wkq "github.com/shengyanli1982/workqueue/v2"
+)
+
+// consumer 函数是一个消费者函数，它从队列中获取元素并处理它们
+// The consumer function is a consumer function that gets elements from the queue and processes them
+func consumer(queue wkq.Queue, wg *sync.WaitGroup) {
+	// 当函数返回时，调用 wg.Done() 来通知 WaitGroup 一个任务已经完成
+	// When the function returns, call wg.Done() to notify the WaitGroup that a task has been completed
+	defer wg.Done()
+
+	// 无限循环，直到函数返回
+	// Infinite loop until the function returns
+	for {
+		// 从队列中获取一个元素
+		// Get an element from the queue
+		element, err := queue.Get()
+
+		// 如果获取元素时发生错误，则处理错误
+		// If an error occurs when getting the element, handle the error
+		if err != nil {
+			// 如果错误不是因为队列为空，则打印错误并返回
+			// If the error is not because the queue is empty, print the error and return
+			if !errors.Is(err, wkq.ErrQueueIsEmpty) {
+				fmt.Println(err)
+				return
+			} else {
+				// 如果错误是因为队列为空，则继续循环
+				// If the error is because the queue is empty, continue the loop
+				continue
+			}
+		}
+
+		// 打印获取到的元素
+		// Print the obtained element
+		fmt.Println("> get element:", element)
+
+		// 标记元素为已处理，'Done' 是在 'Get' 之后必需的
+		// Mark the element as done, 'Done' is required after 'Get'
+		queue.Done(element)
+	}
+}
+
+func main() {
+	// 创建一个 WaitGroup，用于等待所有的 goroutine 完成
+	// Create a WaitGroup to wait for all goroutines to complete
+	wg := sync.WaitGroup{}
+
+	// 创建一个新的桶形限流器，参数为桶的容量和填充速度
+	// Create a new bucket rate limiter, the parameters are the capacity of the bucket and the fill rate
+	limiter := wkq.NewBucketRateLimiterImpl(5, 1)
+
+	// 创建一个新的限流队列配置，并设置其限流器
+	// Create a new rate limiting queue configuration and set its limiter
+	config := wkq.NewRateLimitingQueueConfig().WithLimiter(limiter)
+
+	// 使用配置创建一个新的限流队列
+	// Create a new rate limiting queue with the configuration
+	queue := wkq.NewRateLimitingQueue(config)
+
+	// 增加 WaitGroup 的计数器
+	// Increase the counter of the WaitGroup
+	wg.Add(1)
+
+	// 启动一个新的 goroutine 来运行 consumer 函数
+	// Start a new goroutine to run the consumer function
+	go consumer(queue, &wg)
+
+	// 将 "delay 1" 放入队列，并设置其延迟时间为 200 毫秒
+	// Put "delay 1" into the queue and set its delay time to 200 milliseconds
+	_ = queue.PutWithDelay("delay 1", 200)
+
+	// 将 "delay 2" 放入队列，并设置其延迟时间为 100 毫秒
+	// Put "delay 2" into the queue and set its delay time to 100 milliseconds
+	_ = queue.PutWithDelay("delay 2", 100)
+
+	// 将 "hello" 放入队列
+	// Put "hello" into the queue
+	_ = queue.Put("hello")
+
+	// 将 "world" 放入队列
+	// Put "world" into the queue
+	_ = queue.Put("world")
+
+	// 将 "limited" 放入队列, 触发限流
+	// Put "limited" into the queue, trigger rate limiting
+	for i := 0; i < 10; i++ {
+		go func(i int) {
+			_ = queue.PutWithLimited(fmt.Sprintf("limited %d", i))
+		}(i)
+	}
+
+	// 等待一秒钟，让 comsumer 有机会处理队列中的元素
+	// Wait for a second to give the comsumer a chance to process the elements in the queue
+	time.Sleep(time.Second)
+
+	// 关闭队列
+	// Shut down the queue
+	queue.Shutdown()
+
+	// 等待所有的 goroutine 完成
+	// Wait for all goroutines to complete
+	wg.Wait()
+}
+
+```
+
+**Result**
+
+```bash
+$ go run demo.go
+> get element: hello
+> get element: world
+> get element: delay 2
+> get element: delay 1
+> get element: limited 9
+> get element: limited 6
+> get element: limited 7
+> get element: limited 8
+> get element: limited 3
+> get element: limited 2
+> get element: limited 0
+> get element: limited 5
+> get element: limited 1
+> get element: limited 4
+queue is shutting down
+```
