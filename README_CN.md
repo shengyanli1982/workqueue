@@ -336,7 +336,7 @@ func main() {
 
 ```
 
-**Result**
+**输出结果**
 
 ```bash
 $ go run demo.go
@@ -469,7 +469,7 @@ func main() {
 
 ```
 
-**Result**
+**输出结果**
 
 ```bash
 $ go run demo.go
@@ -604,7 +604,7 @@ func main() {
 
 ```
 
-**Result**
+**输出结果**
 
 ```bash
 $ go run demo.go
@@ -758,7 +758,7 @@ func main() {
 
 ```
 
-**Result**
+**输出结果**
 
 ```bash
 $ go run demo.go
