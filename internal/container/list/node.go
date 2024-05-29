@@ -12,6 +12,10 @@ type Node struct {
 	// Value is the value stored in the node. Its type is interface{}, so it can be of any type.
 	Value interface{}
 
+	// parentRef 是一个指向父节点的指针，它的类型是 unsafe.Pointer，所以可以指向任何类型的值。
+	// parentRef is a pointer to the parent node. Its type is unsafe.Pointer, so it can point to a value of any type.
+	parentRef unsafe.Pointer
+
 	// Priority 是节点的优先级，类型为 int64。
 	// Priority is the priority of the node. Its type is int64.
 	Priority int64
@@ -21,10 +25,6 @@ type Node struct {
 	// Prev 是指向前一个节点的指针。
 	// Prev is a pointer to the previous node.
 	Next, Prev *Node
-
-	// parentRef 是一个指向父节点的指针，它的类型是 unsafe.Pointer，所以可以指向任何类型的值。
-	// parentRef is a pointer to the parent node. Its type is unsafe.Pointer, so it can point to a value of any type.
-	parentRef unsafe.Pointer
 }
 
 // Reset 方法重置节点的所有字段，将它们设置为零值。
