@@ -620,7 +620,8 @@ queue is shutting down
 The `RateLimiting Queue` is a queue that supports rate-limited execution. It is built on top of the `Delaying Queue`. When adding an element to the queue, you can specify the rate limit, and the element will be processed according to this rate limit.
 
 > [!TIP]
-> The default rate limit is based on the `token bucket` algorithm. You can define your own rate limit algorithm by implementing the `Limiter` interface.
+> 
+> The default rate limit is based on the `Nop` strategy. You can define your own rate limit algorithm by implementing the `Limiter` interface. The project provides a `token bucket` algorithm as a Limiter implementation.
 
 ### Config
 
