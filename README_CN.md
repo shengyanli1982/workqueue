@@ -78,7 +78,7 @@ BenchmarkList_Swap-12            	100000000	         10.47 ns/op	       0 B/op	 
 
 **与标准库的比较**
 
-标准库和本项目都使用了相同的算法，因此性能相近。然而，相比于标准库，本项目中的 `list` 提供了更多的功能。
+标准库和本项目使用的是相同的算法，因此性能相当。然而，与标准库相比，本项目的 `list` 提供了更多的功能。此外，`list` 节点使用 `sync.Pool` 来最小化内存分配。因此，在高并发下，本项目的 `list` 的性能可能超过标准库。
 
 ```bash
 $ go test -benchmem -run=^$ -bench ^BenchmarkCompare* .

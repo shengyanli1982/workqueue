@@ -78,7 +78,7 @@ BenchmarkList_Swap-12            	100000000	         10.47 ns/op	       0 B/op	 
 
 **Compare with the standard library**
 
-Both the standard library and the project utilize the same algorithm, resulting in similar performance. However, the `list` in this project offers more features compared to the standard library.
+Both the standard library and this project employ the same algorithm, leading to comparable performance. However, the `list` in this project provides additional features compared to the standard library. Furthermore, the `list` node uses `sync.Pool` to minimize memory allocation. Therefore, under high concurrency, the performance of the project's `list` may surpass that of the standard library.
 
 ```bash
 $ go test -benchmem -run=^$ -bench ^BenchmarkCompare* .
@@ -620,7 +620,7 @@ queue is shutting down
 The `RateLimiting Queue` is a queue that supports rate-limited execution. It is built on top of the `Delaying Queue`. When adding an element to the queue, you can specify the rate limit, and the element will be processed according to this rate limit.
 
 > [!TIP]
-> 
+>
 > The default rate limit is based on the `Nop` strategy. You can define your own rate limit algorithm by implementing the `Limiter` interface. The project provides a `token bucket` algorithm as a Limiter implementation.
 
 ### Config
