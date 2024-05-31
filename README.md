@@ -215,6 +215,8 @@ The `dirty` set contains items that have been added to the queue but have not ye
 > [!IMPORTANT]
 >
 > If you create a new queue with the `WithValueIdempotent` configuration, the queue will automatically remove duplicate items. This means that if you put the same item into the queue, the queue will only keep one instance of that item.
+>
+> The `WithValueIdempotent` configuration is beneficial when you want to ensure that the queue processes only unique items. However, this value refers to an object that can be hashed by the `map` in the `Go` standard library. If the object cannot be hashed, such as pointers or slices, the program may throw an error.
 
 ### Config
 

@@ -215,6 +215,8 @@ BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12    	 1000000	     16531 ns/op
 > [!IMPORTANT]
 >
 > 如果你使用 `WithValueIdempotent` 配置创建新队列，队列将自动删除重复项。这意味着如果你将相同的项放入队列，队列将只保留该项的一个实例。
+>
+> 当你希望确保队列只处理唯一的项目时，`WithValueIdempotent` 配置会非常有用。然而，这个值指的是可以被 `Go` 标准库中的 `map` 哈希的对象。如果对象不能被哈希，例如指针或切片，程序可能会抛出错误。
 
 ### 配置
 
