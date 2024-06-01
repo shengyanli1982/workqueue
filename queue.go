@@ -49,9 +49,9 @@ func NewQueue(config *QueueConfig) Queue {
 // newQueue 函数创建并返回一个新的 QueueImpl 实例，它接受一个元素列表、一个元素内存池和一个队列配置作为参数。
 // The newQueue function creates and returns a new instance of QueueImpl, it takes a list of elements, a memory pool of elements, and a queue configuration as parameters.
 func newQueue(list *lst.List, elementpool *lst.NodePool, config *QueueConfig) *QueueImpl {
-	// 返回一个新的 QueueImpl 实例
-	// Return a new instance of QueueImpl
-	return &QueueImpl{
+	// 创建一个新的 QueueImpl 实例
+	// Create a new instance of QueueImpl
+	q := &QueueImpl{
 		// 检查队列配置是否有效，如果有效则使用，否则使用默认配置
 		// Check if the queue configuration is effective, use it if it is, otherwise use the default configuration
 		config: isQueueConfigEffective(config),
@@ -63,14 +63,6 @@ func newQueue(list *lst.List, elementpool *lst.NodePool, config *QueueConfig) *Q
 		// 设置队列的元素内存池
 		// Set the memory pool of elements for the queue
 		elementpool: elementpool,
-
-		// 初始化正在处理的元素集合
-		// Initialize the set of elements being processed
-		processing: set.New(),
-
-		// 初始化脏元素集合
-		// Initialize the set of dirty elements
-		dirty: set.New(),
 
 		// 初始化互斥锁，用于保护队列的并发操作
 		// Initialize the mutex, used to protect the concurrent operations of the queue
@@ -84,6 +76,22 @@ func newQueue(list *lst.List, elementpool *lst.NodePool, config *QueueConfig) *Q
 		// Initialize the atomic boolean, used to mark whether the queue is closed
 		closed: atomic.Bool{},
 	}
+
+	// 如果队列配置为幂等的，初始化正在处理的元素集合和脏元素集合
+	// If the queue is configured as idempotent, initialize the set of elements being processed and the set of dirty elements
+	if q.config.idempotent {
+		// 初始化正在处理的元素集合
+		// Initialize the set of elements being processed
+		q.processing = set.New()
+
+		// 初始化脏元素集合
+		// Initialize the set of dirty elements
+		q.dirty = set.New()
+	}
+
+	// 返回新创建的 Queue
+	// Return the newly created Queue
+	return q
 }
 
 // Shutdown 方法用于关闭队列，它会清空队列中的所有元素，并将它们放回元素内存池。
