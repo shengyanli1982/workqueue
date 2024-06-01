@@ -8,9 +8,9 @@ import (
 	"github.com/shengyanli1982/workqueue/v2/internal/container/set"
 )
 
-// QueueImpl 结构体定义了一个队列的实现。
-// The QueueImpl struct defines an implementation of a queue.
-type QueueImpl struct {
+// queueImpl 结构体定义了一个队列的实现。
+// The queueImpl struct defines an implementation of a queue.
+type queueImpl struct {
 	// config 是队列的配置。
 	// config is the configuration of the queue.
 	config *QueueConfig
@@ -48,10 +48,10 @@ func NewQueue(config *QueueConfig) Queue {
 
 // newQueue 函数创建并返回一个新的 QueueImpl 实例，它接受一个元素列表、一个元素内存池和一个队列配置作为参数。
 // The newQueue function creates and returns a new instance of QueueImpl, it takes a list of elements, a memory pool of elements, and a queue configuration as parameters.
-func newQueue(list *lst.List, elementpool *lst.NodePool, config *QueueConfig) *QueueImpl {
+func newQueue(list *lst.List, elementpool *lst.NodePool, config *QueueConfig) *queueImpl {
 	// 创建一个新的 QueueImpl 实例
 	// Create a new instance of QueueImpl
-	q := &QueueImpl{
+	q := &queueImpl{
 		// 检查队列配置是否有效，如果有效则使用，否则使用默认配置
 		// Check if the queue configuration is effective, use it if it is, otherwise use the default configuration
 		config: isQueueConfigEffective(config),
@@ -96,7 +96,7 @@ func newQueue(list *lst.List, elementpool *lst.NodePool, config *QueueConfig) *Q
 
 // Shutdown 方法用于关闭队列，它会清空队列中的所有元素，并将它们放回元素内存池。
 // The Shutdown method is used to shut down the queue, it will clear all the elements in the queue and put them back into the element memory pool.
-func (q *QueueImpl) Shutdown() {
+func (q *queueImpl) Shutdown() {
 	// 使用 once.Do 保证关闭操作只执行一次
 	// Use once.Do to ensure that the shutdown operation is only performed once
 	q.once.Do(func() {
@@ -134,7 +134,7 @@ func (q *QueueImpl) Shutdown() {
 
 // IsClosed 方法用于检查队列是否已关闭。
 // The IsClosed method is used to check if the queue is closed.
-func (q *QueueImpl) IsClosed() bool {
+func (q *queueImpl) IsClosed() bool {
 	// 返回 closed 的值
 	// Return the value of closed
 	return q.closed.Load()
@@ -142,7 +142,7 @@ func (q *QueueImpl) IsClosed() bool {
 
 // Len 方法用于获取队列的长度。
 // The Len method is used to get the length of the queue.
-func (q *QueueImpl) Len() int {
+func (q *queueImpl) Len() int {
 	// 加锁，保护队列的并发操作
 	// Lock, to protect the concurrent operations of the queue
 	q.lock.Lock()
@@ -155,7 +155,7 @@ func (q *QueueImpl) Len() int {
 
 // Values 方法用于获取队列中的所有元素。
 // The Values method is used to get all the elements in the queue.
-func (q *QueueImpl) Values() []interface{} {
+func (q *queueImpl) Values() []interface{} {
 	// 加锁，保护队列的并发操作
 	// Lock, to protect the concurrent operations of the queue
 	q.lock.Lock()
@@ -168,7 +168,7 @@ func (q *QueueImpl) Values() []interface{} {
 
 // Put 方法用于将一个元素放入队列。
 // The Put method is used to put an element into the queue.
-func (q *QueueImpl) Put(value interface{}) error {
+func (q *queueImpl) Put(value interface{}) error {
 	// 如果队列已关闭，返回错误
 	// If the queue is closed, return an error
 	if q.IsClosed() {
@@ -224,7 +224,7 @@ func (q *QueueImpl) Put(value interface{}) error {
 
 // Get 方法用于从队列中获取一个元素。
 // The Get method is used to get an element from the queue.
-func (q *QueueImpl) Get() (interface{}, error) {
+func (q *queueImpl) Get() (interface{}, error) {
 	// 如果队列已关闭，返回错误
 	// If the queue is closed, return an error
 	if q.IsClosed() {
@@ -276,7 +276,7 @@ func (q *QueueImpl) Get() (interface{}, error) {
 
 // Done 方法用于标记队列中的一个元素已经处理完成。
 // The Done method is used to mark an element in the queue as done.
-func (q *QueueImpl) Done(value interface{}) {
+func (q *queueImpl) Done(value interface{}) {
 	// 如果队列已关闭，直接返回
 	// If the queue is closed, return directly
 	if q.IsClosed() {
@@ -298,7 +298,7 @@ func (q *QueueImpl) Done(value interface{}) {
 
 // isElementMarked 方法用于检查一个元素是否被标记为脏或正在处理。
 // The isElementMarked method is used to check if an element is marked as dirty or being processed.
-func (q *QueueImpl) isElementMarked(value interface{}) (result bool) {
+func (q *queueImpl) isElementMarked(value interface{}) (result bool) {
 	// 检查元素是否在脏元素集合或正在处理的元素集合中 (锁保护)
 	// Check if the element is in the set of dirty elements or the set of elements being processed (lock protection)
 	q.lock.Lock()

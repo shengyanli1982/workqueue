@@ -329,7 +329,7 @@ func TestQueueImpl_Idempotent_Get(t *testing.T) {
 	assert.Equal(t, q.Values(), []interface{}{"test2"}, "Queue values should be [test2]")
 
 	// Verify the queue details
-	queue := q.(*QueueImpl)
+	queue := q.(*queueImpl)
 	assert.Equal(t, queue.dirty.List(), []interface{}{"test2"}, "Queue dirty should be [test2]")
 	assert.Equal(t, queue.processing.List(), []interface{}{}, "Queue processing should be []")
 }

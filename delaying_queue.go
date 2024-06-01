@@ -16,9 +16,9 @@ func toDelay(duration int64) int64 {
 	return time.Now().Add(time.Millisecond * time.Duration(duration)).UnixMilli()
 }
 
-// DelayingQueueImpl 结构体实现了 DelayingQueue 接口，它是一个支持延迟的队列。
-// The DelayingQueueImpl structure implements the DelayingQueue interface, it is a queue that supports delay.
-type DelayingQueueImpl struct {
+// delayingQueueImpl 结构体实现了 DelayingQueue 接口，它是一个支持延迟的队列。
+// The delayingQueueImpl structure implements the DelayingQueue interface, it is a queue that supports delay.
+type delayingQueueImpl struct {
 	// Queue 是一个队列接口
 	// Queue is a queue interface
 	Queue
@@ -57,7 +57,7 @@ func NewDelayingQueue(config *DelayingQueueConfig) DelayingQueue {
 
 	// 创建一个新的 DelayingQueueImpl
 	// Create a new DelayingQueueImpl
-	q := &DelayingQueueImpl{
+	q := &delayingQueueImpl{
 		// 设置配置
 		// Set the configuration
 		config: config,
@@ -85,7 +85,7 @@ func NewDelayingQueue(config *DelayingQueueConfig) DelayingQueue {
 
 	// 将 q.Queue 的锁赋值给 q.lock
 	// Assign the lock of q.Queue to q.lock
-	q.lock = q.Queue.(*QueueImpl).lock
+	q.lock = q.Queue.(*queueImpl).lock
 
 	// 增加 wg 的计数
 	// Increase the count of wg
@@ -102,7 +102,7 @@ func NewDelayingQueue(config *DelayingQueueConfig) DelayingQueue {
 
 // Shutdown 方法用于关闭 DelayingQueue。
 // The Shutdown method is used to shut down the DelayingQueue.
-func (q *DelayingQueueImpl) Shutdown() {
+func (q *delayingQueueImpl) Shutdown() {
 	// 关闭内部的 Queue
 	// Shut down the internal Queue
 	q.Queue.Shutdown()
@@ -130,7 +130,7 @@ func (q *DelayingQueueImpl) Shutdown() {
 
 // PutWithDelay 方法用于将一个元素放入 DelayingQueue，并设置其延迟时间。
 // The PutWithDelay method is used to put an element into the DelayingQueue and set its delay time.
-func (q *DelayingQueueImpl) PutWithDelay(value interface{}, delay int64) error {
+func (q *delayingQueueImpl) PutWithDelay(value interface{}, delay int64) error {
 	// 如果 DelayingQueue 已关闭，返回错误
 	// If the DelayingQueue is closed, return an error
 	if q.IsClosed() {
@@ -178,7 +178,7 @@ func (q *DelayingQueueImpl) PutWithDelay(value interface{}, delay int64) error {
 
 // puller 方法用于从 DelayingQueue 中拉取元素。
 // The puller method is used to pull elements from the DelayingQueue.
-func (q *DelayingQueueImpl) puller() {
+func (q *delayingQueueImpl) puller() {
 	// 创建一个新的定时器，每 300 毫秒触发一次
 	// Create a new ticker that triggers every 300 milliseconds
 	heartbeat := time.NewTicker(time.Millisecond * 300)

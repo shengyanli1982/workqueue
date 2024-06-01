@@ -1,8 +1,8 @@
 package workqueue
 
-// RateLimitingQueueImpl 结构体，实现了 RateLimitingQueue 接口
-// The RateLimitingQueueImpl struct, which implements the RateLimitingQueue interface
-type RateLimitingQueueImpl struct {
+// ratelimitingQueueImpl 结构体，实现了 RateLimitingQueue 接口
+// The ratelimitingQueueImpl struct, which implements the RateLimitingQueue interface
+type ratelimitingQueueImpl struct {
 	// DelayingQueue 是一个延迟队列接口
 	// DelayingQueue is a delay queue interface
 	DelayingQueue
@@ -21,7 +21,7 @@ func NewRateLimitingQueue(config *RateLimitingQueueConfig) RateLimitingQueue {
 
 	// 创建一个新的 RateLimitingQueueImpl
 	// Create a new RateLimitingQueueImpl
-	q := &RateLimitingQueueImpl{
+	q := &ratelimitingQueueImpl{
 		// 设置配置
 		// Set the configuration
 		config: config,
@@ -38,11 +38,11 @@ func NewRateLimitingQueue(config *RateLimitingQueueConfig) RateLimitingQueue {
 
 // Shutdown 方法用于关闭 RateLimitingQueue
 // The Shutdown method is used to shut down the RateLimitingQueue
-func (q *RateLimitingQueueImpl) Shutdown() { q.DelayingQueue.Shutdown() }
+func (q *ratelimitingQueueImpl) Shutdown() { q.DelayingQueue.Shutdown() }
 
 // PutWithLimited 方法用于将一个元素放入 RateLimitingQueue，元素的延迟时间由限流器决定。
 // The PutWithLimited method is used to put an element into the RateLimitingQueue. The delay time of the element is determined by the limiter.
-func (q *RateLimitingQueueImpl) PutWithLimited(value interface{}) error {
+func (q *ratelimitingQueueImpl) PutWithLimited(value interface{}) error {
 	// 如果 RateLimitingQueue 已关闭，返回错误
 	// If the RateLimitingQueue is closed, return an error
 	if q.IsClosed() {

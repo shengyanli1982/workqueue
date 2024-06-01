@@ -12,9 +12,9 @@ import (
 // Define the minimum priority constant, the value is math.MinInt64
 const MINI_PRIORITY = math.MinInt64
 
-// PriorityQueueImpl 结构体，实现了 PriorityQueue 接口
-// The PriorityQueueImpl struct, which implements the PriorityQueue interface
-type PriorityQueueImpl struct {
+// priorityQueueImpl 结构体，实现了 PriorityQueue 接口
+// The priorityQueueImpl struct, which implements the PriorityQueue interface
+type priorityQueueImpl struct {
 	// Queue 是一个队列接口
 	// Queue is a queue interface
 	Queue
@@ -45,7 +45,7 @@ func NewPriorityQueue(config *PriorityQueueConfig) PriorityQueue {
 
 	// 创建一个新的 PriorityQueueImpl
 	// Create a new PriorityQueueImpl
-	q := &PriorityQueueImpl{
+	q := &priorityQueueImpl{
 		// 设置配置
 		// Set the configuration
 		config: config,
@@ -65,7 +65,7 @@ func NewPriorityQueue(config *PriorityQueueConfig) PriorityQueue {
 
 	// 将 q.Queue 的锁赋值给 q.lock
 	// Assign the lock of q.Queue to q.lock
-	q.lock = q.Queue.(*QueueImpl).lock
+	q.lock = q.Queue.(*queueImpl).lock
 
 	// 返回新创建的 PriorityQueue
 	// Return the newly created PriorityQueue
@@ -74,17 +74,17 @@ func NewPriorityQueue(config *PriorityQueueConfig) PriorityQueue {
 
 // Shutdown 方法用于关闭 PriorityQueue。
 // The Shutdown method is used to shut down the PriorityQueue.
-func (q *PriorityQueueImpl) Shutdown() { q.Queue.Shutdown() }
+func (q *priorityQueueImpl) Shutdown() { q.Queue.Shutdown() }
 
 // Put 方法用于将一个元素放入 PriorityQueue，元素的优先级为最小优先级。
 // The Put method is used to put an element into the PriorityQueue, and the priority of the element is the minimum priority.
-func (q *PriorityQueueImpl) Put(value interface{}) error {
+func (q *priorityQueueImpl) Put(value interface{}) error {
 	return q.PutWithPriority(value, MINI_PRIORITY)
 }
 
 // PutWithPriority 方法用于将一个元素放入 PriorityQueue，并设置其优先级。
 // The PutWithPriority method is used to put an element into the PriorityQueue and set its priority.
-func (q *PriorityQueueImpl) PutWithPriority(value interface{}, priority int64) error {
+func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) error {
 	// 如果 PriorityQueue 已关闭，返回错误
 	// If the PriorityQueue is closed, return an error
 	if q.IsClosed() {
