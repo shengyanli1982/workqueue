@@ -57,7 +57,7 @@ func (q *ratelimitingQueueImpl) PutWithLimited(value interface{}) error {
 
 	// 通过限流器获取元素的延迟时间
 	// Get the delay time of the element through the limiter
-	delay := q.config.limiter.When(value)
+	delay := q.config.limiter.When(value).Milliseconds()
 
 	// 定义错误变量
 	// Define the error variable

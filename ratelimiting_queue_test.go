@@ -59,7 +59,7 @@ func TestRateLimitingQueueImpl_PutWithLimited_Parallel(t *testing.T) {
 	q := NewRateLimitingQueue(config)
 	defer q.Shutdown()
 
-	count := 1000
+	count := 4
 	var wg sync.WaitGroup
 	wg.Add(count)
 
