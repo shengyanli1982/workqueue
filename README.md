@@ -351,6 +351,12 @@ queue is shutting down
 
 The `Delaying Queue` is a queue that supports delayed execution. It builds upon the `Queue` and uses a `Heap` to manage the expiration times of the elements. When you add an element to the queue, you can specify a delay time. The elements are then sorted by this delay time and executed after the specified delay has passed.
 
+> [!TIP]
+>
+> When the `Delaying Queue` is empty in the `Heap` or the first element is not due, it will wait every `heartbeat` time for an element in the `Heap` that can be processed. This means that there may be a slight deviation in the actual delay time of the element. The actual delay time is the **"element delay time + 300ms"**.
+>
+> If precise timing is important for your project, you may consider using the `kairos` project I wrote.
+
 ### Configuration
 
 The `Delaying Queue` inherits the configuration of the `Queue`.

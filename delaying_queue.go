@@ -208,9 +208,9 @@ func (q *delayingQueueImpl) puller() {
 		// Lock, to protect the concurrent operations of the sorting heap
 		q.lock.Lock()
 
-		// 如果排序堆中有元素
-		// If there are elements in the sorting heap
-		if q.sorting.Len() > 0 {
+		// 如果排序堆中有元素, 并且元素的执行时间戳小于等于当前时间戳
+		// If there are elements in the sorting heap and the execution timestamp of the element is less than or equal to the current timestamp
+		if q.sorting.Len() > 0 && q.sorting.Front().Priority <= time.Now().UnixMilli() {
 			// 从排序堆中弹出一个元素
 			// Pop an element from the sorting heap
 			top := q.sorting.Pop()
