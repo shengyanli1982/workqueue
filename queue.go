@@ -140,30 +140,44 @@ func (q *queueImpl) IsClosed() bool {
 	return q.closed.Load()
 }
 
-// Len 方法用于获取队列的长度。
-// The Len method is used to get the length of the queue.
-func (q *queueImpl) Len() int {
-	// 加锁，保护队列的并发操作
-	// Lock, to protect the concurrent operations of the queue
+// Len 方法返回队列的长度
+// The Len method returns the length of the queue
+func (q *queueImpl) Len() (count int) {
+	// 加锁以保证线程安全
+	// Lock to ensure thread safety
 	q.lock.Lock()
-	defer q.lock.Unlock()
 
-	// 返回队列的长度
+	// 获取队列长度
+	// Get the length of the queue
+	count = int(q.list.Len())
+
+	// 解锁
+	// Unlock
+	q.lock.Unlock()
+
+	// 返回队列长度
 	// Return the length of the queue
-	return int(q.list.Len())
+	return
 }
 
-// Values 方法用于获取队列中的所有元素。
-// The Values method is used to get all the elements in the queue.
-func (q *queueImpl) Values() []interface{} {
-	// 加锁，保护队列的并发操作
-	// Lock, to protect the concurrent operations of the queue
+// Values 方法返回队列中的所有元素
+// The Values method returns all elements in the queue
+func (q *queueImpl) Values() (items []interface{}) {
+	// 加锁以保证线程安全
+	// Lock to ensure thread safety
 	q.lock.Lock()
-	defer q.lock.Unlock()
+
+	// 获取队列中的所有元素
+	// Get all elements in the queue
+	items = q.list.Slice()
+
+	// 解锁
+	// Unlock
+	q.lock.Unlock()
 
 	// 返回队列中的所有元素
-	// Return all the elements in the queue
-	return q.list.Slice()
+	// Return all elements in the queue
+	return
 }
 
 // Put 方法用于将一个元素放入队列。

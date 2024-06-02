@@ -68,7 +68,7 @@ func (q *ratelimitingQueueImpl) PutWithLimited(value interface{}) error {
 	if delay > 0 {
 		// 调用 PutWithDelay 方法，将元素放入 RateLimitingQueue，并设置其延迟时间
 		// Call the PutWithDelay method to put the element into the RateLimitingQueue and set its delay time
-		err = q.PutWithDelay(value, int64(delay))
+		err = q.PutWithDelay(value, delay)
 	} else {
 		// 否则，直接将元素放入 RateLimitingQueue
 		// Otherwise, put the element directly into the RateLimitingQueue
