@@ -1,8 +1,8 @@
 package workqueue
 
 import (
+	"errors"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -151,14 +151,12 @@ func TestQueueImpl_Get_Parallel(t *testing.T) {
 
 func TestQueueImpl_PutAndGet_Parallel(t *testing.T) {
 	q := NewQueue(nil)
-	defer q.Shutdown()
 
 	count := 1000
 
 	// Put and get content from queue in parallel
 	wg := sync.WaitGroup{}
 	wg.Add(count * 2)
-	closed := atomic.Bool{}
 	for i := 0; i < count; i++ {
 		go func() {
 			defer wg.Done()
@@ -168,25 +166,27 @@ func TestQueueImpl_PutAndGet_Parallel(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for {
-				if closed.Load() {
+				if _, err := q.Get(); err != nil {
+					if errors.Is(err, ErrQueueIsEmpty) {
+						time.Sleep(50 * time.Millisecond)
+						continue
+					}
+					if !errors.Is(err, ErrQueueIsClosed) {
+						assert.NoError(t, err, "Get should not return an error")
+					}
 					break
-				}
-				v, err := q.Get()
-				if v != nil {
-					assert.NoError(t, err, "Get should not return an error")
 				}
 			}
 		}()
-		if i == count-1 {
-			time.Sleep(time.Second)
-			closed.Store(true)
-		}
 	}
+
+	time.Sleep(time.Second)
+
+	q.Shutdown()
 	wg.Wait()
 
 	// Verify the queue state
 	assert.Equal(t, 0, q.Len(), "Queue length should be 0")
-
 }
 
 func TestQueueImpl_Len(t *testing.T) {
@@ -329,7 +329,7 @@ func TestQueueImpl_Idempotent_Get(t *testing.T) {
 	assert.Equal(t, q.Values(), []interface{}{"test2"}, "Queue values should be [test2]")
 
 	// Verify the queue details
-	queue := q.(*QueueImpl)
+	queue := q.(*queueImpl)
 	assert.Equal(t, queue.dirty.List(), []interface{}{"test2"}, "Queue dirty should be [test2]")
 	assert.Equal(t, queue.processing.List(), []interface{}{}, "Queue processing should be []")
 }

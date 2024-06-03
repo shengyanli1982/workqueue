@@ -4,9 +4,9 @@ English | [中文](./README_CN.md)
 	<img src="assets/logo.png" alt="logo" width="500px">
 </div>
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/shengyanli1982/workqueue)](https://goreportcard.com/report/github.com/shengyanli1982/workqueue)
+[![Go Report Card](https://goreportcard.com/badge/github.com/shengyanli1982/workqueue/v2)](https://goreportcard.com/report/github.com/shengyanli1982/workqueue/v2)
 [![Build Status](https://github.com/shengyanli1982/workqueue/actions/workflows/test.yaml/badge.svg)](https://github.com/shengyanli1982/workqueue/actions)
-[![Go Reference](https://pkg.go.dev/badge/github.com/shengyanli1982/workqueue.svg)](https://pkg.go.dev/github.com/shengyanli1982/workqueue)
+[![Go Reference](https://pkg.go.dev/badge/github.com/shengyanli1982/workqueue/v2.svg)](https://pkg.go.dev/github.com/shengyanli1982/workqueue/v2)
 
 # Introduction
 
@@ -78,7 +78,7 @@ BenchmarkList_Swap-12            	100000000	         10.47 ns/op	       0 B/op	 
 
 **Compare with the standard library**
 
-Both the standard library and the project utilize the same algorithm, resulting in similar performance. However, the `list` in this project offers more features compared to the standard library.
+Both the standard library and this project employ the same algorithm, leading to comparable performance. However, the `list` in this project provides additional features compared to the standard library. Furthermore, the `list` node uses `sync.Pool` to minimize memory allocation. Therefore, under high concurrency, the performance of the project's `list` may surpass that of the standard library.
 
 ```bash
 $ go test -benchmem -run=^$ -bench ^BenchmarkCompare* .
@@ -215,6 +215,8 @@ The `dirty` set contains items that have been added to the queue but have not ye
 > [!IMPORTANT]
 >
 > If you create a new queue with the `WithValueIdempotent` configuration, the queue will automatically remove duplicate items. This means that if you put the same item into the queue, the queue will only keep one instance of that item.
+>
+> However, this value (`PutXXX functions param`) refers to an object that can be hashed by the `map` in the `Go` standard library. If the object cannot be hashed, such as pointers or slices, the program may throw an error.
 
 ### Config
 
@@ -348,6 +350,12 @@ queue is shutting down
 ## 2. Delaying Queue
 
 The `Delaying Queue` is a queue that supports delayed execution. It builds upon the `Queue` and uses a `Heap` to manage the expiration times of the elements. When you add an element to the queue, you can specify a delay time. The elements are then sorted by this delay time and executed after the specified delay has passed.
+
+> [!TIP]
+>
+> When the `Delaying Queue` is empty in the `Heap` or the first element is not due, it will wait every `heartbeat` time for an element in the `Heap` that can be processed. This means that there may be a slight deviation in the actual delay time of the element. The actual delay time is the **"element delay time + 300ms"**.
+>
+> If precise timing is important for your project, you may consider using the `kairos` project I wrote.
 
 ### Configuration
 
@@ -620,7 +628,7 @@ queue is shutting down
 The `RateLimiting Queue` is a queue that supports rate-limited execution. It is built on top of the `Delaying Queue`. When adding an element to the queue, you can specify the rate limit, and the element will be processed according to this rate limit.
 
 > [!TIP]
-> 
+>
 > The default rate limit is based on the `Nop` strategy. You can define your own rate limit algorithm by implementing the `Limiter` interface. The project provides a `token bucket` algorithm as a Limiter implementation.
 
 ### Config

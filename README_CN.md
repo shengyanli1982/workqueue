@@ -4,9 +4,9 @@
 	<img src="assets/logo.png" alt="logo" width="500px">
 </div>
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/shengyanli1982/workqueue)](https://goreportcard.com/report/github.com/shengyanli1982/workqueue)
+[![Go Report Card](https://goreportcard.com/badge/github.com/shengyanli1982/workqueue/v2)](https://goreportcard.com/report/github.com/shengyanli1982/workqueue/v2)
 [![Build Status](https://github.com/shengyanli1982/workqueue/actions/workflows/test.yaml/badge.svg)](https://github.com/shengyanli1982/workqueue/actions)
-[![Go Reference](https://pkg.go.dev/badge/github.com/shengyanli1982/workqueue.svg)](https://pkg.go.dev/github.com/shengyanli1982/workqueue)
+[![Go Reference](https://pkg.go.dev/badge/github.com/shengyanli1982/workqueue/v2.svg)](https://pkg.go.dev/github.com/shengyanli1982/workqueue/v2)
 
 # 简介
 
@@ -78,7 +78,7 @@ BenchmarkList_Swap-12            	100000000	         10.47 ns/op	       0 B/op	 
 
 **与标准库的比较**
 
-标准库和本项目都使用了相同的算法，因此性能相近。然而，相比于标准库，本项目中的 `list` 提供了更多的功能。
+标准库和本项目使用的是相同的算法，因此性能相当。然而，与标准库相比，本项目的 `list` 提供了更多的功能。此外，`list` 节点使用 `sync.Pool` 来最小化内存分配。因此，在高并发下，本项目的 `list` 的性能可能超过标准库。
 
 ```bash
 $ go test -benchmem -run=^$ -bench ^BenchmarkCompare* .
@@ -215,6 +215,8 @@ BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12    	 1000000	     16531 ns/op
 > [!IMPORTANT]
 >
 > 如果你使用 `WithValueIdempotent` 配置创建新队列，队列将自动删除重复项。这意味着如果你将相同的项放入队列，队列将只保留该项的一个实例。
+>
+> 然而，这个值 (`PutXXX函数的参数`) 是可以被 `Go` 标准库中的 `map` 哈希的对象。如果对象不能被哈希，例如指针或切片，程序可能会抛出错误。
 
 ### 配置
 
@@ -348,6 +350,12 @@ queue is shutting down
 ## 2. 延迟队列
 
 `Delaying Queue` 是一种支持延迟执行的队列。它基于 `Queue` 并使用 `Heap` 来管理元素的过期时间。当你向队列中添加一个元素时，你可以指定一个延迟时间。然后，元素会按照这个延迟时间进行排序，并在指定的延迟过后执行。
+
+> [!TIP]
+>
+> 当 `Delaying Queue` 在 `Heap` 中为空或第一个元素尚未到期时，它会每隔 `heartbeat` 时间等待一个可以处理的元素。这意味着元素的实际延迟时间可能会有轻微的偏差。实际的延迟时间是 **"元素延迟时间 + 300ms"**。
+>
+> 如果对于您的项目来说精确的定时很重要，您可以考虑使用我编写的 `kairos` 项目。
 
 ### 配置
 
