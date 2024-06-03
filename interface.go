@@ -7,15 +7,15 @@ import "time"
 type Queue = interface {
 	// Put 方法用于将元素放入队列。
 	// The Put method is used to put an element into the queue.
-	Put(interface{}) error
+	Put(value interface{}) error
 
 	// Get 方法用于从队列中获取元素。
 	// The Get method is used to get an element from the queue.
-	Get() (interface{}, error)
+	Get() (value interface{}, err error)
 
 	// Done 方法用于标记元素处理完成。
 	// The Done method is used to mark the element as done.
-	Done(interface{})
+	Done(value interface{})
 
 	// Len 方法用于获取队列的长度。
 	// The Len method is used to get the length of the queue.
@@ -41,7 +41,7 @@ type DelayingQueue = interface {
 
 	// PutWithDelay 方法用于将元素延迟放入队列。
 	// The PutWithDelay method is used to put an element into the queue with delay.
-	PutWithDelay(interface{}, int64) error
+	PutWithDelay(value interface{}, delay int64) error
 }
 
 // PriorityQueue 接口继承了 Queue 接口，并添加了一个 PutWithPriority 方法，用于将元素按优先级放入队列。
@@ -51,7 +51,7 @@ type PriorityQueue = interface {
 
 	// PutWithPriority 方法用于将元素按优先级放入队列。
 	// The PutWithPriority method is used to put an element into the queue with priority.
-	PutWithPriority(interface{}, int64) error
+	PutWithPriority(value interface{}, priority int64) error
 }
 
 // RateLimitingQueue 接口继承了 DelayingQueue 接口，并添加了一个 PutWithLimited 方法，用于将元素按速率限制放入队列。
@@ -61,7 +61,7 @@ type RateLimitingQueue = interface {
 
 	// PutWithLimited 方法用于将元素按速率限制放入队列。
 	// The PutWithLimited method is used to put an element into the queue with rate limiting.
-	PutWithLimited(interface{}) error
+	PutWithLimited(value interface{}) error
 }
 
 // QueueCallback 接口定义了队列回调应该具备的基本操作。
@@ -69,15 +69,15 @@ type RateLimitingQueue = interface {
 type QueueCallback = interface {
 	// OnPut 方法在将元素放入队列时被调用。
 	// The OnPut method is called when an element is put into the queue.
-	OnPut(interface{})
+	OnPut(value interface{})
 
 	// OnGet 方法在从队列中获取元素时被调用。
 	// The OnGet method is called when an element is gotten from the queue.
-	OnGet(interface{})
+	OnGet(value interface{})
 
 	// OnDone 方法在元素处理完成后被调用。
 	// The OnDone method is called when the element is done processing.
-	OnDone(interface{})
+	OnDone(value interface{})
 }
 
 // DelayingQueueCallback 接口继承了 QueueCallback 接口，并添加了 OnDelay 和 OnPullError 方法。
@@ -87,11 +87,11 @@ type DelayingQueueCallback = interface {
 
 	// OnDelay 方法在元素被延迟放入队列时被调用。
 	// The OnDelay method is called when an element is put into the queue with delay.
-	OnDelay(interface{}, int64)
+	OnDelay(value interface{}, delay int64)
 
 	// OnPullError 方法在从队列中获取元素时出错被调用。
 	// The OnPullError method is called when an error occurs while getting an element from the queue.
-	OnPullError(interface{}, error)
+	OnPullError(value interface{}, reason error)
 }
 
 // PriorityQueueCallback 接口继承了 QueueCallback 接口，并添加了 OnPriority 方法。
@@ -101,7 +101,7 @@ type PriorityQueueCallback = interface {
 
 	// OnPriority 方法在元素被按优先级放入队列时被调用。
 	// The OnPriority method is called when an element is put into the queue with priority.
-	OnPriority(interface{}, int64)
+	OnPriority(value interface{}, priority int64)
 }
 
 // RateLimitingQueueCallback 接口继承了 DelayingQueueCallback 接口，并添加了 OnLimited 方法。
@@ -111,7 +111,7 @@ type RateLimitingQueueCallback = interface {
 
 	// OnLimited 方法在元素被按速率限制放入队列时被调用。
 	// The OnLimited method is called when an element is put into the queue with rate limiting.
-	OnLimited(interface{})
+	OnLimited(value interface{})
 }
 
 // Limiter 接口定义了一个限制器应该具备的基本操作。
@@ -119,5 +119,5 @@ type RateLimitingQueueCallback = interface {
 type Limiter = interface {
 	// When 方法用于获取元素应该被放入队列的时间。
 	// The When method is used to get the time when the element should be put into the queue.
-	When(interface{}) time.Duration
+	When(value interface{}) time.Duration
 }
