@@ -78,6 +78,58 @@ func TestDelayingQueueImpl_PutWithDelay_Parallel(t *testing.T) {
 	assert.Equal(t, count, q.Len(), "Queue length should be 1000")
 }
 
+func TestDelayingQueueImpl_HeapRange(t *testing.T) {
+	q := NewDelayingQueue(nil)
+	defer q.Shutdown()
+
+	// Put content into queue
+	err := q.PutWithDelay("test1", DELAYDUCRATION)
+	assert.NoError(t, err, "Put should not return an error")
+
+	err = q.PutWithDelay("test2", DELAYDUCRATION)
+	assert.NoError(t, err, "Put should not return an error")
+
+	err = q.PutWithDelay("test3", DELAYDUCRATION)
+	assert.NoError(t, err, "Put should not return an error")
+
+	// Range content from queue
+	values := []interface{}{}
+	q.HeapRange(func(value interface{}, _ int64) bool {
+		values = append(values, value)
+		return true
+	})
+
+	time.Sleep(time.Second)
+
+	// Verify the queue state
+	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, values, "Queue values should be [test1, test2, test3]")
+}
+
+func TestDelayingQueueImpl_HeapRange_Closed(t *testing.T) {
+	q := NewDelayingQueue(nil)
+
+	// Put content into queue
+	err := q.PutWithDelay("test1", DELAYDUCRATION)
+	assert.NoError(t, err, "Put should not return an error")
+
+	err = q.PutWithDelay("test2", DELAYDUCRATION)
+	assert.NoError(t, err, "Put should not return an error")
+
+	err = q.PutWithDelay("test3", DELAYDUCRATION)
+	assert.NoError(t, err, "Put should not return an error")
+
+	q.Shutdown()
+
+	// Range content from queue
+	values := []interface{}{}
+	q.HeapRange(func(value interface{}, _ int64) bool {
+		values = append(values, value)
+		return true
+	})
+
+	assert.Equal(t, []interface{}{}, values, "Values should be []")
+}
+
 type testDelayingQueueCallback struct {
 	puts, gets, dones, delays, errors []interface{}
 }

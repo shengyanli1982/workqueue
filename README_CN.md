@@ -231,6 +231,7 @@ BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12    	 1000000	     16531 ns/op
 -   `IsClosed`：检查队列是否已关闭，返回一个布尔值。
 -   `Len`：返回队列中的元素数量。
 -   `Values`：将队列中的所有元素作为切片返回。
+-   `Range`：遍历队列中的所有元素。
 -   `Put`：向队列添加元素。
 -   `Get`：从队列中检索元素。
 -   `Done`：通知队列一个元素已被处理。
@@ -368,6 +369,7 @@ queue is shutting down
 `Delaying Queue` 继承了 `Queue` 的方法。此外，它还引入了以下方法：
 
 -   `PutWithDelay`：向队列中添加一个元素，并指定一个延迟时间。
+-   `HeapRange`：遍历堆中的所有元素。
 
 ### 回调
 
