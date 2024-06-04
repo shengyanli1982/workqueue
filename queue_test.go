@@ -233,6 +233,69 @@ func TestQueueImpl_Len_Empty(t *testing.T) {
 	assert.Equal(t, 0, length, "Queue length should be 0")
 }
 
+func TestQueueImpl_Range(t *testing.T) {
+	q := NewQueue(nil)
+	defer q.Shutdown()
+
+	// Put content into queue
+	err := q.Put("test1")
+	assert.NoError(t, err, "Put should not return an error")
+	err = q.Put("test2")
+	assert.NoError(t, err, "Put should not return an error")
+	err = q.Put("test3")
+	assert.NoError(t, err, "Put should not return an error")
+
+	// Range the queue
+	values := make([]interface{}, 0)
+	q.Range(func(value interface{}) bool {
+		values = append(values, value)
+		return true
+	})
+
+	// Verify the queue values
+	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, values, "Queue values should be [test1, test2, test3]")
+}
+
+func TestQueueImpl_Range_Empty(t *testing.T) {
+	q := NewQueue(nil)
+	defer q.Shutdown()
+
+	// Range the empty queue
+	values := make([]interface{}, 0)
+	q.Range(func(value interface{}) bool {
+		values = append(values, value)
+		return true
+	})
+
+	// Verify the queue values when empty
+	assert.Equal(t, []interface{}{}, values, "Queue values should be []")
+}
+
+func TestQueueImpl_Range_Closed(t *testing.T) {
+	q := NewQueue(nil)
+	defer q.Shutdown()
+
+	// Put content into queue
+	err := q.Put("test1")
+	assert.NoError(t, err, "Put should not return an error")
+	err = q.Put("test2")
+	assert.NoError(t, err, "Put should not return an error")
+	err = q.Put("test3")
+	assert.NoError(t, err, "Put should not return an error")
+
+	// Range the closed queue
+	q.Shutdown()
+	values := make([]interface{}, 0)
+	q.Range(func(value interface{}) bool {
+		values = append(values, value)
+		return true
+	})
+
+	// Verify the queue values when closed
+	assert.Equal(t, []interface{}{}, values, "Queue values should be []")
+
+}
+
 func TestQueueImpl_IsClosed(t *testing.T) {
 	q := NewQueue(nil)
 	defer q.Shutdown()

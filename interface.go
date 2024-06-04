@@ -25,6 +25,10 @@ type Queue = interface {
 	// The Values method is used to get all the elements in the queue.
 	Values() []interface{}
 
+	// Range 方法用于遍历队列中的所有元素。
+	// The Range method is used to traverse all elements in the queue.
+	Range(fn func(value interface{}) bool)
+
 	// Shutdown 方法用于关闭队列。
 	// The Shutdown method is used to shut down the queue.
 	Shutdown()
@@ -42,6 +46,10 @@ type DelayingQueue = interface {
 	// PutWithDelay 方法用于将元素延迟放入队列。
 	// The PutWithDelay method is used to put an element into the queue with delay.
 	PutWithDelay(value interface{}, delay int64) error
+
+	// HeapRange 方法用于遍历 sorted 堆中的所有元素。
+	// The HeapRange method is used to traverse all elements in the sorted heap.
+	HeapRange(fn func(value interface{}, delay int64) bool)
 }
 
 // PriorityQueue 接口继承了 Queue 接口，并添加了一个 PutWithPriority 方法，用于将元素按优先级放入队列。

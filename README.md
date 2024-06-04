@@ -231,6 +231,7 @@ The `Queue` has several configuration options that can be set when creating a qu
 -   `IsClosed`: Checks if the queue is closed, returns a boolean.
 -   `Len`: Returns the number of elements in the queue.
 -   `Values`: Returns all elements in the queue as a slice.
+-   `Range`: Iterates over all elements in the queue.
 -   `Put`: Adds an element to the queue.
 -   `Get`: Retrieves an element from the queue.
 -   `Done`: Notifies the queue that an element has been processed.
@@ -368,6 +369,7 @@ The `Delaying Queue` inherits the configuration of the `Queue`.
 The `Delaying Queue` inherits the methods of the `Queue`. Additionally, it introduces the following method:
 
 -   `PutWithDelay`: Adds an element to the queue with a specified delay.
+-   `HeapRange`: Iterates over all elements in the heap.
 
 ### Callbacks
 

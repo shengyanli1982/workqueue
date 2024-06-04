@@ -180,6 +180,26 @@ func (q *queueImpl) Values() (items []interface{}) {
 	return
 }
 
+// Range 方法用于遍历队列中的所有元素。
+// The Range method is used to traverse all elements in the queue.
+func (q *queueImpl) Range(fn func(interface{}) bool) {
+	// 加锁以保证线程安全
+	// Lock to ensure thread safety
+	q.lock.Lock()
+
+	// 遍历队列中的所有元素
+	// Traverse all elements in the queue
+	q.list.Range(func(n *lst.Node) bool {
+		// 调用回调函数处理元素
+		// Call the callback function to process the element
+		return fn(n.Value)
+	})
+
+	// 解锁
+	// Unlock
+	q.lock.Unlock()
+}
+
 // Put 方法用于将一个元素放入队列。
 // The Put method is used to put an element into the queue.
 func (q *queueImpl) Put(value interface{}) error {
