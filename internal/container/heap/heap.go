@@ -26,33 +26,6 @@ func (h *Heap) less(i, j *lst.Node) bool {
 	return i.Priority < j.Priority
 }
 
-// moveUp 方法将节点 node 向上移动到正确的位置，以保持堆的性质。
-// The moveUp method moves the node node up to the correct position to maintain the properties of the heap.
-func (h *Heap) moveUp(node *lst.Node) {
-	// 如果 node 是 nil 或者 node 的 Prev 是 nil，我们就直接返回，不做任何操作。
-	// If node is nil or node's Prev is nil, we just return directly without doing anything.
-	if node == nil || node.Prev == nil {
-		return
-	}
-
-	// 设置一个 current 变量，用于保存当前节点。
-	// Set a current variable to save the current node.
-	current := node
-
-	// 当 current 的 Prev 不是 nil，并且 node 的优先级小于 current 的 Prev 的优先级时，我们将 current 设置为 current 的 Prev。
-	// When current's Prev is not nil, and the priority of node is less than the priority of current's Prev, we set current to current's Prev.
-	for current.Prev != nil && h.less(node, current.Prev) {
-		current = current.Prev
-	}
-
-	// 如果 current 不等于 node，我们就从链表的尾部弹出一个节点，并在 current 之前插入 node。
-	// If current is not equal to node, we pop a node from the end of the list, and insert node before current.
-	if current != node {
-		h.list.PopBack()
-		h.list.InsertBefore(node, current)
-	}
-}
-
 // Len 方法返回堆的长度。
 // The Len method returns the length of the heap.
 func (h *Heap) Len() int64 { return h.list.Len() }
@@ -80,7 +53,7 @@ func (h *Heap) Cleanup() {
 }
 
 // Remove 方法从堆中移除节点 node。
-// The Remove method removes node node from the heap.
+// The Remove method removes the node from the heap.
 func (h *Heap) Remove(node *lst.Node) {
 	// 如果 node 是 nil，我们就直接返回，不做任何操作。
 	// If node is nil, we just return directly without doing anything.
@@ -89,26 +62,39 @@ func (h *Heap) Remove(node *lst.Node) {
 	}
 
 	// 调用 list 的 Remove 方法，从链表中移除节点 node。
-	// Call the Remove method of list to remove node node from the list.
+	// Call the Remove method of list to remove the node from the list.
 	h.list.Remove(node)
 }
 
-// Push 方法将节点 n 添加到堆的尾部，并调整堆的结构。
-// The Push method adds node n to the end of the heap and adjusts the structure of the heap.
+// Push 方法将一个新的节点添加到堆中。
+// The Push method adds a new node to the heap.
 func (h *Heap) Push(n *lst.Node) {
-	// 如果 n 是 nil，我们就直接返回，不做任何操作。
-	// If n is nil, we just return directly without doing anything.
-	if n == nil {
+	// 如果 n 是 nil 或者堆的长度为 0，我们就直接在链表的后面添加 n。
+	// If n is nil or the length of the heap is 0, we just add n to the back of the list.
+	if n == nil || h.list.Len() == 0 {
+		h.list.PushBack(n)
 		return
 	}
 
-	// 调用 list 的 PushBack 方法，将节点 n 添加到链表的尾部。
-	// Call the PushBack method of list to add node n to the end of the list.
-	h.list.PushBack(n)
+	// 获取链表的最后一个节点。
+	// Get the last node of the list.
+	current := h.list.Back()
 
-	// 调用 moveUp 方法，调整堆的结构，使其满足堆的性质。
-	// Call the moveUp method to adjust the structure of the heap to satisfy the properties of the heap.
-	h.moveUp(n)
+	// 如果当前节点不是 nil 并且 n 小于当前节点，我们就继续向前查找。
+	// If the current node is not nil and n is less than the current node, we continue to look forward.
+	for current != nil && h.less(n, current) {
+		current = current.Prev
+	}
+
+	// 如果当前节点是 nil，我们就在链表的前面添加 n。
+	// If the current node is nil, we add n to the front of the list.
+	if current == nil {
+		h.list.PushFront(n)
+	} else {
+		// 否则，我们就在当前节点的后面添加 n。
+		// Otherwise, we add n after the current node.
+		h.list.InsertAfter(n, current)
+	}
 }
 
 // Pop 方法移除并返回堆的第一个节点。

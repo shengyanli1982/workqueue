@@ -112,9 +112,9 @@ goos: darwin
 goarch: amd64
 pkg: github.com/shengyanli1982/workqueue/v2/internal/container/heap
 cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
-BenchmarkHeap_Push-12      	  112101	    	125531 ns/op	       0 B/op	       0 allocs/op
-BenchmarkHeap_Pop-12       	159293402	        23.71 ns/op	       0 B/op	       0 allocs/op
-BenchmarkHeap_Remove-12    	974444684	         1.271 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeap_Push-12      	  115560	 	123634 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeap_Pop-12       	176871700	    	10.66 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeap_Remove-12    	1000000000	      	1.217 ns/op	       0 B/op	       0 allocs/op
 ```
 
 **Compare with the standard library**
