@@ -131,10 +131,10 @@ goos: darwin
 goarch: amd64
 pkg: github.com/shengyanli1982/workqueue/v2/internal/container/heap
 cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
-BenchmarkCompareGoStdHeap_Push-12    	 4552110	       278.9 ns/op	      92 B/op	       1 allocs/op
-BenchmarkCompareGoStdHeap_Pop-12     	 3726718	       362.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCompareWQHeap_Push-12       	  109158	    121247 ns/op	      48 B/op	       1 allocs/op
-BenchmarkCompareWQHeap_Pop-12        	174782917	        15.10 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompareGoStdHeap_Push-12    	 5073879	  	260.7 ns/op	      97 B/op	       1 allocs/op
+BenchmarkCompareGoStdHeap_Pop-12     	 4363810	   	340.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompareWQHeap_Push-12       	  111070	  	119565 ns/op	      48 B/op	       1 allocs/op
+BenchmarkCompareWQHeap_Pop-12        	182961067	    	6.836 ns/op	       0 B/op	       0 allocs/op
 ```
 
 ### Struct Memory Alignment
@@ -179,27 +179,27 @@ goos: darwin
 goarch: amd64
 pkg: github.com/shengyanli1982/workqueue/v2
 cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
-BenchmarkDelayingQueue_Put-12                         	 4172398	       304.4 ns/op	      56 B/op	       1 allocs/op
-BenchmarkDelayingQueue_PutWithDelay-12                	 2773111	       423.9 ns/op	      55 B/op	       1 allocs/op
-BenchmarkDelayingQueue_Get-12                         	26794798	        46.85 ns/op	      20 B/op	       0 allocs/op
-BenchmarkDelayingQueue_PutAndGet-12                   	17567817	        68.64 ns/op	       7 B/op	       0 allocs/op
-BenchmarkDelayingQueue_PutWithDelayAndGet-12          	 3747397	       314.9 ns/op	      19 B/op	       1 allocs/op
-BenchmarkPriorityQueue_Put-12                         	 4631265	       259.3 ns/op	      55 B/op	       1 allocs/op
-BenchmarkPriorityQueue_PutWithPriority-12             	 4797620	       259.3 ns/op	      55 B/op	       1 allocs/op
-BenchmarkPriorityQueue_Get-12                         	29222815	        43.84 ns/op	      18 B/op	       0 allocs/op
-BenchmarkPriorityQueue_PutAndGet-12                   	16933688	        69.35 ns/op	       7 B/op	       0 allocs/op
-BenchmarkPriorityQueue_PutWithPriorityAndGet-12       	17161538	        70.61 ns/op	       7 B/op	       0 allocs/op
-BenchmarkQueue_Put-12                                 	 5023969	       248.2 ns/op	      55 B/op	       1 allocs/op
-BenchmarkQueue_Get-12                                 	31441930	        40.20 ns/op	      17 B/op	       0 allocs/op
-BenchmarkQueue_PutAndGet-12                           	18027499	        64.72 ns/op	       7 B/op	       0 allocs/op
-BenchmarkQueue_Idempotent_Put-12                      	 1820281	       687.5 ns/op	     158 B/op	       3 allocs/op
-BenchmarkQueue_Idempotent_Get-12                      	 2640146	       474.4 ns/op	      93 B/op	       0 allocs/op
-BenchmarkQueue_Idempotent_PutAndGet-12                	 2825148	       438.6 ns/op	      69 B/op	       1 allocs/op
-BenchmarkRateLimitingQueue_Put-12                     	 4836130	       256.6 ns/op	      56 B/op	       1 allocs/op
-BenchmarkRateLimitingQueue_PutWithLimited-12          	 1000000	     13557 ns/op	     120 B/op	       2 allocs/op
-BenchmarkRateLimitingQueue_Get-12                     	28820907	        44.27 ns/op	      18 B/op	       0 allocs/op
-BenchmarkRateLimitingQueue_PutAndGet-12               	16928090	        74.94 ns/op	       7 B/op	       0 allocs/op
-BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12    	 1000000	     16531 ns/op	      77 B/op	       2 allocs/op
+BenchmarkDelayingQueue_Put-12                         	 3805098	       288.4 ns/op	      56 B/op	       1 allocs/op
+BenchmarkDelayingQueue_PutWithDelay-12                	 2287515	       521.5 ns/op	      55 B/op	       1 allocs/op
+BenchmarkDelayingQueue_Get-12                         	27608382	        49.83 ns/op	      19 B/op	       0 allocs/op
+BenchmarkDelayingQueue_PutAndGet-12                   	17371600	        77.47 ns/op	       7 B/op	       0 allocs/op
+BenchmarkDelayingQueue_PutWithDelayAndGet-12          	 2902110	       391.8 ns/op	      22 B/op	       1 allocs/op
+BenchmarkPriorityQueue_Put-12                         	 5007679	       241.6 ns/op	      55 B/op	       1 allocs/op
+BenchmarkPriorityQueue_PutWithPriority-12             	 5060012	       250.6 ns/op	      55 B/op	       1 allocs/op
+BenchmarkPriorityQueue_Get-12                         	31167807	        39.32 ns/op	      17 B/op	       0 allocs/op
+BenchmarkPriorityQueue_PutAndGet-12                   	16933648	        69.45 ns/op	       7 B/op	       0 allocs/op
+BenchmarkPriorityQueue_PutWithPriorityAndGet-12       	17993833	        69.30 ns/op	       7 B/op	       0 allocs/op
+BenchmarkQueue_Put-12                                 	 5198924	       242.9 ns/op	      55 B/op	       1 allocs/op
+BenchmarkQueue_Get-12                                 	30686018	        42.01 ns/op	      18 B/op	       0 allocs/op
+BenchmarkQueue_PutAndGet-12                           	19007242	        66.41 ns/op	       7 B/op	       0 allocs/op
+BenchmarkQueue_Idempotent_Put-12                      	 1914199	       689.1 ns/op	     153 B/op	       3 allocs/op
+BenchmarkQueue_Idempotent_Get-12                      	 2747583	       450.9 ns/op	      87 B/op	       0 allocs/op
+BenchmarkQueue_Idempotent_PutAndGet-12                	 2957530	       413.1 ns/op	      67 B/op	       1 allocs/op
+BenchmarkRateLimitingQueue_Put-12                     	 4708266	       303.0 ns/op	      55 B/op	       1 allocs/op
+BenchmarkRateLimitingQueue_PutWithLimited-12          	 1837160	       657.9 ns/op	     119 B/op	       2 allocs/op
+BenchmarkRateLimitingQueue_Get-12                     	29969521	        39.83 ns/op	      17 B/op	       0 allocs/op
+BenchmarkRateLimitingQueue_PutAndGet-12               	17123197	        68.84 ns/op	       7 B/op	       0 allocs/op
+BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12    	 1801648	       668.9 ns/op	     119 B/op	       2 allocs/op
 ```
 
 # Quick Start
