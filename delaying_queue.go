@@ -195,14 +195,9 @@ func (q *delayingQueueImpl) puller() {
 		q.wg.Done()
 	}()
 
-	// 使用 for 循环不断从 DelayingQueue 中拉取元素
-	// Use a for loop to continuously pull elements from the DelayingQueue
-	for {
-		// 如果 DelayingQueue 已关闭，跳出循环
-		// If the DelayingQueue is closed, break the loop
-		if q.IsClosed() {
-			break
-		}
+	// 使用 for 循环不断从 DelayingQueue 中拉取元素, 直到 DelayingQueue 被关闭
+	// Use a for loop to continuously pull elements from the DelayingQueue until the DelayingQueue is closed
+	for !q.IsClosed() {
 
 		// 加锁，保护排序堆的并发操作
 		// Lock, to protect the concurrent operations of the sorting heap
