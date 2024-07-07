@@ -12,9 +12,9 @@ import (
 // Define the minimum priority constant, the value is math.MinInt64
 const MINI_PRIORITY = math.MinInt64
 
-// sortingQueue 结构体定义了一个排序队列
-// The sortingQueue struct defines a sorted queue
-type sortingQueue struct {
+// sortedQueue 结构体定义了一个排序队列
+// The sortedQueue struct defines a sorted queue
+type sortedQueue struct {
 	// Queue 是一个队列接口
 	// Queue is a queue interface
 	Queue
@@ -32,12 +32,12 @@ type sortingQueue struct {
 	lock *sync.Mutex
 }
 
-// newSQ 函数创建一个新的排序队列
-// The newSQ function creates a new sorted queue
-func newSQ(config *QueueConfig) *sortingQueue {
+// newSortedQueue 函数创建一个新的排序队列
+// The newSortedQueue function creates a new sorted queue
+func newSortedQueue(config *QueueConfig) *sortedQueue {
 	// 创建一个新的排序队列实例
 	// Create a new sorted queue instance
-	q := &sortingQueue{
+	q := &sortedQueue{
 		sorting:     hp.New(),
 		elementpool: lst.NewNodePool(),
 	}
@@ -57,11 +57,11 @@ func newSQ(config *QueueConfig) *sortingQueue {
 
 // Shutdown 方法关闭队列
 // The Shutdown method closes the queue
-func (q *sortingQueue) Shutdown() { q.Queue.Shutdown() }
+func (q *sortedQueue) Shutdown() { q.Queue.Shutdown() }
 
-// PutWithPriority 方法将元素放入队列，并设置优先级
-// The PutWithPriority method puts an element into the queue and sets its priority
-func (q *sortingQueue) PutWithPriority(value interface{}, priority int64, cbFunc1 func(value interface{}, priority int64), cbFunc2 func(value interface{})) error {
+// putWithPriority 方法将元素放入队列，并设置优先级
+// The putWithPriority method puts an element into the queue and sets its priority
+func (q *sortedQueue) putWithPriority(value interface{}, priority int64, sortedPutCallbackFunc func(value interface{}, priority int64), putCallbackFunc func(value interface{})) error {
 	// 如果 PriorityQueue 已关闭，返回错误
 	// If the PriorityQueue is closed, return an error
 	if q.IsClosed() {
@@ -103,7 +103,7 @@ func (q *sortingQueue) PutWithPriority(value interface{}, priority int64, cbFunc
 
 		// 调用回调函数，通知元素已被放入并设置了优先级
 		// Call the callback function to notify that the element has been put in and the priority has been set
-		cbFunc1(value, priority)
+		sortedPutCallbackFunc(value, priority)
 	} else {
 		// 将元素放入列表中
 		// Put the element into the list
@@ -131,7 +131,7 @@ func (q *sortingQueue) PutWithPriority(value interface{}, priority int64, cbFunc
 
 		// 调用回调函数，通知元素已被放入队列
 		// Call the callback function to notify that the element has been put into the queue
-		cbFunc2(value)
+		putCallbackFunc(value)
 	}
 
 	// 返回 nil 错误
@@ -141,7 +141,7 @@ func (q *sortingQueue) PutWithPriority(value interface{}, priority int64, cbFunc
 
 // HeapRange 方法遍历队列中的所有元素，并对每个元素调用给定的函数
 // The HeapRange method traverses all elements in the queue and calls the given function for each element
-func (q *sortingQueue) HeapRange(fn func(value interface{}, delay int64) bool) {
+func (q *sortedQueue) HeapRange(fn func(value interface{}, priority int64) bool) {
 	// 加锁以保证线程安全
 	// Lock to ensure thread safety
 	q.lock.Lock()
@@ -162,9 +162,9 @@ func (q *sortingQueue) HeapRange(fn func(value interface{}, delay int64) bool) {
 // priorityQueueImpl 结构体实现了 PriorityQueue 接口，它是一个支持优先级的队列。
 // The priorityQueueImpl structure implements the PriorityQueue interface, it is a queue that supports priority.
 type priorityQueueImpl struct {
-	// sortingQueue 是一个排序队列，它是 priorityQueueImpl 的基础结构
-	// sortingQueue is a sorted queue, it is the base structure of priorityQueueImpl
-	sortingQueue
+	// sortedQueue 是一个排序队列，它是 priorityQueueImpl 的基础结构
+	// sortedQueue is a sorted queue, it is the base structure of priorityQueueImpl
+	sortedQueue
 
 	// config 是 PriorityQueue 的配置，包括队列的大小、优先级等参数
 	// config is the configuration of PriorityQueue, including parameters such as the size of the queue, priority, etc.
@@ -187,7 +187,7 @@ func NewPriorityQueue(config *PriorityQueueConfig) PriorityQueue {
 
 		// 创建一个新的排序队列
 		// Create a new sorted queue
-		sortingQueue: *newSQ(&config.QueueConfig),
+		sortedQueue: *newSortedQueue(&config.QueueConfig),
 	}
 }
 
@@ -204,5 +204,5 @@ func (q *priorityQueueImpl) Put(value interface{}) error {
 func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) error {
 	// 调用 sortingQueue 的 PutWithPriority 方法，将元素放入队列，并设置其优先级
 	// Call the PutWithPriority method of sortingQueue to put the element into the queue and set its priority
-	return q.sortingQueue.PutWithPriority(value, priority, q.config.callback.OnPriority, q.config.callback.OnPut)
+	return q.sortedQueue.putWithPriority(value, priority, q.config.callback.OnPriority, q.config.callback.OnPut)
 }

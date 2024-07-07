@@ -60,6 +60,10 @@ type PriorityQueue = interface {
 	// PutWithPriority 方法用于将元素按优先级放入队列。
 	// The PutWithPriority method is used to put an element into the queue with priority.
 	PutWithPriority(value interface{}, priority int64) error
+
+	// HeapRange 方法用于遍历 sorted 堆中的所有元素。
+	// The HeapRange method is used to traverse all elements in the sorted heap.
+	HeapRange(fn func(value interface{}, priority int64) bool)
 }
 
 // RateLimitingQueue 接口继承了 DelayingQueue 接口，并添加了一个 PutWithLimited 方法，用于将元素按速率限制放入队列。

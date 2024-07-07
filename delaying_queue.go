@@ -15,9 +15,9 @@ func DelayTo(duration int64) int64 {
 // delayingQueueImpl 结构体实现了 DelayingQueue 接口，它是一个支持延迟的队列。
 // The delayingQueueImpl structure implements the DelayingQueue interface, it is a queue that supports delay.
 type delayingQueueImpl struct {
-	// sortingQueue 是一个排序队列，它是 delayingQueueImpl 的基础结构
-	// sortingQueue is a sorted queue, it is the base structure of delayingQueueImpl
-	sortingQueue
+	// sortedQueue 是一个排序队列，它是 delayingQueueImpl 的基础结构
+	// sortedQueue is a sorted queue, it is the base structure of delayingQueueImpl
+	sortedQueue
 
 	// config 是队列的配置，包括队列的大小、延迟时间等参数
 	// config is the configuration of the queue, including parameters such as the size of the queue, delay time, etc.
@@ -40,7 +40,7 @@ func NewDelayingQueue(config *DelayingQueueConfig) DelayingQueue {
 
 		// 创建一个新的排序队列
 		// Create a new sorted queue
-		sortingQueue: *newSQ(&config.QueueConfig),
+		sortedQueue: *newSortedQueue(&config.QueueConfig),
 	}
 }
 
@@ -57,5 +57,5 @@ func (q *delayingQueueImpl) PutWithDelay(value interface{}, delay int64) error {
 func (q *delayingQueueImpl) PutWithTimestamp(value interface{}, ts int64) error {
 	// 将元素放入排序队列，并设置优先级为时间戳
 	// Put the element into the sorted queue and set the priority to the timestamp
-	return q.sortingQueue.PutWithPriority(value, ts, q.config.callback.OnDelay, q.config.callback.OnPut)
+	return q.sortedQueue.putWithPriority(value, ts, q.config.callback.OnDelay, q.config.callback.OnPut)
 }
