@@ -120,8 +120,8 @@ func (q *sortedQueue) putWithPriority(value interface{}, priority int64, sortedP
 			// Put the current element at the front of the list, because it has the highest priority
 			list.PushFront(last)
 		} else {
-			// 否则，将当前元素插入到第一个元素之后，因为它的优先级比第一个元素低，但是比其他元素高
-			// Otherwise, insert the current element after the first element, because its priority is lower than the first element, but higher than other elements
+			// 否则，将当前元素插入到 peek 指向的元素之后
+			// Otherwise, insert the current element after the element pointed to by peek
 			list.InsertAfter(last, peek)
 		}
 
