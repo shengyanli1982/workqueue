@@ -134,6 +134,8 @@ type Limiter = interface {
 	When(value interface{}) time.Duration
 }
 
+// NewSetContainer 是一个函数类型，它的作用是创建一个新的 SetContainer 实例。
+// NewSetContainer is a function type, its role is to create a new SetContainer instance.
 type NewSetContainer = func() SetContainer
 
 // SetContainer 接口定义了一个集合应该具备的基本操作。

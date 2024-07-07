@@ -216,7 +216,7 @@ BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12        2449641           495.
 >
 > 如果你使用 `WithValueIdempotent` 配置创建新队列，队列将自动删除重复项。这意味着如果你将相同的项放入队列，队列将只保留该项的一个实例。
 >
-> 然而，这个值 (`PutXXX函数的参数`) 是可以被 `Go` 标准库中的 `map` 哈希的对象。如果对象不能被哈希，例如指针或切片，程序可能会抛出错误。
+> 然而，这个值 (`PutXXX函数的参数`) 是可以被 `Go` 标准库中的 `map` 哈希的对象。如果对象不能被哈希，例如指针或切片，程序可能会抛出错误。解决这个问题的一种方法是实现 SetContainer 接口，为对象提供自定义的哈希方法。
 
 ### 配置
 
@@ -224,6 +224,7 @@ BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12        2449641           495.
 
 -   `WithCallback`：设置回调函数。
 -   `WithValueIdempotent`：为队列启用项幂等性。
+-   `WithSetContainerCreator`：为队列设置 `set` 容器创建器。
 
 ### 方法
 
@@ -357,8 +358,7 @@ queue is shutting down
 > **在 v2.1.3 之前**
 > 当 `Delaying Queue` 在 `Heap` 中为空或第一个元素尚未到期时，它会每隔 `heartbeat` 时间等待一个可以处理的元素。这意味着元素的实际延迟时间可能会有轻微偏差。实际延迟时间为 **"元素延迟时间 + 300ms"**。
 >
-> **在 v2.1.3 之后**
-> `Delaying Queue` 使用一个新的 `Sorted Queue` 来管理元素。`Sorted Queue` 直接按照延迟时间对元素进行排序，不再需要等待 `Heap` 中的元素的 `heartbeat` 时间。现在，实际延迟时间为 **"元素延迟时间"**。
+> **在 v2.1.3 之后** > `Delaying Queue` 使用一个新的 `Sorted Queue` 来管理元素。`Sorted Queue` 直接按照延迟时间对元素进行排序，不再需要等待 `Heap` 中的元素的 `heartbeat` 时间。现在，实际延迟时间为 **"元素延迟时间"**。
 >
 > 如果对于您的项目来说精确的定时很重要，您可以考虑使用我编写的 `kairos` 项目。
 

@@ -216,7 +216,7 @@ The `dirty` set contains items that have been added to the queue but have not ye
 >
 > If you create a new queue with the `WithValueIdempotent` configuration, the queue will automatically remove duplicate items. This means that if you put the same item into the queue, the queue will only keep one instance of that item.
 >
-> However, this value (`PutXXX functions param`) refers to an object that can be hashed by the `map` in the `Go` standard library. If the object cannot be hashed, such as pointers or slices, the program may throw an error.
+> However, this value (`PutXXX functions param`) refers to an object that can be hashed by the `map` in the `Go` standard library. If the object cannot be hashed, such as pointers or slices, the program may throw an error. One way to solve this problem is to implement the `SetContainer` interface to provide a custom hashing method for the object.
 
 ### Config
 
@@ -224,6 +224,7 @@ The `Queue` has several configuration options that can be set when creating a qu
 
 -   `WithCallback`: Sets callback functions.
 -   `WithValueIdempotent`: Enables item idempotency for the queue.
+-   `WithSetContainerCreator`: Sets the `set` container creator for the queue.
 
 ### Methods
 
