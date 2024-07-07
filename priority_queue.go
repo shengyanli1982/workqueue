@@ -12,16 +12,12 @@ import (
 // Define the minimum priority constant, the value is math.MinInt64
 const MINI_PRIORITY = math.MinInt64
 
-// priorityQueueImpl 结构体，实现了 PriorityQueue 接口
-// The priorityQueueImpl struct, which implements the PriorityQueue interface
-type priorityQueueImpl struct {
+// sortingQueue 结构体定义了一个排序队列
+// The sortingQueue struct defines a sorted queue
+type sortingQueue struct {
 	// Queue 是一个队列接口
 	// Queue is a queue interface
 	Queue
-
-	// config 是 PriorityQueue 的配置
-	// config is the configuration of PriorityQueue
-	config *PriorityQueueConfig
 
 	// sorting 是一个堆结构，用于存储和排序队列元素
 	// sorting is a heap structure for storing and sorting queue elements
@@ -36,55 +32,36 @@ type priorityQueueImpl struct {
 	lock *sync.Mutex
 }
 
-// NewPriorityQueue 函数用于创建一个新的 PriorityQueue
-// The NewPriorityQueue function is used to create a new PriorityQueue
-func NewPriorityQueue(config *PriorityQueueConfig) PriorityQueue {
-	// 检查配置是否有效，如果无效，使用默认配置
-	// Check if the configuration is valid, if not, use the default configuration
-	config = isPriorityQueueConfigEffective(config)
-
-	// 创建一个新的 PriorityQueueImpl
-	// Create a new PriorityQueueImpl
-	q := &priorityQueueImpl{
-		// 设置配置
-		// Set the configuration
-		config: config,
-
-		// 创建一个新的排序堆，用于存储延迟元素
-		// Create a new sorting heap for storing delayed elements
-		sorting: hp.New(),
-
-		// 创建一个新的元素内存池，用于存储队列元素，减少内存分配
-		// Create a new element memory pool for storing queue elements, reducing memory allocation
+// newSQ 函数创建一个新的排序队列
+// The newSQ function creates a new sorted queue
+func newSQ(config *QueueConfig) *sortingQueue {
+	// 创建一个新的排序队列实例
+	// Create a new sorted queue instance
+	q := &sortingQueue{
+		sorting:     hp.New(),
 		elementpool: lst.NewNodePool(),
 	}
 
-	// 使用 newQueue 创建一个新的队列，并将其赋值给 q.Queue
-	// Use newQueue to create a new queue, and assign it to q.Queue
-	q.Queue = newQueue(q.sorting.GetList(), q.elementpool, &config.QueueConfig)
+	// 初始化队列
+	// Initialize the queue
+	q.Queue = newQueue(q.sorting.GetList(), q.elementpool, config)
 
-	// 将 q.Queue 的锁赋值给 q.lock
-	// Assign the lock of q.Queue to q.lock
+	// 设置互斥锁
+	// Set the mutex
 	q.lock = q.Queue.(*queueImpl).lock
 
-	// 返回新创建的 PriorityQueue
-	// Return the newly created PriorityQueue
+	// 返回新创建的排序队列
+	// Return the newly created sorted queue
 	return q
 }
 
-// Shutdown 方法用于关闭 PriorityQueue。
-// The Shutdown method is used to shut down the PriorityQueue.
-func (q *priorityQueueImpl) Shutdown() { q.Queue.Shutdown() }
+// Shutdown 方法关闭队列
+// The Shutdown method closes the queue
+func (q *sortingQueue) Shutdown() { q.Queue.Shutdown() }
 
-// Put 方法用于将一个元素放入 PriorityQueue，元素的优先级为最小优先级。
-// The Put method is used to put an element into the PriorityQueue, and the priority of the element is the minimum priority.
-func (q *priorityQueueImpl) Put(value interface{}) error {
-	return q.PutWithPriority(value, MINI_PRIORITY)
-}
-
-// PutWithPriority 方法用于将一个元素放入 PriorityQueue，并设置其优先级。
-// The PutWithPriority method is used to put an element into the PriorityQueue and set its priority.
-func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) error {
+// PutWithPriority 方法将元素放入队列，并设置优先级
+// The PutWithPriority method puts an element into the queue and sets its priority
+func (q *sortingQueue) PutWithPriority(value interface{}, priority int64, cbFunc1 func(value interface{}, priority int64), cbFunc2 func(value interface{})) error {
 	// 如果 PriorityQueue 已关闭，返回错误
 	// If the PriorityQueue is closed, return an error
 	if q.IsClosed() {
@@ -113,27 +90,119 @@ func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) e
 	// Lock, to protect the concurrent operations of the sorting heap
 	q.lock.Lock()
 
-	// 将元素放入排序堆
-	// Put the element into the sorting heap
-	q.sorting.Push(last)
-
-	// 解锁
-	// Unlock
-	q.lock.Unlock()
-
 	// 如果优先级大于最小优先级
 	// If the priority is greater than the minimum priority
 	if priority > MINI_PRIORITY {
+		// 将元素放入排序堆
+		// Put the element into the sorting heap
+		q.sorting.Push(last)
+
+		// 解锁，以保证其他线程或方法可以访问或修改队列
+		// Unlock, to ensure other threads or methods can access or modify the queue
+		q.lock.Unlock()
+
 		// 调用回调函数，通知元素已被放入并设置了优先级
-		// Call the callback function to notify that the element has been put and the priority has been set
-		q.config.callback.OnPriority(value, priority)
+		// Call the callback function to notify that the element has been put in and the priority has been set
+		cbFunc1(value, priority)
 	} else {
-		// 否则，调用回调函数，通知元素已被放入
-		// Otherwise, call the callback function to notify that the element has been put
-		q.config.QueueConfig.callback.OnPut(value)
+		// 将元素放入列表中
+		// Put the element into the list
+		list := q.sorting.GetList()
+
+		// 获取列表的第一个元素
+		// Get the first element of the list
+		front := list.Front()
+
+		// 如果列表为空，或者第一个元素的优先级大于当前元素的优先级
+		// If the list is empty, or the priority of the first element is greater than the priority of the current element
+		if front == nil || front.Priority > priority {
+			// 将当前元素放在列表的最前面
+			// Put the current element at the front of the list
+			list.PushFront(last)
+		} else {
+			// 否则，将当前元素插入到第一个元素之后
+			// Otherwise, insert the current element after the first element
+			list.InsertAfter(last, front)
+		}
+
+		// 解锁，以保证其他线程或方法可以访问或修改队列
+		// Unlock, to ensure other threads or methods can access or modify the queue
+		q.lock.Unlock()
+
+		// 调用回调函数，通知元素已被放入队列
+		// Call the callback function to notify that the element has been put into the queue
+		cbFunc2(value)
 	}
 
 	// 返回 nil 错误
 	// Return a nil error
 	return nil
+}
+
+// HeapRange 方法遍历队列中的所有元素，并对每个元素调用给定的函数
+// The HeapRange method traverses all elements in the queue and calls the given function for each element
+func (q *sortingQueue) HeapRange(fn func(value interface{}, delay int64) bool) {
+	// 加锁以保证线程安全
+	// Lock to ensure thread safety
+	q.lock.Lock()
+
+	// 遍历队列中的所有元素
+	// Traverse all elements in the queue
+	q.sorting.Range(func(n *lst.Node) bool {
+		// 调用回调函数处理元素，传入元素值和优先级（这里的优先级被用作延迟）
+		// Call the callback function to process the element, passing in the element value and priority (here the priority is used as delay)
+		return fn(n.Value, n.Priority)
+	})
+
+	// 解锁，以保证其他线程或方法可以访问或修改队列
+	// Unlock, to ensure other threads or methods can access or modify the queue
+	q.lock.Unlock()
+}
+
+// priorityQueueImpl 结构体实现了 PriorityQueue 接口，它是一个支持优先级的队列。
+// The priorityQueueImpl structure implements the PriorityQueue interface, it is a queue that supports priority.
+type priorityQueueImpl struct {
+	// sortingQueue 是一个排序队列，它是 priorityQueueImpl 的基础结构
+	// sortingQueue is a sorted queue, it is the base structure of priorityQueueImpl
+	sortingQueue
+
+	// config 是 PriorityQueue 的配置，包括队列的大小、优先级等参数
+	// config is the configuration of PriorityQueue, including parameters such as the size of the queue, priority, etc.
+	config *PriorityQueueConfig
+}
+
+// NewPriorityQueue 函数用于创建一个新的 PriorityQueue。
+// The NewPriorityQueue function is used to create a new PriorityQueue.
+func NewPriorityQueue(config *PriorityQueueConfig) PriorityQueue {
+	// 检查配置是否有效，如果无效，使用默认配置
+	// Check if the configuration is valid, if not, use the default configuration
+	config = isPriorityQueueConfigEffective(config)
+
+	// 创建一个新的 PriorityQueueImpl
+	// Create a new PriorityQueueImpl
+	return &priorityQueueImpl{
+		// 设置配置
+		// Set the configuration
+		config: config,
+
+		// 创建一个新的排序队列
+		// Create a new sorted queue
+		sortingQueue: *newSQ(&config.QueueConfig),
+	}
+}
+
+// Put 方法用于将一个元素放入 PriorityQueue，元素的优先级为最小优先级。
+// The Put method is used to put an element into the PriorityQueue, and the priority of the element is the minimum priority.
+func (q *priorityQueueImpl) Put(value interface{}) error {
+	// 调用 PutWithPriority 方法，将元素放入队列，并设置其优先级为最小优先级
+	// Call the PutWithPriority method to put the element into the queue and set its priority to the minimum priority
+	return q.PutWithPriority(value, MINI_PRIORITY)
+}
+
+// PutWithPriority 方法用于将一个元素放入 PriorityQueue，并设置其优先级。
+// The PutWithPriority method is used to put an element into the PriorityQueue and set its priority.
+func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) error {
+	// 调用 sortingQueue 的 PutWithPriority 方法，将元素放入队列，并设置其优先级
+	// Call the PutWithPriority method of sortingQueue to put the element into the queue and set its priority
+	return q.sortingQueue.PutWithPriority(value, priority, q.config.callback.OnPriority, q.config.callback.OnPut)
 }

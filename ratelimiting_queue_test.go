@@ -139,7 +139,7 @@ func TestRateLimitingQueueImpl_Callback(t *testing.T) {
 
 	// Verify the callback state, test1 delay is 0, so it should not be in the delays
 	assert.Equal(t, []interface{}{"test2", "test3"}, callback.delays, "Callback puts should be [test2, test3]")
-	assert.Equal(t, []interface{}{"test1", "test2", "test3", "test4"}, callback.puts, "Callback puts should be [test1, test2, test3, test4]")
+	assert.Equal(t, []interface{}{"test1", "test4"}, callback.puts, "Callback puts should be [test1, test4]")
 	assert.Equal(t, []interface{}{"test1"}, callback.gets, "Callback gets should be [test1]")
 	assert.Equal(t, []interface{}{"test1"}, callback.dones, "Callback dones should be [test1]")
 	assert.Equal(t, []interface{}(nil), callback.errors, "Callback errors should be []")

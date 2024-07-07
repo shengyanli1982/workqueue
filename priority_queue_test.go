@@ -29,9 +29,12 @@ func TestPriorityQueueImpl_PutWithPriority(t *testing.T) {
 	err = q.Put("test5")
 	assert.NoError(t, err, "Put should not return an error")
 
+	err = q.Put("test6")
+	assert.NoError(t, err, "Put should not return an error")
+
 	// Verify the queue state
-	assert.Equal(t, 5, q.Len(), "Queue length should be 5")
-	assert.Equal(t, []interface{}{"test5", "test4", "test1", "test2", "test3"}, q.Values(), "Queue values should be [test5 test4 test1 test2 test3]")
+	assert.Equal(t, 6, q.Len(), "Queue length should be 6")
+	assert.Equal(t, []interface{}{"test5", "test6", "test4", "test1", "test2", "test3"}, q.Values(), "Queue values should be [test5 test6 test4 test1 test2 test3]")
 }
 
 func TestPriorityQueueImpl_PutWithPriority_Closed(t *testing.T) {
