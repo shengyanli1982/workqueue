@@ -133,3 +133,33 @@ type Limiter = interface {
 	// The When method is used to get the time when the element should be put into the queue.
 	When(value interface{}) time.Duration
 }
+
+type NewSetContainer = func() SetContainer
+
+// SetContainer 接口定义了一个集合应该具备的基本操作。
+// The SetContainer interface defines the basic operations that a set should have.
+type SetContainer = interface {
+	// Add 方法用于将元素添加到集合中。
+	// The Add method is used to add an element to the set.
+	Add(item interface{})
+
+	// Remove 方法用于从集合中移除元素。
+	// The Remove method is used to remove an element from the set.
+	Remove(item interface{})
+
+	// Contains 方法用于检查元素是否在集合中。
+	// The Contains method is used to check whether an element is in the set.
+	Contains(item interface{}) bool
+
+	// Len 方法用于获取集合的元素个数。
+	// The Len method is used to get the number of elements in the set.
+	Len() int
+
+	// List 方法用于获取集合的所有元素。
+	// The List method is used to get all the elements in the set.
+	List() []interface{}
+
+	// Cleanup 方法用于清理集合中的元素。
+	// The Cleanup method is used to clean up the elements in the set.
+	Cleanup()
+}

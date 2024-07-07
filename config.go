@@ -1,26 +1,44 @@
 package workqueue
 
+import "github.com/shengyanli1982/workqueue/v2/internal/container/set"
+
+// defaultSetCreateFunc 是一个函数变量，它的默认行为是创建一个新的集合容器
+// defaultSetCreateFunc is a function variable, its default behavior is to create a new set container
+var defaultSetCreateFunc = func() SetContainer {
+	// 使用 set.New() 函数创建一个新的集合容器
+	// Use the set.New() function to create a new set container
+	return set.New()
+}
+
 // QueueConfig 结构体，用于配置队列
 // The QueueConfig struct, used for configuring the queue
 type QueueConfig struct {
-	// callback 是队列的回调函数
-	// callback is the callback function of the queue
+	// callback 是队列的回调函数，用于处理队列中的元素
+	// callback is the callback function of the queue, used to handle elements in the queue
 	callback QueueCallback
 
-	// idempotent 表示队列中的元素是否是幂等的
-	// idempotent indicates whether the elements in the queue are idempotent
+	// idempotent 表示队列中的元素是否是幂等的，如果是，那么重复的元素将只被处理一次
+	// idempotent indicates whether the elements in the queue are idempotent, if so, duplicate elements will only be processed once
 	idempotent bool
+
+	// setCreator 是一个函数，用于创建新的集合容器
+	// setCreator is a function used to create a new set container
+	setCreator NewSetContainer
 }
 
 // NewQueueConfig 函数用于创建一个新的 QueueConfig
 // The NewQueueConfig function is used to create a new QueueConfig
 func NewQueueConfig() *QueueConfig {
-	// 返回一个新的 QueueConfig 实例
-	// Return a new instance of QueueConfig
+	// 返回一个新的 QueueConfig 实例，其中包含一个无操作的队列回调函数实例和一个新的集合容器
+	// Return a new instance of QueueConfig, which includes an instance of a no-operation queue callback function and a new set container
 	return &QueueConfig{
 		// 使用 NewNopQueueCallbackImpl 函数创建一个新的无操作的队列回调函数实例
 		// Use the NewNopQueueCallbackImpl function to create a new instance of a no-operation queue callback function
 		callback: NewNopQueueCallbackImpl(),
+
+		// 使用 defaultSetCreateFunc 函数创建一个新的集合容器
+		// Use the defaultSetCreateFunc function to create a new set container
+		setCreator: defaultSetCreateFunc,
 	}
 }
 
@@ -31,8 +49,8 @@ func (c *QueueConfig) WithCallback(cb QueueCallback) *QueueConfig {
 	// Set the callback function
 	c.callback = cb
 
-	// 返回配置
-	// Return the configuration
+	// 返回配置，以支持链式调用
+	// Return the configuration to support chain calls
 	return c
 }
 
@@ -43,8 +61,20 @@ func (c *QueueConfig) WithValueIdempotent() *QueueConfig {
 	// Set the elements to be idempotent
 	c.idempotent = true
 
-	// 返回配置
-	// Return the configuration
+	// 返回配置，以支持链式调用
+	// Return the configuration to support chain calls
+	return c
+}
+
+// WithSetContainerCreator 方法用于设置创建集合容器的函数
+// The WithSetContainerCreator method is used to set the function to create a set container
+func (c *QueueConfig) WithSetContainerCreator(fn NewSetContainer) *QueueConfig {
+	// 设置创建集合容器的函数
+	// Set the function to create a set container
+	c.setCreator = fn
+
+	// 返回配置，以支持链式调用
+	// Return the configuration to support chain calls
 	return c
 }
 
@@ -58,6 +88,12 @@ func isQueueConfigEffective(c *QueueConfig) *QueueConfig {
 		// If the callback function is nil, set it to a no-operation queue callback function
 		if c.callback == nil {
 			c.callback = NewNopQueueCallbackImpl()
+		}
+
+		// 如果 setCreateFunc 为 nil，则设置为 defaultSetCreateFunc 函数，用于创建一个新的集合容器
+		// If setCreateFunc is nil, set it to the defaultSetCreateFunc function, used to create a new set container
+		if c.setCreator == nil {
+			c.setCreator = defaultSetCreateFunc
 		}
 	} else {
 		// 如果配置为 nil，则创建一个新的队列配置

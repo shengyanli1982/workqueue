@@ -365,6 +365,10 @@ func TestQueueImpl_Idempotent_Put(t *testing.T) {
 	assert.NoError(t, err, "Put should not return an error")
 	err = q.Put("test1")
 	assert.ErrorIs(t, err, ErrElementAlreadyExist, "Put should return ErrElementAlreadyExist")
+
+	// Verify the queue state
+	assert.Equal(t, 1, q.Len(), "Queue length should be 1")
+	assert.Equal(t, q.Values(), []interface{}{"test1"}, "Queue values should be [test1]")
 }
 
 func TestQueueImpl_Idempotent_Get(t *testing.T) {

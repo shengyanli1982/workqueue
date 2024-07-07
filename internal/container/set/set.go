@@ -71,9 +71,9 @@ func (s *Set) List() []interface{} {
 	return list
 }
 
-// Clear 方法清空 Set。
-// The Clear method clears the Set.
-func (s *Set) Clear() {
+// Cleanup 方法清空 Set。
+// The Cleanup method clears the Set.
+func (s *Set) Cleanup() {
 	// 创建一个新的空 map，赋值给 Set 的 map，原来的 map 将被垃圾回收。
 	// Create a new empty map, assign it to the map of Set, the original map will be garbage collected.
 	s.m = make(map[interface{}]struct{})

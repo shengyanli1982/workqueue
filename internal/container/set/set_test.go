@@ -11,7 +11,7 @@ func TestSet_Add(t *testing.T) {
 	t.Run("Integer", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add integers to the set
 		s.Add(-1)
@@ -39,7 +39,7 @@ func TestSet_Add(t *testing.T) {
 	t.Run("Float", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add floats to the set
 		s.Add(float32(1.1))
@@ -51,7 +51,7 @@ func TestSet_Add(t *testing.T) {
 	t.Run("String", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add strings to the set
 		s.Add("a")
@@ -65,7 +65,7 @@ func TestSet_Add(t *testing.T) {
 	t.Run("Boolean", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add booleans to the set
 		s.Add(true)
@@ -77,7 +77,7 @@ func TestSet_Add(t *testing.T) {
 	t.Run("Complex", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add complex numbers to the set
 		s.Add(complex(1, 1))
@@ -87,7 +87,7 @@ func TestSet_Add(t *testing.T) {
 	t.Run("Nil", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add nil to the set
 		s.Add(nil)
@@ -97,7 +97,7 @@ func TestSet_Add(t *testing.T) {
 	t.Run("Struct", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add struct to the set
 		type testStruct struct {
@@ -138,7 +138,7 @@ func TestSet_Remove(t *testing.T) {
 	t.Run("Integer", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add integers to the set
 		s.Add(1)
@@ -155,7 +155,7 @@ func TestSet_Remove(t *testing.T) {
 	t.Run("String", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add strings to the set
 		s.Add("a")
@@ -172,7 +172,7 @@ func TestSet_Remove(t *testing.T) {
 	t.Run("Struct", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add struct to the set
 		type testStruct struct {
@@ -194,7 +194,7 @@ func TestSet_Remove(t *testing.T) {
 	t.Run("Nil", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add nil to the set
 		s.Add(nil)
@@ -209,7 +209,7 @@ func TestSet_Remove(t *testing.T) {
 	t.Run("Complex", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add complex numbers to the set
 		s.Add(complex(1, 1))
@@ -228,7 +228,7 @@ func TestSet_List(t *testing.T) {
 	t.Run("EmptySet", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Get the list of items from the set
 		list := s.List()
@@ -240,7 +240,7 @@ func TestSet_List(t *testing.T) {
 	t.Run("NonEmptySet", func(t *testing.T) {
 		// Create a new set
 		s := New()
-		defer s.Clear()
+		defer s.Cleanup()
 
 		// Add items to the set
 		s.Add(1)
