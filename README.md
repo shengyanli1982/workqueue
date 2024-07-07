@@ -179,27 +179,27 @@ goos: darwin
 goarch: amd64
 pkg: github.com/shengyanli1982/workqueue/v2
 cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
-BenchmarkDelayingQueue_Put-12                         	 3805098	       288.4 ns/op	      56 B/op	       1 allocs/op
-BenchmarkDelayingQueue_PutWithDelay-12                	 2287515	       521.5 ns/op	      55 B/op	       1 allocs/op
-BenchmarkDelayingQueue_Get-12                         	27608382	        49.83 ns/op	      19 B/op	       0 allocs/op
-BenchmarkDelayingQueue_PutAndGet-12                   	17371600	        77.47 ns/op	       7 B/op	       0 allocs/op
-BenchmarkDelayingQueue_PutWithDelayAndGet-12          	 2902110	       391.8 ns/op	      22 B/op	       1 allocs/op
-BenchmarkPriorityQueue_Put-12                         	 5007679	       241.6 ns/op	      55 B/op	       1 allocs/op
-BenchmarkPriorityQueue_PutWithPriority-12             	 5060012	       250.6 ns/op	      55 B/op	       1 allocs/op
-BenchmarkPriorityQueue_Get-12                         	31167807	        39.32 ns/op	      17 B/op	       0 allocs/op
-BenchmarkPriorityQueue_PutAndGet-12                   	16933648	        69.45 ns/op	       7 B/op	       0 allocs/op
-BenchmarkPriorityQueue_PutWithPriorityAndGet-12       	17993833	        69.30 ns/op	       7 B/op	       0 allocs/op
-BenchmarkQueue_Put-12                                 	 5198924	       242.9 ns/op	      55 B/op	       1 allocs/op
-BenchmarkQueue_Get-12                                 	30686018	        42.01 ns/op	      18 B/op	       0 allocs/op
-BenchmarkQueue_PutAndGet-12                           	19007242	        66.41 ns/op	       7 B/op	       0 allocs/op
-BenchmarkQueue_Idempotent_Put-12                      	 1914199	       689.1 ns/op	     153 B/op	       3 allocs/op
-BenchmarkQueue_Idempotent_Get-12                      	 2747583	       450.9 ns/op	      87 B/op	       0 allocs/op
-BenchmarkQueue_Idempotent_PutAndGet-12                	 2957530	       413.1 ns/op	      67 B/op	       1 allocs/op
-BenchmarkRateLimitingQueue_Put-12                     	 4708266	       303.0 ns/op	      55 B/op	       1 allocs/op
-BenchmarkRateLimitingQueue_PutWithLimited-12          	 1837160	       657.9 ns/op	     119 B/op	       2 allocs/op
-BenchmarkRateLimitingQueue_Get-12                     	29969521	        39.83 ns/op	      17 B/op	       0 allocs/op
-BenchmarkRateLimitingQueue_PutAndGet-12               	17123197	        68.84 ns/op	       7 B/op	       0 allocs/op
-BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12    	 1801648	       668.9 ns/op	     119 B/op	       2 allocs/op
+BenchmarkDelayingQueue_Put-12                             4658395           247.8 ns/op        56 B/op          1 allocs/op
+BenchmarkDelayingQueue_PutWithDelay-12                    3645954           391.8 ns/op        56 B/op          1 allocs/op
+BenchmarkDelayingQueue_Get-12                            29083405            46.93 ns/op       18 B/op          0 allocs/op
+BenchmarkDelayingQueue_PutAndGet-12                      16982470            72.02 ns/op        8 B/op          0 allocs/op
+BenchmarkDelayingQueue_PutWithDelayAndGet-12              6283388           180.8 ns/op         8 B/op          0 allocs/op
+BenchmarkPriorityQueue_Put-12                             4726546           243.7 ns/op        56 B/op          1 allocs/op
+BenchmarkPriorityQueue_PutWithPriority-12                 4622236           246.2 ns/op        56 B/op          1 allocs/op
+BenchmarkPriorityQueue_Get-12                            30396453            41.74 ns/op       17 B/op          0 allocs/op
+BenchmarkPriorityQueue_PutAndGet-12                      14824509            80.46 ns/op        8 B/op          0 allocs/op
+BenchmarkPriorityQueue_PutWithPriorityAndGet-12          14287419            78.76 ns/op        8 B/op          0 allocs/op
+BenchmarkQueue_Put-12                                     5441330           226.7 ns/op        56 B/op          1 allocs/op
+BenchmarkQueue_Get-12                                    31209709            40.10 ns/op       17 B/op          0 allocs/op
+BenchmarkQueue_PutAndGet-12                              17577973            70.98 ns/op        8 B/op          0 allocs/op
+BenchmarkQueue_Idempotent_Put-12                          1572436           657.2 ns/op       120 B/op          3 allocs/op
+BenchmarkQueue_Idempotent_Get-12                          2216044           559.6 ns/op        96 B/op          0 allocs/op
+BenchmarkQueue_Idempotent_PutAndGet-12                    2312067           574.2 ns/op        82 B/op          1 allocs/op
+BenchmarkRateLimitingQueue_Put-12                         4524272           306.8 ns/op        56 B/op          1 allocs/op
+BenchmarkRateLimitingQueue_PutWithLimited-12              1843783           733.8 ns/op       120 B/op          2 allocs/op
+BenchmarkRateLimitingQueue_Get-12                        29478592            42.27 ns/op       18 B/op          0 allocs/op
+BenchmarkRateLimitingQueue_PutAndGet-12                  16128423            77.20 ns/op        8 B/op          0 allocs/op
+BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12        2449641           495.8 ns/op        72 B/op          1 allocs/op
 ```
 
 # Quick Start
@@ -354,7 +354,11 @@ The `Delaying Queue` is a queue that supports delayed execution. It builds upon 
 
 > [!TIP]
 >
+> **Before v2.1.3**
 > When the `Delaying Queue` is empty in the `Heap` or the first element is not due, it will wait every `heartbeat` time for an element in the `Heap` that can be processed. This means that there may be a slight deviation in the actual delay time of the element. The actual delay time is the **"element delay time + 300ms"**.
+>
+> **After v2.1.3**
+> The `Delaying Queue` uses a new `Sorted Queue` to manage the elements. The `Sorted Queue` directly sorts the elements by their delay time, eliminating the need for a `heartbeat` time to wait for elements in the `Heap`. The actual delay time is now the **"element delay time"**.
 >
 > If precise timing is important for your project, you may consider using the `kairos` project I wrote.
 
