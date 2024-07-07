@@ -18,6 +18,10 @@ type queueImpl struct {
 	// list is the list of elements in the queue.
 	list *lst.List
 
+	// peek 是一个指向队列中下一个要处理的元素的指针。
+	// peek is a pointer to the next element to be processed in the queue.
+	peek *lst.Node
+
 	// elementpool 是元素的内存池。
 	// elementpool is the memory pool of elements.
 	elementpool *lst.NodePool
@@ -117,6 +121,10 @@ func (q *queueImpl) Shutdown() {
 		// 清空队列
 		// Clear the queue
 		q.list.Cleanup()
+
+		// 清空队列的 peek 指针
+		// Clear the peek pointer of the queue
+		q.peek = nil
 
 		// 如果队列配置为幂等的，则清空正在处理的元素集合和脏元素集合
 		// If the queue is configured as idempotent, clear the set of elements being processed and the set of dirty elements
@@ -236,6 +244,10 @@ func (q *queueImpl) Put(value interface{}) error {
 	// Put the element into the back of the queue
 	q.list.PushBack(last)
 
+	// 更新队列的 peek 指针
+	// Update the peek pointer of the queue
+	q.peek = last
+
 	// 如果队列配置为幂等的，将元素添加到脏元素集合
 	// If the queue is configured as idempotent, add the element to the set of dirty elements
 	if q.config.idempotent {
@@ -279,6 +291,12 @@ func (q *queueImpl) Get() (interface{}, error) {
 	// Pop an element from the front of the queue
 	front := q.list.PopFront()
 
+	// 如果弹出的元素是 peek 指向的元素，将 peek 设置为 nil
+	// If the popped element is the element pointed to by peek, set peek to nil
+	if front == q.peek {
+		q.peek = nil
+	}
+
 	// 获取元素的值
 	// Get the value of the element
 	value := front.Value
@@ -286,7 +304,12 @@ func (q *queueImpl) Get() (interface{}, error) {
 	// 如果队列配置为幂等的，将元素添加到正在处理的元素集合，并从脏元素集合中移除
 	// If the queue is configured as idempotent, add the element to the set of elements being processed and remove it from the set of dirty elements
 	if q.config.idempotent {
+		// 将元素添加到正在处理的元素集合
+		// Add the element to the set of elements being processed
 		q.processing.Add(value)
+
+		// 从脏元素集合中移除元素
+		// Remove the element from the set of dirty elements
 		q.dirty.Remove(value)
 	}
 

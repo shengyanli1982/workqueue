@@ -24,6 +24,11 @@ func TestQueueImpl_Put(t *testing.T) {
 	// Verify the queue state
 	assert.Equal(t, 3, q.Len(), "Queue length should be 3")
 	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, q.Values(), "Queue values should be [test1, test2, test3]")
+
+	peek := q.(*queueImpl).peek
+	assert.Equal(t, peek.Value, "test3", "Queue unsafePeek should be test3")
+	assert.Equal(t, peek.Prev.Value, "test2", "Queue unsafePeek Prev should be test2")
+	assert.Nil(t, peek.Next, "Queue unsafePeek Next should be nil")
 }
 
 func TestQueueImpl_Put_Closed(t *testing.T) {
@@ -86,6 +91,23 @@ func TestQueueImpl_Get(t *testing.T) {
 	// Verify the queue state
 	assert.Equal(t, 2, q.Len(), "Queue length should be 2")
 	assert.Equal(t, []interface{}{"test2", "test3"}, q.Values(), "Queue values should be [test2, test3]")
+
+	peek := q.(*queueImpl).peek
+	assert.Equal(t, peek.Value, "test3", "Queue unsafePeek should be test3")
+	assert.Equal(t, peek.Prev.Value, "test2", "Queue unsafePeek Prev should be test2")
+
+	// Get content from queue
+	_, err = q.Get()
+	assert.NoError(t, err, "Get should not return an error")
+	_, err = q.Get()
+	assert.NoError(t, err, "Get should not return an error")
+
+	// Verify the queue state
+	assert.Equal(t, 0, q.Len(), "Queue length should be 0")
+	assert.Equal(t, []interface{}{}, q.Values(), "Queue values should be []")
+
+	peek = q.(*queueImpl).peek
+	assert.Nil(t, peek, "Queue unsafePeek should be nil")
 }
 
 func TestQueueImpl_Get_Closed(t *testing.T) {

@@ -109,21 +109,25 @@ func (q *sortedQueue) putWithPriority(value interface{}, priority int64, sortedP
 		// Put the element into the list
 		list := q.sorting.GetList()
 
-		// 获取列表的第一个元素
-		// Get the first element of the list
-		front := list.Front()
+		// 获取队列的 peek 元素，peek 元素是队列中优先级最高的元素
+		// Get the peek element of the queue, the peek element is the element with the highest priority in the queue
+		peek := q.Queue.(*queueImpl).peek
 
 		// 如果列表为空，或者第一个元素的优先级大于当前元素的优先级
 		// If the list is empty, or the priority of the first element is greater than the priority of the current element
-		if front == nil || front.Priority > priority {
-			// 将当前元素放在列表的最前面
-			// Put the current element at the front of the list
+		if peek == nil || peek.Priority > priority {
+			// 将当前元素放在列表的最前面，因为它的优先级最高
+			// Put the current element at the front of the list, because it has the highest priority
 			list.PushFront(last)
 		} else {
-			// 否则，将当前元素插入到第一个元素之后
-			// Otherwise, insert the current element after the first element
-			list.InsertAfter(last, front)
+			// 否则，将当前元素插入到第一个元素之后，因为它的优先级比第一个元素低，但是比其他元素高
+			// Otherwise, insert the current element after the first element, because its priority is lower than the first element, but higher than other elements
+			list.InsertAfter(last, peek)
 		}
+
+		// 更新队列的 peek 指针
+		// Update the peek pointer of the queue
+		q.Queue.(*queueImpl).peek = last
 
 		// 解锁，以保证其他线程或方法可以访问或修改队列
 		// Unlock, to ensure other threads or methods can access or modify the queue

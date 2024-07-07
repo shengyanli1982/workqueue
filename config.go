@@ -4,11 +4,7 @@ import "github.com/shengyanli1982/workqueue/v2/internal/container/set"
 
 // defaultSetCreateFunc 是一个函数变量，它的默认行为是创建一个新的集合容器
 // defaultSetCreateFunc is a function variable, its default behavior is to create a new set container
-var defaultSetCreateFunc = func() SetContainer {
-	// 使用 set.New() 函数创建一个新的集合容器
-	// Use the set.New() function to create a new set container
-	return set.New()
-}
+var defaultSetCreateFunc = func() SetContainer { return set.New() }
 
 // QueueConfig 结构体，用于配置队列
 // The QueueConfig struct, used for configuring the queue
