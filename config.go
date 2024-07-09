@@ -1,19 +1,33 @@
 package workqueue
 
-// QueueConfig 结构体，用于配置队列
-// The QueueConfig struct, used for configuring the queue
+import "github.com/shengyanli1982/workqueue/v2/internal/container/set"
+
+// NewSetFunc 是一个函数类型，该函数返回一个 Set 实例
+// NewSetFunc is a function type that returns an instance of Set
+type NewSetFunc = func() Set
+
+// defaultNewSetFunc 是一个默认的集合创建函数，它返回一个新的 Set 实例
+// defaultNewSetFunc is a default set creation function that returns a new Set instance
+var defaultNewSetFunc = func() Set { return set.New() }
+
+// QueueConfig 是一个结构体，用于配置队列
+// QueueConfig is a struct used for configuring the queue
 type QueueConfig struct {
 	// callback 是队列的回调函数
 	// callback is the callback function of the queue
 	callback QueueCallback
 
-	// idempotent 表示队列中的元素是否是幂等的
-	// idempotent indicates whether the elements in the queue are idempotent
+	// idempotent 是一个布尔值，表示队列中的元素是否是幂等的
+	// idempotent is a boolean value that indicates whether the elements in the queue are idempotent
 	idempotent bool
+
+	// setCreator 是一个集合创建函数，用于创建新的 Set 实例
+	// setCreator is a set creation function used to create new Set instances
+	setCreator NewSetFunc
 }
 
-// NewQueueConfig 函数用于创建一个新的 QueueConfig
-// The NewQueueConfig function is used to create a new QueueConfig
+// NewQueueConfig 函数用于创建一个新的 QueueConfig 实例
+// The NewQueueConfig function is used to create a new instance of QueueConfig
 func NewQueueConfig() *QueueConfig {
 	// 返回一个新的 QueueConfig 实例
 	// Return a new instance of QueueConfig
@@ -21,6 +35,10 @@ func NewQueueConfig() *QueueConfig {
 		// 使用 NewNopQueueCallbackImpl 函数创建一个新的无操作的队列回调函数实例
 		// Use the NewNopQueueCallbackImpl function to create a new instance of a no-operation queue callback function
 		callback: NewNopQueueCallbackImpl(),
+
+		// 使用默认的集合创建函数
+		// Use the default set creation function
+		setCreator: defaultNewSetFunc,
 	}
 }
 
@@ -31,8 +49,8 @@ func (c *QueueConfig) WithCallback(cb QueueCallback) *QueueConfig {
 	// Set the callback function
 	c.callback = cb
 
-	// 返回配置
-	// Return the configuration
+	// 返回配置实例，以便进行链式调用
+	// Return the configuration instance for chaining calls
 	return c
 }
 
@@ -43,13 +61,25 @@ func (c *QueueConfig) WithValueIdempotent() *QueueConfig {
 	// Set the elements to be idempotent
 	c.idempotent = true
 
-	// 返回配置
-	// Return the configuration
+	// 返回配置实例，以便进行链式调用
+	// Return the configuration instance for chaining calls
+	return c
+}
+
+// WithSetCreator 方法用于设置集合创建函数
+// The WithSetCreator method is used to set the set creation function
+func (c *QueueConfig) WithSetCreator(fn NewSetFunc) *QueueConfig {
+	// 设置集合创建函数
+	// Set the set creation function
+	c.setCreator = fn
+
+	// 返回配置实例，以便进行链式调用
+	// Return the configuration instance for chaining calls
 	return c
 }
 
 // isQueueConfigEffective 函数用于检查队列配置是否有效，如果无效，则使用默认配置
-// The isQueueConfigEffective function is used to check whether the queue configuration is effective. If not, use the default configuration
+// The isQueueConfigEffective function is used to check whether the queue configuration is effective. If it is not, the default configuration is used
 func isQueueConfigEffective(c *QueueConfig) *QueueConfig {
 	// 如果配置不为 nil
 	// If the configuration is not nil
@@ -58,6 +88,12 @@ func isQueueConfigEffective(c *QueueConfig) *QueueConfig {
 		// If the callback function is nil, set it to a no-operation queue callback function
 		if c.callback == nil {
 			c.callback = NewNopQueueCallbackImpl()
+		}
+
+		// 如果集合创建函数为 nil，则设置为默认的集合创建函数
+		// If the set creation function is nil, set it to the default set creation function
+		if c.setCreator == nil {
+			c.setCreator = defaultNewSetFunc
 		}
 	} else {
 		// 如果配置为 nil，则创建一个新的队列配置

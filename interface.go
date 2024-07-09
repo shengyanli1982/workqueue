@@ -129,3 +129,31 @@ type Limiter = interface {
 	// The When method is used to get the time when the element should be put into the queue.
 	When(value interface{}) time.Duration
 }
+
+// Set 是一个接口，定义了一组方法，用于操作集合
+// Set is an interface that defines a set of methods for operating on a set
+type Set = interface {
+	// Add 方法用于向集合中添加一个元素
+	// The Add method is used to add an element to the set
+	Add(item interface{})
+
+	// Remove 方法用于从集合中移除一个元素
+	// The Remove method is used to remove an element from the set
+	Remove(item interface{})
+
+	// Contains 方法用于检查集合中是否包含一个元素，如果包含则返回 true，否则返回 false
+	// The Contains method is used to check whether an element is in the set. If it is, true is returned; otherwise, false is returned
+	Contains(item interface{}) bool
+
+	// List 方法用于返回集合中所有元素的列表
+	// The List method is used to return a list of all elements in the set
+	List() []interface{}
+
+	// Len 方法用于返回集合中元素的数量
+	// The Len method is used to return the number of elements in the set
+	Len() int
+
+	// Cleanup 方法用于清理集合，移除所有元素
+	// The Cleanup method is used to clean up the set, removing all elements
+	Cleanup()
+}

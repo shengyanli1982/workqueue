@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
-	"github.com/shengyanli1982/workqueue/v2/internal/container/set"
 )
 
 // queueImpl 结构体定义了一个队列的实现。
@@ -25,7 +24,7 @@ type queueImpl struct {
 
 	// processing 是正在处理的元素集合。
 	// processing is the set of elements being processed.
-	processing, dirty *set.Set
+	processing, dirty Set
 
 	// lock 是用于保护队列的互斥锁。
 	// lock is the mutex used to protect the queue.
@@ -82,11 +81,11 @@ func newQueue(list *lst.List, elementpool *lst.NodePool, config *QueueConfig) *q
 	if q.config.idempotent {
 		// 初始化正在处理的元素集合
 		// Initialize the set of elements being processed
-		q.processing = set.New()
+		q.processing = q.config.setCreator()
 
 		// 初始化脏元素集合
 		// Initialize the set of dirty elements
-		q.dirty = set.New()
+		q.dirty = q.config.setCreator()
 	}
 
 	// 返回新创建的 Queue
@@ -122,8 +121,8 @@ func (q *queueImpl) Shutdown() {
 		// 如果队列配置为幂等的，则清空正在处理的元素集合和脏元素集合
 		// If the queue is configured as idempotent, clear the set of elements being processed and the set of dirty elements
 		if q.config.idempotent {
-			q.processing.Clear()
-			q.dirty.Clear()
+			q.processing.Cleanup()
+			q.dirty.Cleanup()
 		}
 
 		// 解锁

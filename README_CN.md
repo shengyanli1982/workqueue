@@ -216,7 +216,7 @@ BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12    	 1000000	     16531 ns/op
 >
 > 如果你使用 `WithValueIdempotent` 配置创建新队列，队列将自动删除重复项。这意味着如果你将相同的项放入队列，队列将只保留该项的一个实例。
 >
-> 然而，这个值 (`PutXXX函数的参数`) 是可以被 `Go` 标准库中的 `map` 哈希的对象。如果对象不能被哈希，例如指针或切片，程序可能会抛出错误。
+> 但是，`PutXXX` 函数的参数应该是可以被 `Go` 标准库中的 `map` 进行哈希的对象。如果对象不能被哈希，例如指针或切片，程序可能会抛出错误。为了解决这个问题，你可以使用 `WithSetCreator` 来创建一个可以处理这些对象的自定义集合。
 
 ### 配置
 
@@ -224,6 +224,7 @@ BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12    	 1000000	     16531 ns/op
 
 -   `WithCallback`：设置回调函数。
 -   `WithValueIdempotent`：为队列启用项幂等性。
+-   `WithSetCreator`：设置队列内部集合的创建函数。
 
 ### 方法
 
