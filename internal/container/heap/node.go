@@ -1,48 +1,82 @@
-package list
+package heap
 
-import (
-	"sync"
-	"unsafe"
+import "sync"
+
+// 定义两个常量，表示节点的颜色
+// Define two constants to represent the color of the node
+const (
+	// RED 表示红色
+	// RED represents red
+	RED = 0
+
+	// BLACK 表示黑色
+	// BLACK represents black
+	BLACK = 1
 )
 
-// Node 结构体代表一个节点，它可以存储任何类型的值，有一个优先级，以及指向前一个和后一个节点的指针。
-// Node struct represents a node that can hold a value of any type, has a priority, and pointers to the next and previous nodes.
+// Node 是一个结构体，表示一个节点
+// Node is a struct that represents a node
 type Node struct {
-	// parentRef 是一个指向父节点的指针，它的类型是 unsafe.Pointer，所以可以指向任何类型的值。
-	// parentRef is a pointer to the parent node. Its type is unsafe.Pointer, so it can point to a value of any type.
-	parentRef unsafe.Pointer
+	// priority 是节点的优先级
+	// priority is the priority of the node
+	priority int64
 
-	// next 是指向下一个节点的指针。
-	// next is a pointer to the next node.
-	// prev 是指向前一个节点的指针。
-	// prev is a pointer to the previous node.
-	next, prev *Node
+	// color 是节点的颜色，可以是 RED 或 BLACK
+	// color is the color of the node, can be RED or BLACK
+	color int64
 
-	// Value 是存储在节点中的值，它的类型是 interface{}，所以可以是任何类型。
-	// Value is the value stored in the node. Its type is interface{}, so it can be of any type.
+	// left 是节点的左子节点
+	// left is the left child of the node
+	left *Node
+
+	// right 是节点的右子节点
+	// right is the right child of the node
+	right *Node
+
+	// parent 是节点的父节点
+	// parent is the parent of the node
+	parent *Node
+
+	// Value 是节点存储的值
+	// Value is the value stored in the node
 	Value interface{}
 }
 
-// Reset 方法重置节点的所有字段，将它们设置为零值。
-// The Reset method resets all the fields of the node, setting them to their zero values.
+// Reset 方法用于重置节点的所有属性
+// The Reset method is used to reset all properties of the node
 func (n *Node) Reset() {
-	// 将 parentRef 设置为 nil，表示没有父节点。
-	// Set parentRef to nil, indicating no parent node.
-	n.parentRef = nil
+	// 将优先级设置为 0
+	// Set the priority to 0
+	n.priority = 0
 
-	// 将 Value 设置为 nil，表示节点不存储任何值。
-	// Set Value to nil, indicating the node does not hold any value.
+	// 将颜色设置为 0
+	// Set the color to 0
+	n.color = 0
+
+	// 将左子节点设置为 nil
+	// Set the left child to nil
+	n.left = nil
+
+	// 将右子节点设置为 nil
+	// Set the right child to nil
+	n.right = nil
+
+	// 将父节点设置为 nil
+	// Set the parent to nil
+	n.parent = nil
+
+	// 将存储的值设置为 nil
+	// Set the stored value to nil
 	n.Value = nil
-
-	// 将 Next 和 Prev 设置为 nil，表示节点没有前一个和后一个节点。
-	// Set Next and Prev to nil, indicating the node does not have a previous and a next node.
-	n.next = nil
-	n.prev = nil
 }
 
-// NewNode 函数创建并返回一个新的 Node 实例。
-// The NewNode function creates and returns a new instance of Node.
-func NewNode() *Node { return &Node{} }
+// NewNode 函数用于创建一个新的节点
+// The NewNode function is used to create a new node
+func NewNode() *Node {
+	// 返回一个新的 Node 结构体实例
+	// Return a new instance of the Node struct
+	return &Node{}
+}
 
 // NodePool 结构体是一个节点池，它使用 sync.Pool 来存储和复用 Node 实例。
 // The NodePool struct is a pool of nodes, it uses sync.Pool to store and reuse Node instances.

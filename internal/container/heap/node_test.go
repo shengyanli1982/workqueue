@@ -1,4 +1,4 @@
-package list
+package heap
 
 import (
 	"testing"
@@ -9,15 +9,18 @@ import (
 func TestNode_Reset(t *testing.T) {
 	node := NewNode()
 	node.Value = "test"
-	node.next = NewNode()
-	node.prev = NewNode()
+	node.left = NewNode()
+	node.right = NewNode()
+	node.parent = NewNode()
 
 	node.Reset()
 
 	// Verify that the value, index, next ptr is default
 	assert.Nil(t, node.Value)
-	assert.Nil(t, node.next)
-	assert.Nil(t, node.prev)
+	assert.Nil(t, node.right)
+	assert.Nil(t, node.left)
+	assert.Nil(t, node.parent)
+	assert.Equal(t, int64(0), node.color)
 }
 
 func TestNodePool_Get(t *testing.T) {
@@ -29,8 +32,10 @@ func TestNodePool_Get(t *testing.T) {
 
 	// Verify that the value, index, next ptr is default
 	assert.Nil(t, node.Value)
-	assert.Nil(t, node.next)
-	assert.Nil(t, node.prev)
+	assert.Nil(t, node.right)
+	assert.Nil(t, node.left)
+	assert.Nil(t, node.parent)
+	assert.Equal(t, int64(0), node.color)
 }
 
 func TestNodePool_Put(t *testing.T) {
@@ -38,16 +43,19 @@ func TestNodePool_Put(t *testing.T) {
 
 	node := NewNode()
 	node.Value = "test"
-	node.next = NewNode()
-	node.prev = NewNode()
+	node.left = NewNode()
+	node.right = NewNode()
+	node.parent = NewNode()
 
 	// Put the node back
 	pool.Put(node)
 
 	// Verify that the value, index, next ptr is default
 	assert.Nil(t, node.Value)
-	assert.Nil(t, node.next)
-	assert.Nil(t, node.prev)
+	assert.Nil(t, node.right)
+	assert.Nil(t, node.left)
+	assert.Nil(t, node.parent)
+	assert.Equal(t, int64(0), node.color)
 }
 
 func TestNodePool_PutAndGet(t *testing.T) {
@@ -65,6 +73,8 @@ func TestNodePool_PutAndGet(t *testing.T) {
 
 	// Verify that the value, index, next ptr is default
 	assert.Nil(t, node.Value)
-	assert.Nil(t, node.next)
-	assert.Nil(t, node.prev)
+	assert.Nil(t, node.right)
+	assert.Nil(t, node.left)
+	assert.Nil(t, node.parent)
+	assert.Equal(t, int64(0), node.color)
 }

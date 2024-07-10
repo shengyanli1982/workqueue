@@ -4,62 +4,25 @@ import (
 	"fmt"
 	"testing"
 
-	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 	"github.com/stretchr/testify/assert"
 )
 
-func PrintListIndexs(l *lst.List) {
-	fmt.Println("List indexs: ============================")
-	for i := l.Front(); i != nil; i = i.Next {
-		fmt.Printf("Priority: %v, Value: %v\n", i.Priority, i.Value)
+func PrintRootIndexs(h *RBTree) {
+	fmt.Printf("# root: %v\n", h.root)
+}
+
+func PrintOrderTraversalIndexs(n *Node) {
+	if n != nil {
+		PrintOrderTraversalIndexs(n.left)
+		fmt.Printf(">> priority: %d, value: %v, left: %v, right: %v\n", n.priority, n.Value, n.left, n.right)
+		PrintOrderTraversalIndexs(n.right)
 	}
 }
 
-func PrintNodeIndexs(nodes []*lst.Node) {
-	fmt.Println("Node indexs: ============================")
+func PrintNodeIndexs(nodes []*Node) {
 	for _, n := range nodes {
-		fmt.Printf("Priority: %v\n", n.Priority)
+		fmt.Printf("# priority: %v\n", n.priority)
 	}
-}
-
-func TestHeap_Remove(t *testing.T) {
-	h := New()
-	count := 4
-	nodes := make([]*lst.Node, count)
-
-	// Push the nodes
-	for i := 0; i < count; i++ {
-		n := &lst.Node{Priority: int64(count - i - 1)}
-		nodes[i] = n
-		h.Push(n)
-	}
-
-	// Print the node indexs
-	PrintNodeIndexs(nodes)
-
-	// Print the list indexs
-	PrintListIndexs(h.list)
-
-	// Verify the heap state
-	assert.Equal(t, int64(count), h.Len(), fmt.Sprintf("heap length should be %d", count))
-	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
-
-	// Verify the heap order
-	assert.Equal(t, int64(0), h.Front().Priority, "front value should be 0")
-	assert.Equal(t, int64(1), h.Front().Next.Priority, "front next value should be 1")
-	assert.Equal(t, int64(2), h.Front().Next.Next.Priority, "front next next value should be 2")
-	assert.Equal(t, int64(3), h.Front().Next.Next.Next.Priority, "front next next next value should be 3")
-
-	// Remove the nodes
-	for i := 0; i < count; i++ {
-		h.Remove(nodes[i])
-	}
-
-	// Verify the heap state
-	assert.Equal(t, int64(0), h.Len(), "heap length should be 0")
-	assert.Nil(t, h.Front(), "front value should be nil")
-	assert.Nil(t, h.Back(), "back value should be nil")
 }
 
 func TestHeap_Push(t *testing.T) {
@@ -68,22 +31,25 @@ func TestHeap_Push(t *testing.T) {
 
 	// Push the nodes
 	for i := 0; i < count; i++ {
-		h.Push(&lst.Node{Priority: int64(i)})
+		h.Push(&Node{priority: int64(i), Value: i})
 	}
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(count), h.Len(), fmt.Sprintf("heap length should be %d", count))
-	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
+	assert.Equal(t, int64(0), h.Front().priority, fmt.Sprintf("front priority should be %d", 0))
+	assert.Equal(t, int64(count-1), h.Back().priority, fmt.Sprintf("back priority should be %d", count-1))
 
 	// Verify the heap order
-	assert.Equal(t, int64(0), h.Front().Priority, "front value should be 0")
-	assert.Equal(t, int64(1), h.Front().Next.Priority, "front next value should be 1")
-	assert.Equal(t, int64(2), h.Front().Next.Next.Priority, "front next next value should be 2")
-	assert.Equal(t, int64(3), h.Front().Next.Next.Next.Priority, "front next next next value should be 3")
+	assert.Equal(t, int64(0), h.Front().priority, "front priority should be 0")
+	assert.Equal(t, int64(3), h.Back().priority, fmt.Sprintf("back priority should be %d", count-1))
+	assert.Equal(t, int64(1), h.Root().priority, "root priority should be 1")
+	assert.Equal(t, int64(0), h.Root().left.priority, "root left priority should be 0")
+	assert.Equal(t, int64(2), h.Root().right.priority, "root right priority should be 2")
+	assert.Equal(t, int64(3), h.Root().right.right.priority, "root right right priority should be 3")
 }
 
 func TestHeap_Push_Reverse(t *testing.T) {
@@ -92,22 +58,25 @@ func TestHeap_Push_Reverse(t *testing.T) {
 
 	// Push the nodes
 	for i := 0; i < count; i++ {
-		h.Push(&lst.Node{Priority: int64(count - i - 1)})
+		h.Push(&Node{priority: int64(count - i - 1)})
 	}
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(count), h.Len(), fmt.Sprintf("heap length should be %d", count))
-	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
+	assert.Equal(t, int64(0), h.Front().priority, fmt.Sprintf("front priority should be %d", 0))
+	assert.Equal(t, int64(count-1), h.Back().priority, fmt.Sprintf("back priority should be %d", count-1))
 
 	// Verify the heap order
-	assert.Equal(t, int64(0), h.Front().Priority, "front value should be 0")
-	assert.Equal(t, int64(1), h.Front().Next.Priority, "front next value should be 1")
-	assert.Equal(t, int64(2), h.Front().Next.Next.Priority, "front next next value should be 2")
-	assert.Equal(t, int64(3), h.Front().Next.Next.Next.Priority, "front next next next value should be 3")
+	assert.Equal(t, int64(0), h.Front().priority, "front priority should be 0")
+	assert.Equal(t, int64(3), h.Back().priority, fmt.Sprintf("back priority should be %d", count-1))
+	assert.Equal(t, int64(2), h.Root().priority, "root priority should be 2")
+	assert.Equal(t, int64(1), h.Root().left.priority, "root left priority should be 1")
+	assert.Equal(t, int64(0), h.Root().left.left.priority, "root left left priority should be 0")
+	assert.Equal(t, int64(3), h.Root().right.priority, "root right priority should be 0")
 }
 
 func TestHeap_Push_Random(t *testing.T) {
@@ -115,24 +84,27 @@ func TestHeap_Push_Random(t *testing.T) {
 	count := 4
 
 	// Push the nodes
-	h.Push(&lst.Node{Priority: int64(2)})
-	h.Push(&lst.Node{Priority: int64(0)})
-	h.Push(&lst.Node{Priority: int64(1)})
-	h.Push(&lst.Node{Priority: int64(3)})
+	h.Push(&Node{priority: int64(2)})
+	h.Push(&Node{priority: int64(0)})
+	h.Push(&Node{priority: int64(1)})
+	h.Push(&Node{priority: int64(3)})
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(count), h.Len(), fmt.Sprintf("heap length should be %d", count))
-	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
+	assert.Equal(t, int64(0), h.Front().priority, fmt.Sprintf("front value should be %d", 0))
+	assert.Equal(t, int64(count-1), h.Back().priority, fmt.Sprintf("back value should be %d", count-1))
 
 	// Verify the heap order
-	assert.Equal(t, int64(0), h.Front().Priority, "front value should be 0")
-	assert.Equal(t, int64(1), h.Front().Next.Priority, "front next value should be 1")
-	assert.Equal(t, int64(2), h.Front().Next.Next.Priority, "front next next value should be 2")
-	assert.Equal(t, int64(3), h.Front().Next.Next.Next.Priority, "front next next next value should be 3")
+	assert.Equal(t, int64(0), h.Front().priority, "front priority should be 0")
+	assert.Equal(t, int64(3), h.Back().priority, fmt.Sprintf("back priority should be %d", count-1))
+	assert.Equal(t, int64(1), h.Root().priority, "root priority should be 1")
+	assert.Equal(t, int64(0), h.Root().left.priority, "root left priority should be 0")
+	assert.Equal(t, int64(2), h.Root().right.priority, "root right priority should be 2")
+	assert.Equal(t, int64(3), h.Root().right.right.priority, "root right right priority should be 3")
 }
 
 func TestHeap_Push_Duplicate(t *testing.T) {
@@ -141,27 +113,48 @@ func TestHeap_Push_Duplicate(t *testing.T) {
 
 	// Push the nodes
 	for i := 0; i < count; i++ {
-		h.Push(&lst.Node{Priority: int64(count - i - 1)})
+		h.Push(&Node{priority: int64(count - i - 1)})
 	}
 
 	// Push the nodes
 	for i := 0; i < count; i++ {
-		h.Push(&lst.Node{Priority: int64(i)})
+		h.Push(&Node{priority: int64(i)})
 	}
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(count*2), h.Len(), fmt.Sprintf("heap length should be %d", count*2))
-	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
+	assert.Equal(t, int64(0), h.Front().priority, fmt.Sprintf("front value should be %d", 0))
+	assert.Equal(t, int64(count-1), h.Back().priority, fmt.Sprintf("back value should be %d", count-1))
 
 	// Verify the heap order
-	assert.Equal(t, int64(0), h.Front().Priority, "front value should be 0")
-	assert.Equal(t, int64(0), h.Front().Next.Priority, "front next value should be 0")
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
-	assert.Equal(t, int64(count-1), h.Back().Prev.Priority, fmt.Sprintf("back value should be %d", count-1))
+	assert.Equal(t, int64(0), h.Front().priority, "front priority should be 0")
+	assert.Equal(t, int64(3), h.Back().priority, fmt.Sprintf("back priority should be %d", count-1))
+	assert.Equal(t, int64(2), h.Root().priority, "root priority should be 2")
+	assert.Equal(t, int64(0), h.Root().left.priority, "root left priority should be 0")
+	assert.Equal(t, int64(3), h.Root().right.priority, "root right priority should be 3")
+	assert.Equal(t, int64(0), h.Root().left.left.priority, "root left left priority should be 0")
+	assert.Equal(t, int64(1), h.Root().left.right.priority, "root left right priority should be 1")
+	assert.Equal(t, int64(2), h.Root().right.left.priority, "root right left priority should be 2")
+	assert.Equal(t, int64(3), h.Root().right.right.priority, "root right right priority should be 3")
+	assert.Equal(t, int64(1), h.Root().left.right.right.priority, "root left right priority should be 1")
+}
+
+func TestHeap_Push_Nil(t *testing.T) {
+	h := New()
+
+	// Push the nil node
+	for i := 0; i < 10; i++ {
+		h.Push(nil)
+	}
+
+	// Verify the heap state
+	assert.Equal(t, int64(0), h.Len(), "heap length should be 0")
+	assert.Nil(t, h.Front(), "front value should be nil")
+	assert.Nil(t, h.Back(), "back value should be nil")
 }
 
 func TestHeap_Pop(t *testing.T) {
@@ -170,26 +163,28 @@ func TestHeap_Pop(t *testing.T) {
 
 	// Push the nodes
 	for i := 0; i < count; i++ {
-		h.Push(&lst.Node{Priority: int64(count - i - 1)})
+		h.Push(&Node{priority: int64(count - i - 1)})
 	}
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(count), h.Len(), fmt.Sprintf("heap length should be %d", count))
-	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
+	assert.Equal(t, int64(0), h.Front().priority, fmt.Sprintf("front value should be %d", 0))
+	assert.Equal(t, int64(count-1), h.Back().priority, fmt.Sprintf("back value should be %d", count-1))
 
 	// Pop the nodes
 	for i := 0; i < count; i++ {
 		n := h.Pop()
 		assert.NotNil(t, n, "pop value should not be nil")
-		assert.Equal(t, int64(i), n.Priority, fmt.Sprintf("pop value should be %d", i))
+		assert.Equal(t, int64(i), n.priority, fmt.Sprintf("pop value should be %d", i))
 	}
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(0), h.Len(), "heap length should be 0")
@@ -211,66 +206,124 @@ func TestHeap_PutAndPop_Intersect(t *testing.T) {
 
 	// Push the nodes
 	for i := 0; i < count; i++ {
-		h.Push(&lst.Node{Priority: int64(count - i - 1)})
+		h.Push(&Node{priority: int64(count - i - 1)})
 	}
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(count), h.Len(), fmt.Sprintf("heap length should be %d", count))
-	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
+	assert.Equal(t, int64(0), h.Front().priority, fmt.Sprintf("front value should be %d", 0))
+	assert.Equal(t, int64(count-1), h.Back().priority, fmt.Sprintf("back value should be %d", count-1))
 
 	// Verify the heap order
-	assert.Equal(t, int64(0), h.Front().Priority, "front value should be 0")
-	assert.Equal(t, int64(1), h.Front().Next.Priority, "front next value should be 1")
-	assert.Equal(t, int64(2), h.Front().Next.Next.Priority, "front next next value should be 2")
-	assert.Equal(t, int64(3), h.Front().Next.Next.Next.Priority, "front next next next value should be 3")
+	assert.Equal(t, int64(0), h.Front().priority, "front priority should be 0")
+	assert.Equal(t, int64(3), h.Back().priority, fmt.Sprintf("back priority should be %d", count-1))
+	assert.Equal(t, int64(2), h.Root().priority, "root priority should be 2")
+	assert.Equal(t, int64(1), h.Root().left.priority, "root left priority should be 1")
+	assert.Equal(t, int64(0), h.Root().left.left.priority, "root left left priority should be 0")
+	assert.Equal(t, int64(3), h.Root().right.priority, "root right priority should be 0")
 
 	// Pop the node
 	n := h.Pop()
 	assert.NotNil(t, n, "pop value should not be nil")
-	assert.Equal(t, int64(0), n.Priority, "pop value should be 0")
+	assert.Equal(t, int64(0), n.priority, "pop value should be 0")
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(count-1), h.Len(), fmt.Sprintf("heap length should be %d", count-1))
-	assert.Equal(t, int64(1), h.Front().Priority, fmt.Sprintf("front value should be %d", 1))
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
+	assert.Equal(t, int64(1), h.Front().priority, fmt.Sprintf("front value should be %d", 1))
+	assert.Equal(t, int64(count-1), h.Back().priority, fmt.Sprintf("back value should be %d", count-1))
+
+	// Verify the heap order
 
 	// Push the node
-	h.Push(&lst.Node{Priority: int64(0)})
+	h.Push(&Node{priority: int64(0)})
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(count), h.Len(), fmt.Sprintf("heap length should be %d", count))
-	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
+	assert.Equal(t, int64(0), h.Front().priority, fmt.Sprintf("front value should be %d", 0))
+	assert.Equal(t, int64(count-1), h.Back().priority, fmt.Sprintf("back value should be %d", count-1))
+
+	// Verify the heap order
+	assert.Equal(t, int64(0), h.Root().left.left.priority, "root left left priority should be 0")
 
 	// Push the node
-	h.Push(&lst.Node{Priority: int64(2)})
+	h.Push(&Node{priority: int64(2)})
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(count+1), h.Len(), fmt.Sprintf("heap length should be %d", count+1))
-	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
-	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
+	assert.Equal(t, int64(0), h.Front().priority, fmt.Sprintf("front value should be %d", 0))
+	assert.Equal(t, int64(count-1), h.Back().priority, fmt.Sprintf("back value should be %d", count-1))
+
+	// Verify the heap order
+	assert.Equal(t, int64(2), h.Root().right.left.priority, "root right left priority should be 2")
 
 	// Push the node
-	h.Push(&lst.Node{Priority: int64(count)})
+	h.Push(&Node{priority: int64(count)})
 
-	// Print the list indexs
-	PrintListIndexs(h.list)
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
 
 	// Verify the heap state
 	assert.Equal(t, int64(count+2), h.Len(), fmt.Sprintf("heap length should be %d", count+2))
-	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
-	assert.Equal(t, int64(count), h.Back().Priority, fmt.Sprintf("back value should be %d", count))
+	assert.Equal(t, int64(0), h.Front().priority, fmt.Sprintf("front value should be %d", 0))
+	assert.Equal(t, int64(count), h.Back().priority, fmt.Sprintf("back value should be %d", count))
+
+	// Verify the heap order
+	assert.Equal(t, int64(count), h.Root().right.right.priority, "root right right priority should be 4")
+}
+
+func TestHeap_Remove(t *testing.T) {
+	h := New()
+	count := 4
+	nodes := make([]*Node, count)
+
+	// Push the nodes
+	for i := 0; i < count; i++ {
+		n := &Node{priority: int64(count - i - 1)}
+		nodes[i] = n
+		h.Push(n)
+	}
+
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
+
+	// Verify the heap state
+	assert.Equal(t, int64(count), h.Len(), fmt.Sprintf("heap length should be %d", count))
+	assert.Equal(t, int64(0), h.Front().priority, fmt.Sprintf("front value should be %d", 0))
+	assert.Equal(t, int64(count-1), h.Back().priority, fmt.Sprintf("back value should be %d", count-1))
+
+	// Verify the heap order
+	assert.Equal(t, int64(0), h.Front().priority, "front priority should be 0")
+	assert.Equal(t, int64(3), h.Back().priority, fmt.Sprintf("back priority should be %d", count-1))
+	assert.Equal(t, int64(2), h.Root().priority, "root priority should be 2")
+	assert.Equal(t, int64(1), h.Root().left.priority, "root left priority should be 1")
+	assert.Equal(t, int64(0), h.Root().left.left.priority, "root left left priority should be 0")
+	assert.Equal(t, int64(3), h.Root().right.priority, "root right priority should be 0")
+
+	// Remove the nodes
+	for i := 0; i < count; i++ {
+		h.Remove(nodes[i])
+	}
+
+	// Verify the heap state
+	assert.Equal(t, int64(0), h.Len(), "heap length should be 0")
+	assert.Nil(t, h.Front(), "front value should be nil")
+	assert.Nil(t, h.Back(), "back value should be nil")
 }
