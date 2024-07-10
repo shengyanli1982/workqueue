@@ -147,3 +147,23 @@ func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) e
 	// Return a nil error
 	return nil
 }
+
+// HeapRange 方法用于遍历 sorted 堆中的所有元素。
+// The HeapRange method is used to traverse all elements in the sorted heap.
+func (q *priorityQueueImpl) HeapRange(fn func(value interface{}, delay int64) bool) {
+	// 加锁以保证线程安全
+	// Lock to ensure thread safety
+	q.lock.Lock()
+
+	// 遍历队列中的所有元素
+	// Traverse all elements in the queue
+	q.sorting.Range(func(node *lst.Node) bool {
+		// 调用回调函数处理元素
+		// Call the callback function to process the element
+		return fn(node.Value, node.Priority)
+	})
+
+	// 解锁
+	// Unlock
+	q.lock.Unlock()
+}

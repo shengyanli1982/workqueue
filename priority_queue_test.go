@@ -138,3 +138,55 @@ func TestPriorityQueueImpl_Shutdown(t *testing.T) {
 	assert.True(t, q.IsClosed(), "Queue should be closed")
 	assert.Equal(t, 0, q.Len(), "Queue length should be 0")
 }
+
+func TestPriorityQueueImpl_HeapRange(t *testing.T) {
+	q := NewPriorityQueue(nil)
+	defer q.Shutdown()
+
+	// Put content into queue
+	err := q.PutWithPriority("test1", 0)
+	assert.NoError(t, err, "Put should not return an error")
+
+	err = q.PutWithPriority("test2", 1)
+	assert.NoError(t, err, "Put should not return an error")
+
+	err = q.PutWithPriority("test3", 2)
+	assert.NoError(t, err, "Put should not return an error")
+
+	// Range content from queue
+	values := []interface{}{}
+	q.HeapRange(func(value interface{}, _ int64) bool {
+		values = append(values, value)
+		return true
+	})
+
+	time.Sleep(time.Second)
+
+	// Verify the queue state
+	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, values, "Queue values should be [test1, test2, test3]")
+}
+
+func TestPriorityQueueImpl_HeapRange_Closed(t *testing.T) {
+	q := NewPriorityQueue(nil)
+
+	// Put content into queue
+	err := q.PutWithPriority("test1", 0)
+	assert.NoError(t, err, "Put should not return an error")
+
+	err = q.PutWithPriority("test2", 1)
+	assert.NoError(t, err, "Put should not return an error")
+
+	err = q.PutWithPriority("test3", 2)
+	assert.NoError(t, err, "Put should not return an error")
+
+	q.Shutdown()
+
+	// Range content from queue
+	values := []interface{}{}
+	q.HeapRange(func(value interface{}, _ int64) bool {
+		values = append(values, value)
+		return true
+	})
+
+	assert.Equal(t, []interface{}{}, values, "Values should be []")
+}

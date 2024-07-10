@@ -22,13 +22,9 @@ type RBTree struct {
 	count int64
 }
 
-// New 函数用于创建一个新的红黑树
-// The New function is used to create a new RED-BLACK tree
-func New() *RBTree {
-	// 返回一个新的 RBTree 结构体实例
-	// Return a new instance of the RBTree struct
-	return &RBTree{}
-}
+// New 函数用于创建一个新的红黑树, 返回一个指向红黑树的指针
+// The New function is used to create a new RED-BLACK tree, returning a pointer to the RED-BLACK tree
+func New() *RBTree { return &RBTree{} }
 
 // leftRotate 函数用于对红黑树进行左旋转操作
 // The leftRotate function is used to perform a left rotation operation on the RED-BLACK tree

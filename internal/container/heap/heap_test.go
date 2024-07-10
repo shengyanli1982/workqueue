@@ -176,7 +176,41 @@ func TestHeap_Pop(t *testing.T) {
 	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
 	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
 
-	// Pop the lst.Nodes
+	// Get frist node
+	fristNode := h.Front()
+
+	// Pop the node
+	popNode := h.Pop()
+
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
+
+	// Verify the nodes
+	assert.NotNil(t, fristNode, "first node should not be nil")
+	assert.NotNil(t, popNode, "pop node should not be nil")
+	assert.Equal(t, fristNode, popNode, "first node should be equal to pop node")
+}
+
+func TestHeap_PopAll(t *testing.T) {
+	h := New()
+	count := 4
+
+	// Push the nodes
+	for i := 0; i < count; i++ {
+		h.Push(&lst.Node{Priority: int64(count - i - 1)})
+	}
+
+	// Prrint the tree order
+	PrintRootIndexs(h)
+	PrintOrderTraversalIndexs(h.root)
+
+	// Verify the heap state
+	assert.Equal(t, int64(count), h.Len(), fmt.Sprintf("heap length should be %d", count))
+	assert.Equal(t, int64(0), h.Front().Priority, fmt.Sprintf("front value should be %d", 0))
+	assert.Equal(t, int64(count-1), h.Back().Priority, fmt.Sprintf("back value should be %d", count-1))
+
+	// Pop the nodes
 	for i := 0; i < count; i++ {
 		n := h.Pop()
 		assert.NotNil(t, n, "pop value should not be nil")
@@ -318,7 +352,7 @@ func TestHeap_Remove(t *testing.T) {
 	assert.Equal(t, int64(0), h.Root().Left.Left.Priority, "root left left priority should be 0")
 	assert.Equal(t, int64(3), h.Root().Right.Priority, "root right priority should be 0")
 
-	// Remove the lst.Nodes
+	// Remove the nodes
 	for i := 0; i < count; i++ {
 		h.Remove(nodes[i])
 	}
