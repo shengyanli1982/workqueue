@@ -102,6 +102,10 @@ BenchmarkCompareWQList_InsertAfter-12        	10237197	       117.7 ns/op	      
 
 ### 1.2. Heap
 
+Prior to version **v2.1.3**, this project utilized the `Insertion Sort` algorithm for sorting elements within the heap. However, starting from version **v2.1.3**, the project has transitioned to using the `Red Black Tree` algorithm for this purpose. The `Red-Black Tree` algorithm, with its time complexity of `O(logn)`, typically outperforms the `Insertion Sort` algorithm in most scenarios.
+
+#### 1.2.1. Insertion Sort algorithm
+
 **Direct performance**
 
 The project uses the `Insertion Sort` algorithm to sort elements in the heap. In a sorted array, the time complexity of the `Insertion Sort` algorithm is `O(n)`. In this project, a `list` is used to store the elements in the heap. Each element is appended to the end of the list and then sorted.
@@ -119,7 +123,7 @@ BenchmarkHeap_Remove-12    	1000000000	      	1.217 ns/op	       0 B/op	       0
 
 **Compare with the standard library**
 
-The heap in this project uses the `Insertion Sort` algorithm for sorting elements, while the standard library uses the `container/heap` package to implement the heap. The time complexity of the standard library's sorting is `O(nlogn)`, while the project's sorting has a time complexity of `O(n^2)`. Therefore, the project's sorting is slower than the standard library's. However, this is due to the difference in the algorithms used, and thus, a direct comparison may not be fair.
+The heap in this project uses the `Insertion Sort` algorithm for sorting elements, while the standard library uses the `container/heap` package to implement the heap. The time complexity of the standard library's sorting is `O(logn)`, while the project's sorting has a time complexity of `O(n)`. Therefore, the project's sorting is slower than the standard library's. However, this is due to the difference in the algorithms used, and thus, a direct comparison may not be fair.
 
 > [!TIP]
 >
@@ -137,6 +141,39 @@ BenchmarkCompareWQHeap_Push-12       	  109158	    121247 ns/op	      48 B/op	  
 BenchmarkCompareWQHeap_Pop-12        	174782917	        15.10 ns/op	       0 B/op	       0 allocs/op
 ```
 
+#### 1.2.2. Red-Black Tree algorithm
+
+**Direct performance**
+
+The project uses the `Red-Black Tree` algorithm to sort elements in the heap. The time complexity of the `Red-Black Tree` algorithm is `O(logn)`. In this project, a `tree` is used to store the elements in the heap. Each element is added to the `map` and then sorted.
+
+```bash
+$ go test -benchmem -run=^$ -bench ^BenchmarkHeap* .
+goos: darwin
+goarch: amd64
+pkg: github.com/shengyanli1982/workqueue/v2/internal/container/heap
+cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
+BenchmarkHeap_Push-12      	 5630415	       257.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeap_Pop-12       	16859534	       117.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeap_Remove-12    	148432172	         8.197 ns/op	       0 B/op	       0 allocs/op
+```
+
+**Compare with the standard library**
+
+The heap in this project uses the `Red-Black Tree` algorithm for sorting elements, while the standard library uses the `container/heap` package to implement the heap. The time complexity of the standard library's sorting is `O(logn)`, while the project's sorting has a time complexity of `O(logn)`. Therefore, the project's sorting is same as the standard library's. But the project's sorting is more stable and consistent than the standard library's.
+
+```bash
+$ go test -benchmem -run=^$ -bench ^BenchmarkCompare* .
+goos: darwin
+goarch: amd64
+pkg: github.com/shengyanli1982/workqueue/v2/internal/container/heap
+cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
+BenchmarkCompareGoStdHeap_Push-12    	 4368770	       283.3 ns/op	     110 B/op	       1 allocs/op
+BenchmarkCompareGoStdHeap_Pop-12     	 3745934	       357.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompareWQHeap_Push-12       	 4252489	       350.2 ns/op	      64 B/op	       1 allocs/op
+BenchmarkCompareWQHeap_Pop-12        	15759519	       116.7 ns/op	       0 B/op	       0 allocs/op
+```
+
 ### Struct Memory Alignment
 
 In essence, memory alignment enhances performance, minimizes CPU cycles, reduces power usage, boosts stability, and ensures predictable behavior. This is why it's considered a best practice to align data in memory, especially on contemporary 64-bit CPUs.
@@ -148,21 +185,25 @@ Node struct alignment:
 +----+----------------+-----------+-----------+
 | ID |   FIELDTYPE    | FIELDNAME | FIELDSIZE |
 +----+----------------+-----------+-----------+
-| A  | interface {}   | Value     | 16        |
-| B  | unsafe.Pointer | parentRef | 8         |
-| C  | int64          | Priority  | 8         |
-| D  | *list.Node     | Next      | 8         |
-| E  | *list.Node     | Prev      | 8         |
+| A  | unsafe.Pointer | parentRef | 8         |
+| B  | int64          | Priority  | 8         |
+| C  | int64          | Color     | 8         |
+| D  | *list.Node     | Left      | 8         |
+| E  | *list.Node     | Right     | 8         |
+| F  | *list.Node     | Parent    | 8         |
+| G  | interface {}   | Value     | 16        |
 +----+----------------+-----------+-----------+
 ---- Memory layout ----
-|A|A|A|A|A|A|A|A|
 |A|A|A|A|A|A|A|A|
 |B|B|B|B|B|B|B|B|
 |C|C|C|C|C|C|C|C|
 |D|D|D|D|D|D|D|D|
 |E|E|E|E|E|E|E|E|
+|F|F|F|F|F|F|F|F|
+|G|G|G|G|G|G|G|G|
+|G|G|G|G|G|G|G|G|
 
-total cost: 48 Bytes.
+total cost: 64 Bytes.
 ```
 
 ## 2. Queues
@@ -493,7 +534,9 @@ queue is shutting down
 
 ## 3. Priority Queue
 
-The `Priority Queue` is a queue that supports prioritized execution. It is built on top of the `Queue` and uses a `Heap` to manage the priorities of the elements. When adding an element to the queue, you can specify its priority. The elements are then sorted and executed based on their priorities.
+The `Priority Queue` is a queue that facilitates prioritized execution. It is constructed on the foundation of the `Queue` and employs a `Heap` to manage the priorities of the elements. In the `Priority Queue`, elements are sorted according to their priorities. Both `Queue` and `Heap` utilize the same element structure and storage.
+
+When you add an element to the queue, you can designate its priority. The elements are subsequently sorted and executed based on these priorities. However, if an element has a very low priority and another has a very high priority, the low priority element may never be executed. **Exercise Caution !!!**
 
 ### Configuration
 
@@ -506,13 +549,17 @@ The `Priority Queue` inherits the configuration of the `Queue`.
 The `Priority Queue` inherits the methods of the `Queue`. Additionally, it provides the following methods:
 
 -   `PutWithPriority`: Adds an element to the queue with a specified priority.
--   `Put`: Adds an element to the queue with a default priority (`math.MinInt64`).
+-   `Put`: Adds an element to the queue with a default priority (value is `0`).
 
 ### Callbacks
 
 The `Priority Queue` inherits the callbacks of the `Queue`. Additionally, it provides the following callback:
 
 -   `OnPriority`: Invoked when an element is added to the queue with a specified priority.
+
+> [!TIP]
+>
+> In the `Priority Queue`, if an element is added to the queue without a specified priority, the `OnPut` callback will not be invoked. Instead, only the `OnPriority` callback will be triggered.
 
 ### Example
 

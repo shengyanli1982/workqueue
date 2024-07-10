@@ -102,9 +102,13 @@ BenchmarkCompareWQList_InsertAfter-12        	10237197	       117.7 ns/op	      
 
 ### 1.2. 堆
 
-**裸性能**
+在 **v2.1.3** 版本之前，本项目使用 `插入排序` 算法对堆中的元素进行排序。然而，从 **v2.1.3** 版本开始，项目转向使用 `红黑树` 算法进行排序。`红黑树` 算法的时间复杂度为 `O(logn)`，在大多数情况下，它的性能优于 `插入排序` 算法。
 
-本项目使用 `插入排序` 算法对堆中的元素进行排序。在已排序的数组中，`插入排序` 算法的时间复杂度为 `O(n)`。在本项目中，使用 `list` 来存储堆中的元素。每个元素都被追加到列表的末尾，然后进行排序。
+#### 1.2.1. 插入排序算法
+
+**直接性能**
+
+项目使用 `插入排序` 算法对堆中的元素进行排序。在已排序的数组中，`插入排序` 算法的时间复杂度为 `O(n)`。在本项目中，使用 `list` 来存储堆中的元素。每个元素都被追加到列表的末尾，然后进行排序。
 
 ```bash
 $ go test -benchmem -run=^$ -bench ^BenchmarkHeap* .
@@ -119,7 +123,7 @@ BenchmarkHeap_Remove-12    	1000000000	      	1.217 ns/op	       0 B/op	       0
 
 **与标准库的比较**
 
-本项目中的堆使用 `插入排序` 算法对元素进行排序，而标准库使用 `container/heap` 包来实现堆。标准库的排序时间复杂度为 `O(nlogn)`，而本项目的排序时间复杂度为 `O(n^2)`。因此，本项目的排序速度比标准库的慢。然而，这是由于使用的算法不同，因此，直接比较可能并不公平。
+本项目的堆使用 `插入排序` 算法对元素进行排序，而标准库使用 `container/heap` 包来实现堆。标准库的排序时间复杂度为 `O(logn)`，而本项目的排序时间复杂度为 `O(n)`。因此，本项目的排序速度比标准库的慢。然而，这是由于使用的算法不同，因此，直接比较可能并不公平。
 
 > [!TIP]
 >
@@ -137,6 +141,39 @@ BenchmarkCompareWQHeap_Push-12       	  109158	    121247 ns/op	      48 B/op	  
 BenchmarkCompareWQHeap_Pop-12        	174782917	        15.10 ns/op	       0 B/op	       0 allocs/op
 ```
 
+#### 1.2.2. 红黑树算法
+
+**直接性能**
+
+本项目使用 `红黑树` 算法对堆中的元素进行排序。`红黑树` 算法的时间复杂度为 `O(logn)`。在本项目中，我们使用 `树` 来存储堆中的元素。每个元素都被添加到 `map` 中，然后进行排序。
+
+```bash
+$ go test -benchmem -run=^$ -bench ^BenchmarkHeap* .
+goos: darwin
+goarch: amd64
+pkg: github.com/shengyanli1982/workqueue/v2/internal/container/heap
+cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
+BenchmarkHeap_Push-12      	 5630415	       257.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeap_Pop-12       	16859534	       117.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeap_Remove-12    	148432172	         8.197 ns/op	       0 B/op	       0 allocs/op
+```
+
+**与标准库的比较**
+
+本项目的堆使用 `红黑树` 算法对元素进行排序，而标准库使用 `container/heap` 包来实现堆。标准库的排序时间复杂度为 `O(logn)`，而本项目的排序时间复杂度也为 `O(logn)`。因此，本项目的排序速度与标准库的相同。但是，本项目的排序更稳定，更一致。
+
+```bash
+$ go test -benchmem -run=^$ -bench ^BenchmarkCompare* .
+goos: darwin
+goarch: amd64
+pkg: github.com/shengyanli1982/workqueue/v2/internal/container/heap
+cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
+BenchmarkCompareGoStdHeap_Push-12    	 4368770	       283.3 ns/op	     110 B/op	       1 allocs/op
+BenchmarkCompareGoStdHeap_Pop-12     	 3745934	       357.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompareWQHeap_Push-12       	 4252489	       350.2 ns/op	      64 B/op	       1 allocs/op
+BenchmarkCompareWQHeap_Pop-12        	15759519	       116.7 ns/op	       0 B/op	       0 allocs/op
+```
+
 ### 结构体内存对齐
 
 本质上，内存对齐可以提高性能，减少 CPU 周期，降低功耗，增强稳定性，并确保行为的可预测性。这就是为什么在内存中对齐数据被视为最佳实践，特别是在现代的 64 位 CPU 上。
@@ -148,21 +185,25 @@ Node struct alignment:
 +----+----------------+-----------+-----------+
 | ID |   FIELDTYPE    | FIELDNAME | FIELDSIZE |
 +----+----------------+-----------+-----------+
-| A  | interface {}   | Value     | 16        |
-| B  | unsafe.Pointer | parentRef | 8         |
-| C  | int64          | Priority  | 8         |
-| D  | *list.Node     | Next      | 8         |
-| E  | *list.Node     | Prev      | 8         |
+| A  | unsafe.Pointer | parentRef | 8         |
+| B  | int64          | Priority  | 8         |
+| C  | int64          | Color     | 8         |
+| D  | *list.Node     | Left      | 8         |
+| E  | *list.Node     | Right     | 8         |
+| F  | *list.Node     | Parent    | 8         |
+| G  | interface {}   | Value     | 16        |
 +----+----------------+-----------+-----------+
 ---- Memory layout ----
-|A|A|A|A|A|A|A|A|
 |A|A|A|A|A|A|A|A|
 |B|B|B|B|B|B|B|B|
 |C|C|C|C|C|C|C|C|
 |D|D|D|D|D|D|D|D|
 |E|E|E|E|E|E|E|E|
+|F|F|F|F|F|F|F|F|
+|G|G|G|G|G|G|G|G|
+|G|G|G|G|G|G|G|G|
 
-total cost: 48 Bytes.
+total cost: 64 Bytes.
 ```
 
 ## 2. 队列性能
@@ -493,7 +534,9 @@ queue is shutting down
 
 ## 3. 优先级队列
 
-`Priority Queue` 是一种支持优先级执行的队列。它基于 `Queue` 构建，并使用 `Heap` 来管理元素的优先级。当向队列中添加元素时，可以指定其优先级。然后，元素会根据其优先级进行排序和执行。
+`Priority Queue` 是一种支持优先级执行的队列。它基于 `Queue` 并使用 `Heap` 来管理元素的优先级。在 `Priority Queue` 中，元素会根据它们的优先级进行排序。`Queue` 和 `Heap` 使用相同的元素结构和存储。
+
+当你向队列中添加一个元素时，你可以指定它的优先级。然后，元素会根据这些优先级进行排序和执行。然而，如果一个元素的优先级非常低，而另一个元素的优先级非常高，那么低优先级的元素可能永远不会被执行。**请谨慎使用！**
 
 ### 配置
 
@@ -506,13 +549,17 @@ queue is shutting down
 `Priority Queue` 继承了 `Queue` 的方法。此外，它还提供以下方法：
 
 -   `PutWithPriority`：以指定的优先级将元素添加到队列中。
--   `Put`：以默认优先级（`math.MinInt64`）将元素添加到队列中。
+-   `Put`：以默认优先级（值为：`0`）将元素添加到队列中。
 
 ### 回调
 
 `Priority Queue` 继承了 `Queue` 的回调。此外，它还提供以下回调：
 
 -   `OnPriority`：当以指定的优先级将元素添加到队列时调用。
+
+> [!TIP]
+>
+> 在 `Priority Queue` 中，如果一个元素被添加到队列中但没有指定优先级，那么 `OnPut` 回调将不会被触发。相反，只有 `OnPriority` 回调会被触发。
 
 ### 示例
 
