@@ -16,7 +16,7 @@ func BenchmarkPriorityQueue_PutWithPriority(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = q.PutWithPriority(i, int64(b.N))
+		_ = q.PutWithPriority(i, int64(i))
 	}
 }
 
@@ -49,7 +49,7 @@ func BenchmarkPriorityQueue_PutWithPriorityAndGet(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_ = q.PutWithPriority(i, int64(b.N))
+		_ = q.PutWithPriority(i, int64(i))
 		_, _ = q.Get()
 	}
 }
