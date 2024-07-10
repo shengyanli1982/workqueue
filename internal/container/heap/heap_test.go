@@ -15,14 +15,14 @@ func PrintRootIndexs(h *RBTree) {
 func PrintOrderTraversalIndexs(n *lst.Node) {
 	if n != nil {
 		PrintOrderTraversalIndexs(n.Left)
-		fmt.Printf(">> Priority: %d, value: %v, left: %v, right: %v\n", n.Priority, n.Value, n.Left, n.Right)
+		fmt.Printf(">> priority: %d, value: %v, left: %v, right: %v\n", n.Priority, n.Value, n.Left, n.Right)
 		PrintOrderTraversalIndexs(n.Right)
 	}
 }
 
 func PrintNodeIndexs(nodes []*lst.Node) {
 	for _, n := range nodes {
-		fmt.Printf("# Priority: %v\n", n.Priority)
+		fmt.Printf("# priority: %v\n", n.Priority)
 	}
 }
 
