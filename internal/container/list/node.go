@@ -5,26 +5,48 @@ import (
 	"unsafe"
 )
 
+// 定义两个常量，表示节点的颜色
+// Define two constants to represent the color of the node
+const (
+	// RED 表示红色
+	// RED represents red
+	RED = 0
+
+	// BLACK 表示黑色
+	// BLACK represents black
+	BLACK = 1
+)
+
 // Node 结构体代表一个节点，它可以存储任何类型的值，有一个优先级，以及指向前一个和后一个节点的指针。
 // Node struct represents a node that can hold a value of any type, has a priority, and pointers to the next and previous nodes.
 type Node struct {
-	// Value 是存储在节点中的值，它的类型是 interface{}，所以可以是任何类型。
-	// Value is the value stored in the node. Its type is interface{}, so it can be of any type.
-	Value interface{}
-
 	// parentRef 是一个指向父节点的指针，它的类型是 unsafe.Pointer，所以可以指向任何类型的值。
 	// parentRef is a pointer to the parent node. Its type is unsafe.Pointer, so it can point to a value of any type.
 	parentRef unsafe.Pointer
 
-	// Priority 是节点的优先级，类型为 int64。
-	// Priority is the priority of the node. Its type is int64.
+	// Priority 是节点的优先级
+	// Priority is the Priority of the node
 	Priority int64
 
-	// Next 是指向下一个节点的指针。
-	// Next is a pointer to the next node.
-	// Prev 是指向前一个节点的指针。
-	// Prev is a pointer to the previous node.
-	Next, Prev *Node
+	// Color 是节点的颜色，可以是 RED 或 BLACK
+	// Color is the Color of the node, can be RED or BLACK
+	Color int64
+
+	// Left 是节点的左子节点
+	// Left is the Left child of the node
+	Left *Node
+
+	// Right 是节点的右子节点
+	// Right is the Right child of the node
+	Right *Node
+
+	// Parent 是节点的父节点
+	// Parent is the Parent of the node
+	Parent *Node
+
+	// Value 是节点存储的值
+	// Value is the value stored in the node
+	Value interface{}
 }
 
 // Reset 方法重置节点的所有字段，将它们设置为零值。
@@ -34,18 +56,29 @@ func (n *Node) Reset() {
 	// Set parentRef to nil, indicating no parent node.
 	n.parentRef = nil
 
+	// 将 priority 设置为 0，表示节点的优先级为 0。
+	// Set priority to 0, indicating the priority of the node is 0.
+	n.Priority = 0
+
+	// 将 color 设置为 0，表示节点的颜色为 RED。
+	// Set color to 0, indicating the color of the node is RED.
+	n.Color = RED
+
+	// 将 left 设置为 nil，表示节点没有左子节点。
+	// Set left to nil, indicating the node has no left child.
+	n.Left = nil
+
+	// 将 right 设置为 nil，表示节点没有右子节点。
+	// Set right to nil, indicating the node has no right child.
+	n.Right = nil
+
+	// 将 parent 设置为 nil，表示节点没有父节点。
+	// Set parent to nil, indicating the node has no parent node.
+	n.Parent = nil
+
 	// 将 Value 设置为 nil，表示节点不存储任何值。
 	// Set Value to nil, indicating the node does not hold any value.
 	n.Value = nil
-
-	// 将 Next 和 Prev 设置为 nil，表示节点没有前一个和后一个节点。
-	// Set Next and Prev to nil, indicating the node does not have a previous and a next node.
-	n.Next = nil
-	n.Prev = nil
-
-	// 将 Priority 设置为 0，表示节点没有优先级。
-	// Set Priority to 0, indicating the node has no priority.
-	n.Priority = 0
 }
 
 // NewNode 函数创建并返回一个新的 Node 实例。

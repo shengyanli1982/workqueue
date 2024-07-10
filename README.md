@@ -102,6 +102,10 @@ BenchmarkCompareWQList_InsertAfter-12        	10237197	       117.7 ns/op	      
 
 ### 1.2. Heap
 
+Prior to version **v2.1.3**, this project utilized the `Insertion Sort` algorithm for sorting elements within the heap. However, starting from version **v2.1.3**, the project has transitioned to using the `Red Black Tree` algorithm for this purpose. The `Red-Black Tree` algorithm, with its time complexity of `O(logn)`, typically outperforms the `Insertion Sort` algorithm in most scenarios.
+
+#### 1.2.1. Insertion Sort algorithm
+
 **Direct performance**
 
 The project uses the `Insertion Sort` algorithm to sort elements in the heap. In a sorted array, the time complexity of the `Insertion Sort` algorithm is `O(n)`. In this project, a `list` is used to store the elements in the heap. Each element is appended to the end of the list and then sorted.
@@ -119,7 +123,7 @@ BenchmarkHeap_Remove-12    	1000000000	      	1.217 ns/op	       0 B/op	       0
 
 **Compare with the standard library**
 
-The heap in this project uses the `Insertion Sort` algorithm for sorting elements, while the standard library uses the `container/heap` package to implement the heap. The time complexity of the standard library's sorting is `O(nlogn)`, while the project's sorting has a time complexity of `O(n^2)`. Therefore, the project's sorting is slower than the standard library's. However, this is due to the difference in the algorithms used, and thus, a direct comparison may not be fair.
+The heap in this project uses the `Insertion Sort` algorithm for sorting elements, while the standard library uses the `container/heap` package to implement the heap. The time complexity of the standard library's sorting is `O(logn)`, while the project's sorting has a time complexity of `O(n)`. Therefore, the project's sorting is slower than the standard library's. However, this is due to the difference in the algorithms used, and thus, a direct comparison may not be fair.
 
 > [!TIP]
 >
@@ -137,6 +141,39 @@ BenchmarkCompareWQHeap_Push-12       	  109158	    121247 ns/op	      48 B/op	  
 BenchmarkCompareWQHeap_Pop-12        	174782917	        15.10 ns/op	       0 B/op	       0 allocs/op
 ```
 
+#### 1.2.2. Red-Black Tree algorithm
+
+**Direct performance**
+
+The project uses the `Red-Black Tree` algorithm to sort elements in the heap. The time complexity of the `Red-Black Tree` algorithm is `O(logn)`. In this project, a `tree` is used to store the elements in the heap. Each element is added to the `map` and then sorted.
+
+```bash
+$ go test -benchmem -run=^$ -bench ^BenchmarkHeap* .
+goos: darwin
+goarch: amd64
+pkg: github.com/shengyanli1982/workqueue/v2/internal/container/heap
+cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
+BenchmarkHeap_Push-12      	 5630415	       257.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeap_Pop-12       	16859534	       117.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHeap_Remove-12    	148432172	         8.197 ns/op	       0 B/op	       0 allocs/op
+```
+
+**Compare with the standard library**
+
+The heap in this project uses the `Red-Black Tree` algorithm for sorting elements, while the standard library uses the `container/heap` package to implement the heap. The time complexity of the standard library's sorting is `O(logn)`, while the project's sorting has a time complexity of `O(logn)`. Therefore, the project's sorting is same as the standard library's. But the project's sorting is more stable and consistent than the standard library's.
+
+```bash
+$ go test -benchmem -run=^$ -bench ^BenchmarkCompare* .
+goos: darwin
+goarch: amd64
+pkg: github.com/shengyanli1982/workqueue/v2/internal/container/heap
+cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
+BenchmarkCompareGoStdHeap_Push-12    	 4368770	       283.3 ns/op	     110 B/op	       1 allocs/op
+BenchmarkCompareGoStdHeap_Pop-12     	 3745934	       357.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCompareWQHeap_Push-12       	 4252489	       350.2 ns/op	      64 B/op	       1 allocs/op
+BenchmarkCompareWQHeap_Pop-12        	15759519	       116.7 ns/op	       0 B/op	       0 allocs/op
+```
+
 ### Struct Memory Alignment
 
 In essence, memory alignment enhances performance, minimizes CPU cycles, reduces power usage, boosts stability, and ensures predictable behavior. This is why it's considered a best practice to align data in memory, especially on contemporary 64-bit CPUs.
@@ -148,21 +185,25 @@ Node struct alignment:
 +----+----------------+-----------+-----------+
 | ID |   FIELDTYPE    | FIELDNAME | FIELDSIZE |
 +----+----------------+-----------+-----------+
-| A  | interface {}   | Value     | 16        |
-| B  | unsafe.Pointer | parentRef | 8         |
-| C  | int64          | Priority  | 8         |
-| D  | *list.Node     | Next      | 8         |
-| E  | *list.Node     | Prev      | 8         |
+| A  | unsafe.Pointer | parentRef | 8         |
+| B  | int64          | Priority  | 8         |
+| C  | int64          | Color     | 8         |
+| D  | *list.Node     | Left      | 8         |
+| E  | *list.Node     | Right     | 8         |
+| F  | *list.Node     | Parent    | 8         |
+| G  | interface {}   | Value     | 16        |
 +----+----------------+-----------+-----------+
 ---- Memory layout ----
-|A|A|A|A|A|A|A|A|
 |A|A|A|A|A|A|A|A|
 |B|B|B|B|B|B|B|B|
 |C|C|C|C|C|C|C|C|
 |D|D|D|D|D|D|D|D|
 |E|E|E|E|E|E|E|E|
+|F|F|F|F|F|F|F|F|
+|G|G|G|G|G|G|G|G|
+|G|G|G|G|G|G|G|G|
 
-total cost: 48 Bytes.
+total cost: 64 Bytes.
 ```
 
 ## 2. Queues
@@ -179,27 +220,27 @@ goos: darwin
 goarch: amd64
 pkg: github.com/shengyanli1982/workqueue/v2
 cpu: Intel(R) Xeon(R) CPU E5-2643 v2 @ 3.50GHz
-BenchmarkDelayingQueue_Put-12                         	 4172398	       304.4 ns/op	      56 B/op	       1 allocs/op
-BenchmarkDelayingQueue_PutWithDelay-12                	 2773111	       423.9 ns/op	      55 B/op	       1 allocs/op
-BenchmarkDelayingQueue_Get-12                         	26794798	        46.85 ns/op	      20 B/op	       0 allocs/op
-BenchmarkDelayingQueue_PutAndGet-12                   	17567817	        68.64 ns/op	       7 B/op	       0 allocs/op
-BenchmarkDelayingQueue_PutWithDelayAndGet-12          	 3747397	       314.9 ns/op	      19 B/op	       1 allocs/op
-BenchmarkPriorityQueue_Put-12                         	 4631265	       259.3 ns/op	      55 B/op	       1 allocs/op
-BenchmarkPriorityQueue_PutWithPriority-12             	 4797620	       259.3 ns/op	      55 B/op	       1 allocs/op
-BenchmarkPriorityQueue_Get-12                         	29222815	        43.84 ns/op	      18 B/op	       0 allocs/op
-BenchmarkPriorityQueue_PutAndGet-12                   	16933688	        69.35 ns/op	       7 B/op	       0 allocs/op
-BenchmarkPriorityQueue_PutWithPriorityAndGet-12       	17161538	        70.61 ns/op	       7 B/op	       0 allocs/op
-BenchmarkQueue_Put-12                                 	 5023969	       248.2 ns/op	      55 B/op	       1 allocs/op
-BenchmarkQueue_Get-12                                 	31441930	        40.20 ns/op	      17 B/op	       0 allocs/op
-BenchmarkQueue_PutAndGet-12                           	18027499	        64.72 ns/op	       7 B/op	       0 allocs/op
-BenchmarkQueue_Idempotent_Put-12                      	 1820281	       687.5 ns/op	     158 B/op	       3 allocs/op
-BenchmarkQueue_Idempotent_Get-12                      	 2640146	       474.4 ns/op	      93 B/op	       0 allocs/op
-BenchmarkQueue_Idempotent_PutAndGet-12                	 2825148	       438.6 ns/op	      69 B/op	       1 allocs/op
-BenchmarkRateLimitingQueue_Put-12                     	 4836130	       256.6 ns/op	      56 B/op	       1 allocs/op
-BenchmarkRateLimitingQueue_PutWithLimited-12          	 1000000	     13557 ns/op	     120 B/op	       2 allocs/op
-BenchmarkRateLimitingQueue_Get-12                     	28820907	        44.27 ns/op	      18 B/op	       0 allocs/op
-BenchmarkRateLimitingQueue_PutAndGet-12               	16928090	        74.94 ns/op	       7 B/op	       0 allocs/op
-BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12    	 1000000	     16531 ns/op	      77 B/op	       2 allocs/op
+BenchmarkDelayingQueue_Put-12                             4635976           255.6 ns/op        72 B/op          1 allocs/op
+BenchmarkDelayingQueue_PutWithDelay-12                    1635588           784.7 ns/op        71 B/op          1 allocs/op
+BenchmarkDelayingQueue_Get-12                            24795136            47.53 ns/op       21 B/op          0 allocs/op
+BenchmarkDelayingQueue_PutAndGet-12                      15995890            75.25 ns/op        7 B/op          0 allocs/op
+BenchmarkDelayingQueue_PutWithDelayAndGet-12              1731825           664.3 ns/op        29 B/op          1 allocs/op
+BenchmarkPriorityQueue_Put-12                             3030818           433.5 ns/op        71 B/op          1 allocs/op
+BenchmarkPriorityQueue_PutWithPriority-12                 2937105           452.0 ns/op        71 B/op          1 allocs/op
+BenchmarkPriorityQueue_Get-12                            11245106           134.3 ns/op        23 B/op          0 allocs/op
+BenchmarkPriorityQueue_PutAndGet-12                      12962031            92.24 ns/op        7 B/op          0 allocs/op
+BenchmarkPriorityQueue_PutWithPriorityAndGet-12          14543769            83.70 ns/op        7 B/op          0 allocs/op
+BenchmarkQueue_Put-12                                     6102608           206.1 ns/op        71 B/op          1 allocs/op
+BenchmarkQueue_Get-12                                    30304675            45.30 ns/op       17 B/op          0 allocs/op
+BenchmarkQueue_PutAndGet-12                              17171174            71.83 ns/op        7 B/op          0 allocs/op
+BenchmarkQueue_Idempotent_Put-12                          1573570           706.9 ns/op       136 B/op          3 allocs/op
+BenchmarkQueue_Idempotent_Get-12                          2275533           534.4 ns/op       105 B/op          0 allocs/op
+BenchmarkQueue_Idempotent_PutAndGet-12                    2551188           494.5 ns/op        75 B/op          1 allocs/op
+BenchmarkRateLimitingQueue_Put-12                         5852602           214.0 ns/op        71 B/op          1 allocs/op
+BenchmarkRateLimitingQueue_PutWithLimited-12              1412991           852.6 ns/op       135 B/op          2 allocs/op
+BenchmarkRateLimitingQueue_Get-12                        28186063            49.60 ns/op       19 B/op          0 allocs/op
+BenchmarkRateLimitingQueue_PutAndGet-12                  15600679            75.69 ns/op        7 B/op          0 allocs/op
+BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12        1395084           855.5 ns/op       135 B/op          2 allocs/op
 ```
 
 # Quick Start
@@ -216,7 +257,7 @@ The `dirty` set contains items that have been added to the queue but have not ye
 >
 > If you create a new queue with the `WithValueIdempotent` configuration, the queue will automatically remove duplicate items. This means that if you put the same item into the queue, the queue will only keep one instance of that item.
 >
-> However, this value (`PutXXX functions param`) refers to an object that can be hashed by the `map` in the `Go` standard library. If the object cannot be hashed, such as pointers or slices, the program may throw an error.
+> However, the parameter for `PutXXX` functions should refer to an object that can be hashed by the `map` in the `Go` standard library. If the object cannot be hashed, such as pointers or slices, the program may throw an error. To solve this problem, you can use `WithSetCreator` to create a custom set which can handle these objects.
 
 ### Config
 
@@ -224,6 +265,7 @@ The `Queue` has several configuration options that can be set when creating a qu
 
 -   `WithCallback`: Sets callback functions.
 -   `WithValueIdempotent`: Enables item idempotency for the queue.
+-   `WithSetCreator`: Sets the creator function for the queue's internal set.
 
 ### Methods
 
@@ -354,7 +396,7 @@ The `Delaying Queue` is a queue that supports delayed execution. It builds upon 
 
 > [!TIP]
 >
-> When the `Delaying Queue` is empty in the `Heap` or the first element is not due, it will wait every `heartbeat` time for an element in the `Heap` that can be processed. This means that there may be a slight deviation in the actual delay time of the element. The actual delay time is the **"element delay time + 300ms"**.
+> When the `Delaying Queue` is empty in the `Heap` or the first element is not due, it will wait every `heartbeat` time for an element in the `Heap` that can be processed. This means that there may be a slight deviation in the actual delay time of the element. The actual mini delay time is the **"element delay time + 300ms"**.
 >
 > If precise timing is important for your project, you may consider using the `kairos` project I wrote.
 
@@ -492,7 +534,9 @@ queue is shutting down
 
 ## 3. Priority Queue
 
-The `Priority Queue` is a queue that supports prioritized execution. It is built on top of the `Queue` and uses a `Heap` to manage the priorities of the elements. When adding an element to the queue, you can specify its priority. The elements are then sorted and executed based on their priorities.
+The `Priority Queue` is a queue that facilitates prioritized execution. It is constructed on the foundation of the `Queue` and employs a `Heap` to manage the priorities of the elements. In the `Priority Queue`, elements are sorted according to their priorities. Both `Queue` and `Heap` utilize the same element structure and storage.
+
+When you add an element to the queue, you can designate its priority. The elements are subsequently sorted and executed based on these priorities. However, if an element has a very low priority and another has a very high priority, the low priority element may never be executed. **Exercise Caution !!!**
 
 ### Configuration
 
@@ -505,13 +549,17 @@ The `Priority Queue` inherits the configuration of the `Queue`.
 The `Priority Queue` inherits the methods of the `Queue`. Additionally, it provides the following methods:
 
 -   `PutWithPriority`: Adds an element to the queue with a specified priority.
--   `Put`: Adds an element to the queue with a default priority (`math.MinInt64`).
+-   `Put`: Adds an element to the queue with a default priority (value is `0`).
 
 ### Callbacks
 
 The `Priority Queue` inherits the callbacks of the `Queue`. Additionally, it provides the following callback:
 
 -   `OnPriority`: Invoked when an element is added to the queue with a specified priority.
+
+> [!TIP]
+>
+> Note that in the `Priority Queue`, when an element is added, the `OnPut` callback is not triggered. Instead, the `OnPriority` callback is exclusively invoked.
 
 ### Example
 

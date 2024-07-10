@@ -1,6 +1,11 @@
 package workqueue
 
-import "time"
+import (
+	"time"
+
+	hp "github.com/shengyanli1982/workqueue/v2/internal/container/heap"
+	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
+)
 
 // Queue 接口定义了一个队列应该具备的基本操作。
 // The Queue interface defines the basic operations that a queue should have.
@@ -60,6 +65,10 @@ type PriorityQueue = interface {
 	// PutWithPriority 方法用于将元素按优先级放入队列。
 	// The PutWithPriority method is used to put an element into the queue with priority.
 	PutWithPriority(value interface{}, priority int64) error
+
+	// HeapRange 方法用于遍历 sorted 堆中的所有元素。
+	// The HeapRange method is used to traverse all elements in the sorted heap.
+	HeapRange(fn func(value interface{}, delay int64) bool)
 }
 
 // RateLimitingQueue 接口继承了 DelayingQueue 接口，并添加了一个 PutWithLimited 方法，用于将元素按速率限制放入队列。
@@ -128,4 +137,100 @@ type Limiter = interface {
 	// When 方法用于获取元素应该被放入队列的时间。
 	// The When method is used to get the time when the element should be put into the queue.
 	When(value interface{}) time.Duration
+}
+
+// Set 是一个接口，定义了一组方法，用于操作集合
+// Set is an interface that defines a set of methods for operating on a set
+type Set = interface {
+	// Add 方法用于向集合中添加一个元素
+	// The Add method is used to add an element to the set
+	Add(item interface{})
+
+	// Remove 方法用于从集合中移除一个元素
+	// The Remove method is used to remove an element from the set
+	Remove(item interface{})
+
+	// Contains 方法用于检查集合中是否包含一个元素，如果包含则返回 true，否则返回 false
+	// The Contains method is used to check whether an element is in the set. If it is, true is returned; otherwise, false is returned
+	Contains(item interface{}) bool
+
+	// List 方法用于返回集合中所有元素的列表
+	// The List method is used to return a list of all elements in the set
+	List() []interface{}
+
+	// Len 方法用于返回集合中元素的数量
+	// The Len method is used to return the number of elements in the set
+	Len() int
+
+	// Cleanup 方法用于清理集合，移除所有元素
+	// The Cleanup method is used to clean up the set, removing all elements
+	Cleanup()
+}
+
+// elementStorage 是一个接口，定义了一组操作列表的方法
+// elementStorage is an interface that defines a set of methods for operating on lists
+type elementStorage = interface {
+	// Push 方法用于向列表中添加一个元素
+	// The Push method is used to add an element to the list
+	Push(value interface{})
+
+	// Pop 方法用于从列表中弹出一个元素
+	// The Pop method is used to pop an element from the list
+	Pop() interface{}
+
+	// Slice 方法用于将列表转换为切片
+	// The Slice method is used to convert the list to a slice
+	Slice() []interface{}
+
+	// Range 方法用于遍历列表中的所有元素
+	// The Range method is used to traverse all elements in the list
+	Range(fn func(value interface{}) bool)
+
+	// Len 方法用于获取列表的长度
+	// The Len method is used to get the length of the list
+	Len() int64
+
+	// Cleanup 方法用于清理列表
+	// The Cleanup method is used to clean up the list
+	Cleanup()
+}
+
+// wrapInternalList 结构体用于包装内部的 List
+// The wrapInternalList struct is used to wrap the internal List
+type wrapInternalList struct {
+	*lst.List
+}
+
+// Push 方法用于向 WrapInternalList 中添加一个元素
+// The Push method is used to add an element to the WrapInternalList
+func (sl *wrapInternalList) Push(value interface{}) { sl.List.PushBack(value.(*lst.Node)) }
+
+// Pop 方法用于从 WrapInternalList 中弹出一个元素
+// The Pop method is used to pop an element from the WrapInternalList
+func (sl *wrapInternalList) Pop() interface{} { return sl.List.PopFront() }
+
+// Range 方法用于遍历 WrapInternalList 中的所有元素
+// The Range method is used to traverse all elements in the WrapInternalList
+func (sl *wrapInternalList) Range(fn func(value interface{}) bool) {
+	sl.List.Range(func(node *lst.Node) bool { return fn(node) })
+}
+
+// wrapInternalHeap 结构体用于包装内部的 RBTree
+// The wrapInternalHeap struct is used to wrap the internal RBTree
+type wrapInternalHeap struct {
+	*hp.RBTree
+}
+
+// Push 方法用于向 WrapInternalHeap 中添加一个元素
+// The Push method is used to add an element to the WrapInternalHeap
+func (sh *wrapInternalHeap) Push(value interface{}) { sh.RBTree.Push(value.(*lst.Node)) }
+
+// Pop 方法用于从 WrapInternalHeap 中弹出一个元素
+// The Pop method is used to pop an element from the WrapInternalHeap
+func (sh *wrapInternalHeap) Pop() interface{} { return sh.RBTree.Pop() }
+
+// Range 方法用于遍历 WrapInternalHeap 中的所有元素
+// The Range method is used to traverse all elements in the WrapInternalHeap
+func (sh *wrapInternalHeap) Range(fn func(value interface{}) bool) {
+	sh.RBTree.Range(func(node *lst.Node) bool { return fn(node) })
 }
