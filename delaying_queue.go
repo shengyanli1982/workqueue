@@ -262,3 +262,23 @@ func (q *delayingQueueImpl) HeapRange(fn func(value interface{}, delay int64) bo
 	// Unlock
 	q.lock.Unlock()
 }
+
+// Len 方法用于获取 DelayingQueue 中的元素数量。
+// The Len method is used to get the number of elements in the DelayingQueue.
+func (q *delayingQueueImpl) Len() (count int) {
+	// 加锁以保证线程安全
+	// Lock to ensure thread safety
+	q.lock.Lock()
+
+	// 获取队列长度
+	// Get the queue length
+	count = int(q.sorting.Len() + q.Queue.(*queueImpl).list.Len())
+
+	// 解锁
+	// Unlock
+	q.lock.Unlock()
+
+	// 返回队列长度
+	// Return the queue length
+	return
+}
