@@ -1,6 +1,11 @@
 package workqueue
 
-import "time"
+import (
+	"time"
+
+	hp "github.com/shengyanli1982/workqueue/v2/internal/container/heap"
+	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
+)
 
 // Queue 接口定义了一个队列应该具备的基本操作。
 // The Queue interface defines the basic operations that a queue should have.
@@ -156,4 +161,72 @@ type Set = interface {
 	// Cleanup 方法用于清理集合，移除所有元素
 	// The Cleanup method is used to clean up the set, removing all elements
 	Cleanup()
+}
+
+// elementStorage 是一个接口，定义了一组操作列表的方法
+// elementStorage is an interface that defines a set of methods for operating on lists
+type elementStorage = interface {
+	// Push 方法用于向列表中添加一个元素
+	// The Push method is used to add an element to the list
+	Push(value interface{})
+
+	// Pop 方法用于从列表中弹出一个元素
+	// The Pop method is used to pop an element from the list
+	Pop() interface{}
+
+	// Slice 方法用于将列表转换为切片
+	// The Slice method is used to convert the list to a slice
+	Slice() []interface{}
+
+	// Range 方法用于遍历列表中的所有元素
+	// The Range method is used to traverse all elements in the list
+	Range(fn func(value interface{}) bool)
+
+	// Len 方法用于获取列表的长度
+	// The Len method is used to get the length of the list
+	Len() int64
+
+	// Cleanup 方法用于清理列表
+	// The Cleanup method is used to clean up the list
+	Cleanup()
+}
+
+// wrapInternalList 结构体用于包装内部的 List
+// The wrapInternalList struct is used to wrap the internal List
+type wrapInternalList struct {
+	*lst.List
+}
+
+// Push 方法用于向 WrapInternalList 中添加一个元素
+// The Push method is used to add an element to the WrapInternalList
+func (sl *wrapInternalList) Push(value interface{}) { sl.List.PushBack(value.(*lst.Node)) }
+
+// Pop 方法用于从 WrapInternalList 中弹出一个元素
+// The Pop method is used to pop an element from the WrapInternalList
+func (sl *wrapInternalList) Pop() interface{} { return sl.List.PopFront() }
+
+// Range 方法用于遍历 WrapInternalList 中的所有元素
+// The Range method is used to traverse all elements in the WrapInternalList
+func (sl *wrapInternalList) Range(fn func(value interface{}) bool) {
+	sl.List.Range(func(node *lst.Node) bool { return fn(node) })
+}
+
+// wrapInternalHeap 结构体用于包装内部的 RBTree
+// The wrapInternalHeap struct is used to wrap the internal RBTree
+type wrapInternalHeap struct {
+	*hp.RBTree
+}
+
+// Push 方法用于向 WrapInternalHeap 中添加一个元素
+// The Push method is used to add an element to the WrapInternalHeap
+func (sh *wrapInternalHeap) Push(value interface{}) { sh.RBTree.Push(value.(*lst.Node)) }
+
+// Pop 方法用于从 WrapInternalHeap 中弹出一个元素
+// The Pop method is used to pop an element from the WrapInternalHeap
+func (sh *wrapInternalHeap) Pop() interface{} { return sh.RBTree.Pop() }
+
+// Range 方法用于遍历 WrapInternalHeap 中的所有元素
+// The Range method is used to traverse all elements in the WrapInternalHeap
+func (sh *wrapInternalHeap) Range(fn func(value interface{}) bool) {
+	sh.RBTree.Range(func(node *lst.Node) bool { return fn(node) })
 }

@@ -31,7 +31,7 @@ func TestPriorityQueueImpl_PutWithPriority(t *testing.T) {
 
 	// Verify the queue state
 	assert.Equal(t, 5, q.Len(), "Queue length should be 5")
-	assert.Equal(t, []interface{}{"test5", "test4", "test1", "test2", "test3"}, q.Values(), "Queue values should be [test5 test4 test1 test2 test3]")
+	assert.Equal(t, []interface{}{"test4", "test5", "test1", "test2", "test3"}, q.Values(), "Queue values should be [test4 test5 test1 test2 test3]")
 }
 
 func TestPriorityQueueImpl_PutWithPriority_Closed(t *testing.T) {
@@ -118,16 +118,16 @@ func TestPriorityQueueImpl_Callback(t *testing.T) {
 	// Get content from queue
 	v, err := q.Get()
 	assert.NoError(t, err, "Get should not return an error")
-	assert.Equal(t, "test4", v, "Get value should be test1")
+	assert.Equal(t, "test3", v, "Get value should be test3")
 
 	// Done content from queue
 	q.Done(v)
 
 	// Verify the callback
-	assert.Equal(t, []interface{}{"test4"}, callback.puts, "Callback puts should be [test4]")
-	assert.Equal(t, []interface{}{"test4"}, callback.gets, "Callback gets should be [test4]")
-	assert.Equal(t, []interface{}{"test4"}, callback.dones, "Callback dones should be [test4]")
-	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, callback.priorities, "Callback priorities should be [test3, test1, test2]")
+	assert.Nil(t, callback.puts, "Callback puts should be nil")
+	assert.Equal(t, []interface{}{"test3"}, callback.gets, "Callback gets should be [test3]")
+	assert.Equal(t, []interface{}{"test3"}, callback.dones, "Callback dones should be [test3]")
+	assert.Equal(t, []interface{}{"test1", "test2", "test3", "test4"}, callback.priorities, "Callback priorities should be [test1 test2 test3 test4]")
 }
 
 func TestPriorityQueueImpl_Shutdown(t *testing.T) {

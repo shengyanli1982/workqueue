@@ -16,7 +16,7 @@ type queueImpl struct {
 
 	// list 是队列的元素列表。
 	// list is the list of elements in the queue.
-	list *lst.List
+	list elementStorage
 
 	// elementpool 是元素的内存池。
 	// elementpool is the memory pool of elements.
@@ -42,12 +42,12 @@ type queueImpl struct {
 // NewQueue 函数创建并返回一个新的 QueueImpl 实例。
 // The NewQueue function creates and returns a new instance of QueueImpl.
 func NewQueue(config *QueueConfig) Queue {
-	return newQueue(lst.New(), lst.NewNodePool(), config)
+	return newQueue(&wrapInternalList{List: lst.New()}, lst.NewNodePool(), config)
 }
 
 // newQueue 函数创建并返回一个新的 QueueImpl 实例，它接受一个元素列表、一个元素内存池和一个队列配置作为参数。
 // The newQueue function creates and returns a new instance of QueueImpl, it takes a list of elements, a memory pool of elements, and a queue configuration as parameters.
-func newQueue(list *lst.List, elementpool *lst.NodePool, config *QueueConfig) *queueImpl {
+func newQueue(list elementStorage, elementpool *lst.NodePool, config *QueueConfig) *queueImpl {
 	// 创建一个新的 QueueImpl 实例
 	// Create a new instance of QueueImpl
 	q := &queueImpl{
@@ -109,8 +109,8 @@ func (q *queueImpl) Shutdown() {
 
 		// 遍历队列中的所有元素，将它们放回元素内存池
 		// Traverse all the elements in the queue and put them back into the element memory pool
-		q.list.Range(func(n *lst.Node) bool {
-			q.elementpool.Put(n)
+		q.list.Range(func(value interface{}) bool {
+			q.elementpool.Put(value.(*lst.Node))
 			return true
 		})
 
@@ -188,10 +188,10 @@ func (q *queueImpl) Range(fn func(interface{}) bool) {
 
 	// 遍历队列中的所有元素
 	// Traverse all elements in the queue
-	q.list.Range(func(n *lst.Node) bool {
+	q.list.Range(func(value interface{}) bool {
 		// 调用回调函数处理元素
 		// Call the callback function to process the element
-		return fn(n.Value)
+		return fn(value.(*lst.Node).Value)
 	})
 
 	// 解锁
@@ -234,7 +234,7 @@ func (q *queueImpl) Put(value interface{}) error {
 
 	// 将元素放入队列的后端
 	// Put the element into the back of the queue
-	q.list.PushBack(last)
+	q.list.Push(last)
 
 	// 如果队列配置为幂等的，将元素添加到脏元素集合
 	// If the queue is configured as idempotent, add the element to the set of dirty elements
@@ -277,7 +277,7 @@ func (q *queueImpl) Get() (interface{}, error) {
 
 	// 从队列的前端弹出一个元素
 	// Pop an element from the front of the queue
-	front := q.list.PopFront()
+	front := q.list.Pop().(*lst.Node)
 
 	// 获取元素的值
 	// Get the value of the element
@@ -316,11 +316,20 @@ func (q *queueImpl) Done(value interface{}) {
 		return
 	}
 
-	// 如果队列配置为幂等的，从正在处理的元素集合中移除该元素 (锁保护)
-	// If the queue is configured as idempotent, remove the element from the set of elements being processed (lock protection)
+	// 如果队列是幂等的
+	// If the queue is idempotent
 	if q.config.idempotent {
+
+		// 加锁以保护队列的状态
+		// Lock to protect the state of the queue
 		q.lock.Lock()
+
+		// 从正在处理的元素集合中移除该元素
+		// Remove the element from the set of processing elements
 		q.processing.Remove(value)
+
+		// 解锁
+		// Unlock
 		q.lock.Unlock()
 	}
 
@@ -332,10 +341,16 @@ func (q *queueImpl) Done(value interface{}) {
 // isElementMarked 方法用于检查一个元素是否被标记为脏或正在处理。
 // The isElementMarked method is used to check if an element is marked as dirty or being processed.
 func (q *queueImpl) isElementMarked(value interface{}) (result bool) {
-	// 检查元素是否在脏元素集合或正在处理的元素集合中 (锁保护)
-	// Check if the element is in the set of dirty elements or the set of elements being processed (lock protection)
+	// 加锁以保护队列的状态
+	// Lock to protect the state of the queue
 	q.lock.Lock()
+
+	// 检查元素是否在脏元素集合或正在处理的元素集合中
+	// Check if the element is in the set of dirty elements or the set of processing elements
 	result = q.dirty.Contains(value) || q.processing.Contains(value)
+
+	// 解锁
+	// Unlock
 	q.lock.Unlock()
 
 	// 返回检查结果

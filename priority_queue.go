@@ -8,9 +8,27 @@ import (
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 )
 
-// 定义最小优先级常量，值为 math.MinInt64
-// Define the minimum priority constant, the value is math.MinInt64
-const MINI_PRIORITY = math.MinInt64
+const (
+	// PRIORITY_SLOWEST 定义了最慢的优先级，值为最大的 int64
+	// PRIORITY_SLOWEST defines the slowest priority, which is the maximum int64
+	PRIORITY_SLOWEST = math.MaxInt64
+
+	// PRIORITY_LOW 定义了低优先级，值为最大的 int32
+	// PRIORITY_LOW defines low priority, which is the maximum int32
+	PRIORITY_LOW = math.MaxInt32
+
+	// PRIORITY_NORMAL 定义了正常优先级，值为 0
+	// PRIORITY_NORMAL defines normal priority, which is 0
+	PRIORITY_NORMAL = 0
+
+	// PRIORITY_HIGH 定义了高优先级，值为最小的 int32
+	// PRIORITY_HIGH defines high priority, which is the minimum int32
+	PRIORITY_HIGH = math.MinInt32
+
+	// PRIORITY_FASTEST 定义了最快的优先级，值为最小的 int64
+	// PRIORITY_FASTEST defines the fastest priority, which is the minimum int64
+	PRIORITY_FASTEST = math.MinInt64
+)
 
 // priorityQueueImpl 结构体，实现了 PriorityQueue 接口
 // The priorityQueueImpl struct, which implements the PriorityQueue interface
@@ -25,7 +43,7 @@ type priorityQueueImpl struct {
 
 	// sorting 是一个堆结构，用于存储和排序队列元素
 	// sorting is a heap structure for storing and sorting queue elements
-	sorting *hp.Heap
+	sorting *hp.RBTree
 
 	// elementpool 是一个节点池，用于存储队列元素，减少内存分配
 	// elementpool is a node pool for storing queue elements, reducing memory allocation
@@ -61,7 +79,7 @@ func NewPriorityQueue(config *PriorityQueueConfig) PriorityQueue {
 
 	// 使用 newQueue 创建一个新的队列，并将其赋值给 q.Queue
 	// Use newQueue to create a new queue, and assign it to q.Queue
-	q.Queue = newQueue(q.sorting.GetList(), q.elementpool, &config.QueueConfig)
+	q.Queue = newQueue(&wrapInternalHeap{RBTree: q.sorting}, q.elementpool, &config.QueueConfig)
 
 	// 将 q.Queue 的锁赋值给 q.lock
 	// Assign the lock of q.Queue to q.lock
@@ -79,7 +97,7 @@ func (q *priorityQueueImpl) Shutdown() { q.Queue.Shutdown() }
 // Put 方法用于将一个元素放入 PriorityQueue，元素的优先级为最小优先级。
 // The Put method is used to put an element into the PriorityQueue, and the priority of the element is the minimum priority.
 func (q *priorityQueueImpl) Put(value interface{}) error {
-	return q.PutWithPriority(value, MINI_PRIORITY)
+	return q.PutWithPriority(value, PRIORITY_NORMAL)
 }
 
 // PutWithPriority 方法用于将一个元素放入 PriorityQueue，并设置其优先级。
@@ -121,17 +139,9 @@ func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) e
 	// Unlock
 	q.lock.Unlock()
 
-	// 如果优先级大于最小优先级
-	// If the priority is greater than the minimum priority
-	if priority > MINI_PRIORITY {
-		// 调用回调函数，通知元素已被放入并设置了优先级
-		// Call the callback function to notify that the element has been put and the priority has been set
-		q.config.callback.OnPriority(value, priority)
-	} else {
-		// 否则，调用回调函数，通知元素已被放入
-		// Otherwise, call the callback function to notify that the element has been put
-		q.config.QueueConfig.callback.OnPut(value)
-	}
+	// 调用回调函数，通知已经按照 priority 添加了 value 值的元素
+	// Call the callback function to notify that an element with the value of value has been added according to priority
+	q.config.callback.OnPriority(value, priority)
 
 	// 返回 nil 错误
 	// Return a nil error
