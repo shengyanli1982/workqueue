@@ -27,12 +27,12 @@ type delayingQueueImpl struct {
 	// config is the configuration of the queue
 	config *DelayingQueueConfig
 
-	// sorting 是一个堆，用于排序队列中的元素
-	// sorting is a heap, used to sort the elements in the queue
-	sorting *hp.Heap
+	// sorting 是一个堆结构，用于存储和排序红黑树
+	// sorting is a heap structure for storing and sorting red-black trees
+	sorting *hp.RBTree
 
-	// elementpool 是元素内存池，用于存储队列中的元素
-	// elementpool is the element memory pool, used to store the elements in the queue
+	// elementpool 是一个节点池，用于存储元素，减少内存分配
+	// elementpool is a node pool for storing elements, reducing memory allocation
 	elementpool *lst.NodePool
 
 	// lock 是一个互斥锁，用于保护队列的并发操作
@@ -81,7 +81,7 @@ func NewDelayingQueue(config *DelayingQueueConfig) DelayingQueue {
 
 	// 使用 lst.New 创建一个新的队列，并将其赋值给 q.Queue
 	// Use lst.New to create a new queue, and assign it to q.Queue
-	q.Queue = newQueue(lst.New(), q.elementpool, &config.QueueConfig)
+	q.Queue = newQueue(&wrapInternalList{List: lst.New()}, q.elementpool, &config.QueueConfig)
 
 	// 将 q.Queue 的锁赋值给 q.lock
 	// Assign the lock of q.Queue to q.lock

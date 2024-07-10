@@ -41,12 +41,12 @@ type priorityQueueImpl struct {
 	// config is the configuration of PriorityQueue
 	config *PriorityQueueConfig
 
-	// sorting 是一个堆结构，用于存储和排序队列元素
-	// sorting is a heap structure for storing and sorting queue elements
+	// sorting 是一个堆结构，用于存储和排序红黑树
+	// sorting is a heap structure for storing and sorting red-black trees
 	sorting *hp.RBTree
 
-	// elementpool 是一个节点池，用于存储队列元素，减少内存分配
-	// elementpool is a node pool for storing queue elements, reducing memory allocation
+	// elementpool 是一个节点池，用于存储元素，减少内存分配
+	// elementpool is a node pool for storing elements, reducing memory allocation
 	elementpool *lst.NodePool
 
 	// lock 是一个互斥锁，用于保护队列操作的并发安全
