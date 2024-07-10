@@ -559,7 +559,7 @@ The `Priority Queue` inherits the callbacks of the `Queue`. Additionally, it pro
 
 > [!TIP]
 >
-> In the `Priority Queue`, if an element is added to the queue without a specified priority, the `OnPut` callback will not be invoked. Instead, only the `OnPriority` callback will be triggered.
+> Note that in the `Priority Queue`, when an element is added, the `OnPut` callback is not triggered. Instead, the `OnPriority` callback is exclusively invoked.
 
 ### Example
 

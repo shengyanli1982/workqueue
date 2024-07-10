@@ -559,7 +559,7 @@ queue is shutting down
 
 > [!TIP]
 >
-> 在 `Priority Queue` 中，如果一个元素被添加到队列中但没有指定优先级，那么 `OnPut` 回调将不会被触发。相反，只有 `OnPriority` 回调会被触发。
+> 请注意，在 `Priority Queue` 中，当添加一个元素时，`OnPut` 回调不会被触发。相反，只有 `OnPriority` 回调会被专门调用。
 
 ### 示例
 
