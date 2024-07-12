@@ -147,7 +147,7 @@ func rightRotate(tree *RBTree, node *lst.Node) {
 func insertFixUp(tree *RBTree, node *lst.Node) {
 
 	// 当 node 的父节点不为空且颜色为红色时，进行循环
-	// Loop when the parent of node is not nil and its color is lst.RED
+	// Loop when the parent of node is not nil and its color is RED
 	for node.Parent != nil && node.Parent.Color == lst.RED {
 
 		// 如果 node 的父节点是其父父节点的左子节点
@@ -159,7 +159,7 @@ func insertFixUp(tree *RBTree, node *lst.Node) {
 			uncle := node.Parent.Parent.Right
 
 			// 如果叔叔节点不为空且颜色为红色
-			// If the uncle node is not nil and its color is lst.RED
+			// If the uncle node is not nil and its color is RED
 			if uncle != nil && uncle.Color == lst.RED {
 
 				// 将 node 的父节点和叔叔节点的颜色都设置为黑色
@@ -212,7 +212,7 @@ func insertFixUp(tree *RBTree, node *lst.Node) {
 			uncle := node.Parent.Parent.Left
 
 			// 如果叔叔节点不为空且颜色为红色
-			// If the uncle node is not nil and its color is lst.RED
+			// If the uncle node is not nil and its color is RED
 			if uncle != nil && uncle.Color == lst.RED {
 
 				// 将 node 的父节点和叔叔节点的颜色都设置为黑色
@@ -377,7 +377,7 @@ func (tree *RBTree) insert(node *lst.Node) {
 func deleteFixUp(tree *RBTree, node *lst.Node) {
 
 	// 当 node 不是树根且颜色为黑色时，进行循环
-	// Loop when node is not the root and its color is lst.BLACK
+	// Loop when node is not the root and its color is BLACK
 	for node != tree.root && (node == nil || node.Color == lst.BLACK) {
 
 		// 如果 node 不为空且有父节点且是其父节点的左子节点
@@ -389,7 +389,7 @@ func deleteFixUp(tree *RBTree, node *lst.Node) {
 			sibling := node.Parent.Right
 
 			// 如果兄弟节点的颜色为红色
-			// If the color of the sibling node is lst.RED
+			// If the color of the sibling node is RED
 			if sibling.Color == lst.RED {
 
 				// 将兄弟节点的颜色设置为黑色
@@ -411,7 +411,7 @@ func deleteFixUp(tree *RBTree, node *lst.Node) {
 			}
 
 			// 如果兄弟节点的左子节点为空或颜色为黑色且右子节点为空或颜色为黑色
-			// If the left child of the sibling node is nil or lst.BLACK and the right child is nil or lst.BLACK
+			// If the left child of the sibling node is nil or BLACK and the right child is nil or BLACK
 			if (sibling.Left == nil || sibling.Left.Color == lst.BLACK) && (sibling.Right == nil || sibling.Right.Color == lst.BLACK) {
 
 				// 将兄弟节点的颜色设置为红色
@@ -425,7 +425,7 @@ func deleteFixUp(tree *RBTree, node *lst.Node) {
 			} else {
 
 				// 如果兄弟节点的右子节点为空或颜色为黑色
-				// If the right child of the sibling node is nil or lst.BLACK
+				// If the right child of the sibling node is nil or BLACK
 				if sibling.Right == nil || sibling.Right.Color == lst.BLACK {
 
 					// 如果兄弟节点的左子节点不为空
@@ -487,7 +487,7 @@ func deleteFixUp(tree *RBTree, node *lst.Node) {
 			sibling := node.Parent.Left
 
 			// 如果兄弟节点的颜色为红色
-			// If the color of the sibling node is lst.RED
+			// If the color of the sibling node is RED
 			if sibling.Color == lst.RED {
 
 				// 将兄弟节点的颜色设置为黑色
@@ -509,7 +509,7 @@ func deleteFixUp(tree *RBTree, node *lst.Node) {
 			}
 
 			// 如果兄弟节点的左子节点为空或颜色为黑色且右子节点为空或颜色为黑色
-			// If the left child of the sibling node is nil or lst.BLACK and the right child is nil or lst.BLACK
+			// If the left child of the sibling node is nil or BLACK and the right child is nil or BLACK
 			if (sibling.Left == nil || sibling.Left.Color == lst.BLACK) && (sibling.Right == nil || sibling.Right.Color == lst.BLACK) {
 
 				// 将兄弟节点的颜色设置为红色

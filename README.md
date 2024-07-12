@@ -145,7 +145,7 @@ BenchmarkCompareWQHeap_Pop-12        	174782917	        15.10 ns/op	       0 B/o
 
 **Direct performance**
 
-The project uses the `Red-Black Tree` algorithm to sort elements in the heap. The time complexity of the `Red-Black Tree` algorithm is `O(logn)`. In this project, a `tree` is used to store the elements in the heap. Each element is added to the `map` and then sorted.
+The project uses the `Red-Black Tree` algorithm to sort elements in the heap. The time complexity of the `Red-Black Tree` algorithm is `O(logn)`. In this project, a `tree` is used to store the elements in the heap. Each element is added to the `tree` and then sorted.
 
 ```bash
 $ go test -benchmem -run=^$ -bench ^BenchmarkHeap* .
