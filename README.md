@@ -44,7 +44,7 @@ Choosing WorkQueue(v2) for your application or project could be a great decision
 
 Following the redesign, the architecture UML diagram for WorkQueue(v2) is shown below:
 
-![architecture](./assets/architecture.svg)
+![architecture](./assets/architecture.png)
 
 # Benchmark
 

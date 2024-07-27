@@ -44,7 +44,7 @@ WorkQueue(v2) 的开发受到了用户反馈和实际使用的深刻影响，从
 
 在重新设计后，WorkQueue(v2) 的架构 UML 图如下所示：
 
-![architecture](./assets/architecture.svg)
+![architecture](./assets/architecture.png)
 
 # 性能测试
 
