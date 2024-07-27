@@ -40,11 +40,11 @@ WorkQueue(v2) 的开发受到了用户反馈和实际使用的深刻影响，从
 
 -   **跨平台兼容性**：系统在不同的操作系统和设备上无缝运行，为多样化的用户环境提供灵活性。
 
-# 安装
+# 设计
 
-```bash
-go get github.com/shengyanli1982/workqueue/v2
-```
+在重新设计后，WorkQueue(v2) 的架构 UML 图如下所示：
+
+![architecture](./assets/architecture.png)
 
 # 性能测试
 
@@ -241,6 +241,12 @@ BenchmarkRateLimitingQueue_PutWithLimited-12              1412991           852.
 BenchmarkRateLimitingQueue_Get-12                        28186063            49.60 ns/op       19 B/op          0 allocs/op
 BenchmarkRateLimitingQueue_PutAndGet-12                  15600679            75.69 ns/op        7 B/op          0 allocs/op
 BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12        1395084           855.5 ns/op       135 B/op          2 allocs/op
+```
+
+# 安装
+
+```bash
+go get github.com/shengyanli1982/workqueue/v2
 ```
 
 # 快速开始

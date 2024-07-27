@@ -40,11 +40,11 @@ Choosing WorkQueue(v2) for your application or project could be a great decision
 
 -   **Cross-Platform Compatibility**: The system operates seamlessly across different operating systems and devices, providing flexibility for diverse user environments.
 
-# Installation
+# Design
 
-```bash
-go get github.com/shengyanli1982/workqueue/v2
-```
+Following the redesign, the architecture UML diagram for WorkQueue(v2) is shown below:
+
+![architecture](./assets/architecture.png)
 
 # Benchmark
 
@@ -241,6 +241,12 @@ BenchmarkRateLimitingQueue_PutWithLimited-12              1412991           852.
 BenchmarkRateLimitingQueue_Get-12                        28186063            49.60 ns/op       19 B/op          0 allocs/op
 BenchmarkRateLimitingQueue_PutAndGet-12                  15600679            75.69 ns/op        7 B/op          0 allocs/op
 BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12        1395084           855.5 ns/op       135 B/op          2 allocs/op
+```
+
+# Installation
+
+```bash
+go get github.com/shengyanli1982/workqueue/v2
 ```
 
 # Quick Start
