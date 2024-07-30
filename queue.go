@@ -16,7 +16,7 @@ type queueImpl struct {
 
 	// list 是队列的元素列表。
 	// list is the list of elements in the queue.
-	list elementStorage
+	list container
 
 	// elementpool 是元素的内存池。
 	// elementpool is the memory pool of elements.
@@ -47,7 +47,7 @@ func NewQueue(config *QueueConfig) Queue {
 
 // newQueue 函数创建并返回一个新的 QueueImpl 实例，它接受一个元素列表、一个元素内存池和一个队列配置作为参数。
 // The newQueue function creates and returns a new instance of QueueImpl, it takes a list of elements, a memory pool of elements, and a queue configuration as parameters.
-func newQueue(list elementStorage, elementpool *lst.NodePool, config *QueueConfig) *queueImpl {
+func newQueue(list container, elementpool *lst.NodePool, config *QueueConfig) *queueImpl {
 	// 创建一个新的 QueueImpl 实例
 	// Create a new instance of QueueImpl
 	q := &queueImpl{

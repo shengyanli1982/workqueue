@@ -167,31 +167,31 @@ type Set = interface {
 	Cleanup()
 }
 
-// elementStorage 是一个接口，定义了一组操作列表的方法
-// elementStorage is an interface that defines a set of methods for operating on lists
-type elementStorage = interface {
-	// Push 方法用于向列表中添加一个元素
-	// The Push method is used to add an element to the list
+// container 是一个接口，定义了一个通用容器应该具备的基本操作
+// container is an interface that defines a set of methods for operating on a generic container
+type container = interface {
+	// Push 方法用于向容器中添加一个元素
+	// The Push method is used to add an element to the container
 	Push(value interface{})
 
-	// Pop 方法用于从列表中弹出一个元素
-	// The Pop method is used to pop an element from the list
+	// Pop 方法用于从容器中弹出一个元素
+	// The Pop method is used to pop an element from the container
 	Pop() interface{}
 
-	// Slice 方法用于将列表转换为切片
-	// The Slice method is used to convert the list to a slice
+	// Slice 方法用于将容器转换为切片
+	// The Slice method is used to convert the container to a slice
 	Slice() []interface{}
 
-	// Range 方法用于遍历列表中的所有元素
-	// The Range method is used to traverse all elements in the list
+	// Range 方法用于遍历容器中的所有元素
+	// The Range method is used to traverse all elements in the container
 	Range(fn func(value interface{}) bool)
 
-	// Len 方法用于获取列表的长度
-	// The Len method is used to get the length of the list
+	// Len 方法用于获取容器的长度
+	// The Len method is used to get the length of the container
 	Len() int64
 
-	// Cleanup 方法用于清理列表
-	// The Cleanup method is used to clean up the list
+	// Cleanup 方法用于清理容器
+	// The Cleanup method is used to clean up the container
 	Cleanup()
 }
 
