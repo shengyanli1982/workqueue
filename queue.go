@@ -10,6 +10,18 @@ import (
 // queueImpl 结构体定义了一个队列的实现。
 // The queueImpl struct defines an implementation of a queue.
 type queueImpl struct {
+	// closed 是一个原子布尔值，表示队列是否已关闭。
+	// closed is an atomic boolean indicating whether the queue is closed.
+	closed atomic.Bool
+
+	// once 用于确保某些操作只执行一次。
+	// once is used to ensure that some operations are performed only once.
+	once sync.Once
+
+	// lock 是用于保护队列的互斥锁。
+	// lock is the mutex used to protect the queue.
+	lock *sync.Mutex
+
 	// config 是队列的配置。
 	// config is the configuration of the queue.
 	config *QueueConfig
@@ -24,19 +36,11 @@ type queueImpl struct {
 
 	// processing 是正在处理的元素集合。
 	// processing is the set of elements being processed.
-	processing, dirty Set
+	processing Set
 
-	// lock 是用于保护队列的互斥锁。
-	// lock is the mutex used to protect the queue.
-	lock *sync.Mutex
-
-	// once 用于确保某些操作只执行一次。
-	// once is used to ensure that some operations are performed only once.
-	once sync.Once
-
-	// closed 是一个原子布尔值，表示队列是否已关闭。
-	// closed is an atomic boolean indicating whether the queue is closed.
-	closed atomic.Bool
+	// dirty 是脏元素集合。
+	// dirty is the set of dirty elements.
+	dirty Set
 }
 
 // NewQueue 函数创建并返回一个新的 QueueImpl 实例。
@@ -66,14 +70,6 @@ func newQueue(list container, elementpool *lst.NodePool, config *QueueConfig) *q
 		// 初始化互斥锁，用于保护队列的并发操作
 		// Initialize the mutex, used to protect the concurrent operations of the queue
 		lock: &sync.Mutex{},
-
-		// 初始化一次性操作，用于保证队列的关闭操作只执行一次
-		// Initialize the once operation, used to ensure that the close operation of the queue is only performed once
-		once: sync.Once{},
-
-		// 初始化原子布尔值，用于标记队列是否已关闭
-		// Initialize the atomic boolean, used to mark whether the queue is closed
-		closed: atomic.Bool{},
 	}
 
 	// 如果队列配置为幂等的，初始化正在处理的元素集合和脏元素集合
@@ -161,199 +157,107 @@ func (q *queueImpl) Len() (count int) {
 
 // Values 方法返回队列中的所有元素
 // The Values method returns all elements in the queue
-func (q *queueImpl) Values() (items []interface{}) {
-	// 加锁以保证线程安全
-	// Lock to ensure thread safety
+func (q *queueImpl) Values() []interface{} {
 	q.lock.Lock()
-
-	// 获取队列中的所有元素
-	// Get all elements in the queue
-	items = q.list.Slice()
-
-	// 解锁
-	// Unlock
+	items := q.list.Slice()
 	q.lock.Unlock()
-
-	// 返回队列中的所有元素
-	// Return all elements in the queue
-	return
+	return items
 }
 
 // Range 方法用于遍历队列中的所有元素。
 // The Range method is used to traverse all elements in the queue.
 func (q *queueImpl) Range(fn func(interface{}) bool) {
-	// 加锁以保证线程安全
-	// Lock to ensure thread safety
+	if fn == nil {
+		return
+	}
+
 	q.lock.Lock()
-
-	// 遍历队列中的所有元素
-	// Traverse all elements in the queue
 	q.list.Range(func(value interface{}) bool {
-		// 调用回调函数处理元素
-		// Call the callback function to process the element
-		return fn(value.(*lst.Node).Value)
+		node := value.(*lst.Node)
+		return fn(node.Value)
 	})
-
-	// 解锁
-	// Unlock
 	q.lock.Unlock()
 }
 
 // Put 方法用于将一个元素放入队列。
 // The Put method is used to put an element into the queue.
 func (q *queueImpl) Put(value interface{}) error {
-	// 如果队列已关闭，返回错误
-	// If the queue is closed, return an error
 	if q.IsClosed() {
 		return ErrQueueIsClosed
 	}
-
-	// 如果元素值为 nil，返回错误
-	// If the element value is nil, return an error
 	if value == nil {
 		return ErrElementIsNil
 	}
 
-	// 如果队列配置为幂等的，并且元素已被标记为脏或正在处理，返回错误
-	// If the queue is configured as idempotent, and the element has been marked as dirty or being processed, return an error
-	if q.config.idempotent && q.isElementMarked(value) {
-		return ErrElementAlreadyExist
-	}
-
-	// 从元素内存池中获取一个元素
-	// Get an element from the element memory pool
+	// 提前获取对象，减少加锁时间
 	last := q.elementpool.Get()
-
-	// 设置元素的值
-	// Set the value of the element
 	last.Value = value
 
-	// 加锁，保护队列的并发操作
-	// Lock, to protect the concurrent operations of the queue
+	if q.config.idempotent {
+		q.lock.Lock()
+		if q.dirty.Contains(value) || q.processing.Contains(value) {
+			q.elementpool.Put(last) // 记得归还对象
+			q.lock.Unlock()
+			return ErrElementAlreadyExist
+		}
+		q.lock.Unlock()
+	}
+
 	q.lock.Lock()
-
-	// 将元素放入队列的后端
-	// Put the element into the back of the queue
 	q.list.Push(last)
-
-	// 如果队列配置为幂等的，将元素添加到脏元素集合
-	// If the queue is configured as idempotent, add the element to the set of dirty elements
 	if q.config.idempotent {
 		q.dirty.Add(value)
 	}
-
-	// 解锁
-	// Unlock
 	q.lock.Unlock()
 
-	// 调用回调函数，通知元素已被放入
-	// Call the callback function to notify that the element has been put
 	q.config.callback.OnPut(value)
-
-	// 返回 nil 错误
-	// Return a nil error
 	return nil
 }
 
 // Get 方法用于从队列中获取一个元素。
 // The Get method is used to get an element from the queue.
 func (q *queueImpl) Get() (interface{}, error) {
-	// 如果队列已关闭，返回错误
-	// If the queue is closed, return an error
 	if q.IsClosed() {
 		return nil, ErrQueueIsClosed
 	}
 
-	// 加锁，保护队列的并发操作
-	// Lock, to protect the concurrent operations of the queue
 	q.lock.Lock()
-
-	// 如果队列为空，解锁并返回错误
-	// If the queue is empty, unlock and return an error
 	if q.list.Len() == 0 {
 		q.lock.Unlock()
 		return nil, ErrQueueIsEmpty
 	}
 
-	// 从队列的前端弹出一个元素
-	// Pop an element from the front of the queue
 	front := q.list.Pop().(*lst.Node)
-
-	// 获取元素的值
-	// Get the value of the element
 	value := front.Value
 
-	// 如果队列配置为幂等的，将元素添加到正在处理的元素集合，并从脏元素集合中移除
-	// If the queue is configured as idempotent, add the element to the set of elements being processed and remove it from the set of dirty elements
 	if q.config.idempotent {
 		q.processing.Add(value)
 		q.dirty.Remove(value)
 	}
-
-	// 解锁
-	// Unlock
 	q.lock.Unlock()
 
-	// 将元素放回元素内存池
-	// Put the element back into the element memory pool
 	q.elementpool.Put(front)
-
-	// 调用回调函数，通知元素已被获取
-	// Call the callback function to notify that the element has been got
 	q.config.callback.OnGet(value)
 
-	// 返回元素的值和 nil 错误
-	// Return the value of the element and a nil error
 	return value, nil
 }
 
 // Done 方法用于标记队列中的一个元素已经处理完成。
 // The Done method is used to mark an element in the queue as done.
 func (q *queueImpl) Done(value interface{}) {
-	// 如果队列已关闭，直接返回
-	// If the queue is closed, return directly
+
 	if q.IsClosed() {
 		return
 	}
 
-	// 如果队列是幂等的
-	// If the queue is idempotent
 	if q.config.idempotent {
 
-		// 加锁以保护队列的状态
-		// Lock to protect the state of the queue
 		q.lock.Lock()
 
-		// 从正在处理的元素集合中移除该元素
-		// Remove the element from the set of processing elements
 		q.processing.Remove(value)
 
-		// 解锁
-		// Unlock
 		q.lock.Unlock()
 	}
 
-	// 调用回调函数，通知元素已处理完成
-	// Call the callback function to notify that the element is done
 	q.config.callback.OnDone(value)
-}
-
-// isElementMarked 方法用于检查一个元素是否被标记为脏或正在处理。
-// The isElementMarked method is used to check if an element is marked as dirty or being processed.
-func (q *queueImpl) isElementMarked(value interface{}) (result bool) {
-	// 加锁以保护队列的状态
-	// Lock to protect the state of the queue
-	q.lock.Lock()
-
-	// 检查元素是否在脏元素集合或正在处理的元素集合中
-	// Check if the element is in the set of dirty elements or the set of processing elements
-	result = q.dirty.Contains(value) || q.processing.Contains(value)
-
-	// 解锁
-	// Unlock
-	q.lock.Unlock()
-
-	// 返回检查结果
-	// Return the check result
-	return
 }
