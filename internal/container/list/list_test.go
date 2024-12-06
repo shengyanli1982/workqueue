@@ -3,7 +3,9 @@ package list
 import (
 	"fmt"
 	"math"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -695,6 +697,7 @@ func TestList_MoveToBack_InvalidNode(t *testing.T) {
 	assert.Equal(t, node2, node3.Left, "node3 prev should be node2")
 	assert.Equal(t, node4, node3.Right, "node3 next should be node4")
 	assert.Nil(t, node4.Right, "node4 next should be nil")
+
 }
 
 func TestList_MoveToBack_EmptyList(t *testing.T) {
@@ -1128,12 +1131,12 @@ func TestList_InsertAfter_InvalidNode(t *testing.T) {
 	// Verify the list state
 	assert.Equal(t, int64(3), l.Len(), "list length should be 2")
 	assert.Equal(t, node1, l.Front(), "front node should be node1")
-	assert.Equal(t, node2, l.Back(), "back node should be node2")
+	assert.Equal(t, node2, l.Back(), "back node should be node3")
 	assert.Equal(t, node3.parentRef, toUnsafePtr(l), "node3 parentRef should be the list")
 
 	// Verify the node order
 	assert.Equal(t, node3, node1.Right, "node1 next should be node3")
-	assert.Equal(t, node1, node3.Left, "node3 prev should be node2")
+	assert.Equal(t, node1, node3.Left, "node3 prev should be node1")
 	assert.Equal(t, node2, node3.Right, "node3 next should be node2")
 	assert.Nil(t, node2.Right, "node2 next should be nil")
 
@@ -1392,4 +1395,360 @@ func TestList_Slice(t *testing.T) {
 	assert.Equal(t, node1.Value, s[0], "slice[0] should be node1 value")
 	assert.Equal(t, node2.Value, s[1], "slice[1] should be node2 value")
 	assert.Equal(t, node3.Value, s[2], "slice[2] should be node3 value")
+}
+
+func TestList_LargeDataSet(t *testing.T) {
+	l := New()
+	count := 1000000 // 1 million nodes
+
+	// Test push performance
+	startTime := time.Now()
+	for i := 0; i < count; i++ {
+		l.PushBack(&Node{Value: i})
+	}
+	pushDuration := time.Since(startTime)
+
+	// Verify push performance
+	assert.Less(t, pushDuration.Seconds(), float64(5), "pushing 1M nodes should take less than 5 seconds")
+	assert.Equal(t, int64(count), l.Len(), "list length should be 1M")
+
+	// Test pop performance
+	startTime = time.Now()
+	for i := 0; i < count; i++ {
+		l.PopBack()
+	}
+	popDuration := time.Since(startTime)
+
+	// Verify pop performance
+	assert.Less(t, popDuration.Seconds(), float64(5), "popping 1M nodes should take less than 5 seconds")
+	assert.Equal(t, int64(0), l.Len(), "list should be empty after popping all nodes")
+}
+
+func TestList_NilValues(t *testing.T) {
+	l := New()
+
+	// Create nodes with nil values
+	node1 := &Node{Value: nil}
+	node2 := &Node{Value: nil}
+	node3 := &Node{Value: nil}
+
+	// Push nodes with nil values
+	l.PushBack(node1)
+	l.PushBack(node2)
+	l.PushBack(node3)
+
+	// Verify the list state
+	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
+	assert.Equal(t, node1, l.Front(), "front node should be node1")
+	assert.Equal(t, node3, l.Back(), "back node should be node3")
+
+	// Verify node values
+	assert.Nil(t, l.Front().Value, "front node value should be nil")
+	assert.Nil(t, l.Back().Value, "back node value should be nil")
+}
+
+func TestList_EdgeCases(t *testing.T) {
+	l := New()
+
+	// Test operations on empty list
+	assert.Nil(t, l.PopBack(), "PopBack on empty list should return nil")
+	assert.Nil(t, l.PopFront(), "PopFront on empty list should return nil")
+	assert.Nil(t, l.Front(), "Front on empty list should return nil")
+	assert.Nil(t, l.Back(), "Back on empty list should return nil")
+
+	// Test single node operations
+	node := &Node{Value: 1}
+	l.PushBack(node)
+	l.MoveToFront(node) // Move to front when already at front
+	assert.Equal(t, node, l.Front(), "node should still be at front")
+	l.MoveToBack(node) // Move to back when already at back
+	assert.Equal(t, node, l.Back(), "node should still be at back")
+
+	// Test removing the same node multiple times
+	l.Remove(node)
+	l.Remove(node) // Try to remove already removed node
+	assert.Equal(t, int64(0), l.Len(), "list should be empty after removing node")
+
+	// Test operations with nil nodes
+	l.PushBack(nil)
+	l.PushFront(nil)
+	l.Remove(nil)
+	assert.Equal(t, int64(0), l.Len(), "list should remain empty after nil operations")
+}
+
+func TestList_ChainedOperations(t *testing.T) {
+	l := New()
+
+	// Test chained push operations
+	node1 := &Node{Value: 1}
+	node2 := &Node{Value: 2}
+	node3 := &Node{Value: 3}
+
+	// Chain multiple operations
+	// node3 --> node1 --> node2
+	l.PushBack(node1)
+	l.MoveToFront(node1)
+	l.PushBack(node2)
+	l.MoveToBack(node1)
+	l.PushFront(node3)
+	l.Remove(node2)
+	l.PushBack(node2)
+
+	// Verify the final state
+	assert.Equal(t, int64(3), l.Len(), "list length should be 3")
+	assert.Equal(t, node3, l.Front(), "front node should be node3")
+	assert.Equal(t, node2, l.Back(), "back node should be node2")
+
+	// Verify node order
+	assert.Equal(t, node1, node3.Right, "node3 next should be node1")
+	assert.Equal(t, node2, node1.Right, "node1 next should be node2")
+	assert.Nil(t, node2.Right, "node2 next should be nil")
+}
+
+func TestList_ConcurrentOperations(t *testing.T) {
+	l := New()
+	done := make(chan bool)
+	count := 1000
+	var mu sync.Mutex
+
+	// Concurrent push operations
+	go func() {
+		for i := 0; i < count; i++ {
+			mu.Lock()
+			l.PushBack(&Node{Value: i})
+			mu.Unlock()
+		}
+		done <- true
+	}()
+
+	go func() {
+		for i := 0; i < count; i++ {
+			mu.Lock()
+			l.PushFront(&Node{Value: -i})
+			mu.Unlock()
+		}
+		done <- true
+	}()
+
+	// Wait for push operations to complete
+	<-done
+	<-done
+
+	// Verify list length
+	assert.Equal(t, int64(count*2), l.Len(), "list length should be double the count")
+
+	// Concurrent pop operations
+	go func() {
+		for i := 0; i < count; i++ {
+			mu.Lock()
+			l.PopBack()
+			mu.Unlock()
+		}
+		done <- true
+	}()
+
+	go func() {
+		for i := 0; i < count; i++ {
+			mu.Lock()
+			l.PopFront()
+			mu.Unlock()
+		}
+		done <- true
+	}()
+
+	// Wait for pop operations to complete
+	<-done
+	<-done
+
+	// Verify list is empty
+	assert.Equal(t, int64(0), l.Len(), "list should be empty after concurrent pops")
+}
+
+func TestList_ConcurrentOperations_Extended(t *testing.T) {
+	l := New()
+	done := make(chan bool)
+	count := 1000
+	valueMap := make(map[interface{}]bool)
+	var mu sync.Mutex
+
+	// Concurrent mixed operations
+	go func() {
+		for i := 0; i < count; i++ {
+			node := &Node{Value: fmt.Sprintf("push_back_%d", i)}
+			l.PushBack(node)
+			mu.Lock()
+			valueMap[node.Value] = true
+			mu.Unlock()
+		}
+		done <- true
+	}()
+
+	go func() {
+		for i := 0; i < count; i++ {
+			node := &Node{Value: fmt.Sprintf("push_front_%d", i)}
+			l.PushFront(node)
+			mu.Lock()
+			valueMap[node.Value] = true
+			mu.Unlock()
+		}
+		done <- true
+	}()
+
+	go func() {
+		time.Sleep(100 * time.Millisecond) // Let some items accumulate
+		for i := 0; i < count/2; i++ {
+			node := l.PopBack()
+			if node != nil {
+				mu.Lock()
+				delete(valueMap, node.Value)
+				mu.Unlock()
+			}
+		}
+		done <- true
+	}()
+
+	go func() {
+		time.Sleep(100 * time.Millisecond) // Let some items accumulate
+		for i := 0; i < count/2; i++ {
+			node := l.PopFront()
+			if node != nil {
+				mu.Lock()
+				delete(valueMap, node.Value)
+				mu.Unlock()
+			}
+		}
+		done <- true
+	}()
+
+	// Wait for all operations to complete
+	for i := 0; i < 4; i++ {
+		<-done
+	}
+
+	// Verify final state
+	actualValues := make(map[interface{}]bool)
+	for node := l.Front(); node != nil; node = node.Right {
+		actualValues[node.Value] = true
+	}
+
+	// Compare maps
+	assert.Equal(t, len(valueMap), len(actualValues), "number of values should match")
+	for value := range valueMap {
+		assert.True(t, actualValues[value], "value should exist in list")
+	}
+}
+
+func TestList_ConcurrentInsertOperations(t *testing.T) {
+	l := New()
+	done := make(chan bool)
+	count := 100
+	nodes := make([]*Node, count)
+	insertNodes := make([]*Node, count)
+	var mu sync.Mutex
+
+	// Initialize list
+	for i := 0; i < count; i++ {
+		nodes[i] = &Node{Value: i}
+		insertNodes[i] = &Node{Value: fmt.Sprintf("insert_%d", i)}
+		l.PushBack(nodes[i])
+	}
+
+	// Concurrent insert operations
+	go func() {
+		for i := 0; i < count; i++ {
+			if i%2 == 0 {
+				mu.Lock()
+				l.InsertBefore(insertNodes[i], nodes[i])
+				mu.Unlock()
+			}
+		}
+		done <- true
+	}()
+
+	go func() {
+		for i := 0; i < count; i++ {
+			if i%2 == 1 {
+				mu.Lock()
+				l.InsertAfter(insertNodes[i], nodes[i])
+				mu.Unlock()
+			}
+		}
+		done <- true
+	}()
+
+	// Wait for operations to complete
+	<-done
+	<-done
+
+	// Verify list length
+	expectedLen := int64(count + count) // Original nodes + inserted nodes
+	assert.Equal(t, expectedLen, l.Len(), "list length should match expected")
+
+	// Verify list integrity
+	var prev *Node
+	nodeCount := 0
+	for node := l.Front(); node != nil; node = node.Right {
+		nodeCount++
+		if prev != nil {
+			assert.Equal(t, prev, node.Left, "node links should be consistent")
+		}
+		prev = node
+	}
+	assert.Equal(t, int(expectedLen), nodeCount, "node count should match list length")
+}
+
+func TestList_ConcurrentMoveOperations(t *testing.T) {
+	l := New()
+	done := make(chan bool)
+	count := 100
+	nodes := make([]*Node, count)
+	var mu sync.Mutex
+
+	// Initialize list
+	for i := 0; i < count; i++ {
+		nodes[i] = &Node{Value: i}
+		l.PushBack(nodes[i])
+	}
+
+	// Concurrent move operations
+	go func() {
+		for i := 0; i < count; i++ {
+			mu.Lock()
+			l.MoveToFront(nodes[i])
+			mu.Unlock()
+		}
+		done <- true
+	}()
+
+	go func() {
+		for i := 0; i < count; i++ {
+			mu.Lock()
+			l.MoveToBack(nodes[count-1-i])
+			mu.Unlock()
+		}
+		done <- true
+	}()
+
+	// Wait for operations to complete
+	<-done
+	<-done
+
+	// Verify list integrity
+	assert.Equal(t, int64(count), l.Len(), "list length should remain unchanged")
+
+	// Verify all nodes are still in the list
+	nodeMap := make(map[interface{}]bool)
+	for node := l.Front(); node != nil; node = node.Right {
+		nodeMap[node.Value] = true
+	}
+	assert.Equal(t, count, len(nodeMap), "all nodes should still be present")
+
+	// Verify list links
+	var prev *Node
+	for node := l.Front(); node != nil; node = node.Right {
+		if prev != nil {
+			assert.Equal(t, prev, node.Left, "node links should be consistent")
+		}
+		prev = node
+	}
 }

@@ -179,29 +179,31 @@ BenchmarkCompareWQHeap_Pop-12        	15759519	       116.7 ns/op	       0 B/op	
 本质上，内存对齐可以提高性能，减少 CPU 周期，降低功耗，增强稳定性，并确保行为的可预测性。这就是为什么在内存中对齐数据被视为最佳实践，特别是在现代的 64 位 CPU 上。
 
 ```bash
+$ go run explorer.go
 Node struct alignment:
 
 ---- Fields in struct ----
 +----+----------------+-----------+-----------+
 | ID |   FIELDTYPE    | FIELDNAME | FIELDSIZE |
 +----+----------------+-----------+-----------+
-| A  | unsafe.Pointer | parentRef | 8         |
-| B  | int64          | Priority  | 8         |
-| C  | int64          | Color     | 8         |
-| D  | *list.Node     | Left      | 8         |
-| E  | *list.Node     | Right     | 8         |
-| F  | *list.Node     | Parent    | 8         |
-| G  | interface {}   | Value     | 16        |
+| A  | interface {}   | Value     | 16        |
+| B  | *list.Node     | Left      | 8         |
+| C  | *list.Node     | Right     | 8         |
+| D  | *list.Node     | Parent    | 8         |
+| E  | unsafe.Pointer | parentRef | 8         |
+| F  | int64          | Priority  | 8         |
+| G  | uint8          | Color     | 1         |
+| H  | [7]uint8       | _         | 7         |
 +----+----------------+-----------+-----------+
 ---- Memory layout ----
+|A|A|A|A|A|A|A|A|
 |A|A|A|A|A|A|A|A|
 |B|B|B|B|B|B|B|B|
 |C|C|C|C|C|C|C|C|
 |D|D|D|D|D|D|D|D|
 |E|E|E|E|E|E|E|E|
 |F|F|F|F|F|F|F|F|
-|G|G|G|G|G|G|G|G|
-|G|G|G|G|G|G|G|G|
+|G|H|H|H|H|H|H|H|
 
 total cost: 64 Bytes.
 ```

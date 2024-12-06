@@ -362,3 +362,103 @@ func TestHeap_Remove(t *testing.T) {
 	assert.Nil(t, h.Front(), "front value should be nil")
 	assert.Nil(t, h.Back(), "back value should be nil")
 }
+
+func TestHeap_ExtremeValues(t *testing.T) {
+	h := New()
+	
+	// 测试最大值和最小值
+	h.Push(&lst.Node{Priority: int64(9223372036854775807)})  // math.MaxInt64
+	h.Push(&lst.Node{Priority: int64(-9223372036854775808)}) // math.MinInt64
+	h.Push(&lst.Node{Priority: 0})
+	
+	assert.Equal(t, int64(-9223372036854775808), h.Front().Priority, "front should be MinInt64")
+	assert.Equal(t, int64(9223372036854775807), h.Back().Priority, "back should be MaxInt64")
+	assert.Equal(t, int64(3), h.Len(), "heap should contain 3 elements")
+}
+
+func TestHeap_NegativePriorities(t *testing.T) {
+	h := New()
+	
+	// 测试负数优先级
+	priorities := []int64{-1, -5, -3, -2, -4}
+	for _, p := range priorities {
+		h.Push(&lst.Node{Priority: p})
+	}
+	
+	// 验证最小堆特性
+	assert.Equal(t, int64(-5), h.Front().Priority, "front should be -5")
+	assert.Equal(t, int64(-1), h.Back().Priority, "back should be -1")
+	
+	// 按序弹出验证顺序
+	expected := []int64{-5, -4, -3, -2, -1}
+	for _, exp := range expected {
+		node := h.Pop()
+		assert.Equal(t, exp, node.Priority, fmt.Sprintf("expected priority %d", exp))
+	}
+}
+
+func TestHeap_DuplicatePriorities(t *testing.T) {
+	h := New()
+	
+	// 插入多个相同优先级的节点
+	count := 5
+	for i := 0; i < count; i++ {
+		h.Push(&lst.Node{Priority: 1, Value: i})
+	}
+	
+	assert.Equal(t, int64(count), h.Len(), "heap should contain 5 elements")
+	assert.Equal(t, int64(1), h.Front().Priority, "front priority should be 1")
+	assert.Equal(t, int64(1), h.Back().Priority, "back priority should be 1")
+	
+	// 删除所有节点，确保相同优先级的节点都能正确删除
+	for i := 0; i < count; i++ {
+		node := h.Pop()
+		assert.Equal(t, int64(1), node.Priority, "all nodes should have priority 1")
+	}
+	
+	assert.Equal(t, int64(0), h.Len(), "heap should be empty")
+}
+
+func TestHeap_RemoveNilAndInvalid(t *testing.T) {
+	h := New()
+	
+	// 测试删除nil节点
+	h.Remove(nil)
+	assert.Equal(t, int64(0), h.Len(), "heap should be empty after removing nil")
+	
+	// 添加一个正常节点
+	validNode := &lst.Node{Priority: 1}
+	h.Push(validNode)
+	assert.Equal(t, int64(1), h.Len(), "heap should contain one node")
+	
+	// 测试删除不存在的节点
+	nonExistentNode := &lst.Node{Priority: 999}
+	h.Remove(nonExistentNode)
+	assert.Equal(t, int64(1), h.Len(), "heap should still contain the valid node")
+	
+	// 删除存在的节点
+	h.Remove(validNode)
+	assert.Equal(t, int64(0), h.Len(), "heap should be empty after removing valid node")
+}
+
+func TestHeap_LargeDataSet(t *testing.T) {
+	h := New()
+	count := 1000
+	
+	// 插入大量数据
+	for i := 0; i < count; i++ {
+		h.Push(&lst.Node{Priority: int64(i)})
+	}
+	
+	assert.Equal(t, int64(count), h.Len(), "heap should contain 1000 elements")
+	assert.Equal(t, int64(0), h.Front().Priority, "front should have minimum priority")
+	assert.Equal(t, int64(count-1), h.Back().Priority, "back should have maximum priority")
+	
+	// 验证堆的顺序性质
+	prev := h.Pop()
+	for i := 1; i < count; i++ {
+		current := h.Pop()
+		assert.True(t, prev.Priority <= current.Priority, "heap order property should be maintained")
+		prev = current
+	}
+}
