@@ -238,17 +238,9 @@ func (l *List) Remove(node *Node) {
 	l.count--
 }
 
-// MoveToFront 方法将节点 n 移动到链表的头部。
-// The MoveToFront method moves node n to the front of the list.
-func (l *List) MoveToFront(node *Node) {
-	// 如果 n 是 nil，我们就直接返回，不做任何操作。
-	// If n is nil, we just return directly without doing anything.
-	if node == nil {
-		return
-	}
-
-	// 如果链表是空的，我们就将 n 设置为头节点和尾节点，然后返回。
-	// If the list is empty, we set n as the head node and tail node, and then return.
+// initNodeInEmptyList 辅助方法用于在空链表中初始化一个节点
+// initNodeInEmptyList helper method initializes a node in an empty list
+func (l *List) initNodeInEmptyList(node *Node) bool {
 	if l.head == nil && l.tail == nil {
 		node.parentRef = toUnsafePtr(l)
 		node.Left = nil
@@ -256,22 +248,29 @@ func (l *List) MoveToFront(node *Node) {
 		l.head = node
 		l.tail = node
 		l.count++
+		return true
+	}
+	return false
+}
+
+// MoveToFront 方法将节点 n 移动到链表的头部。
+// The MoveToFront method moves node n to the front of the list.
+func (l *List) MoveToFront(node *Node) {
+	if node == nil {
 		return
 	}
 
-	// 如果 n 已经是头节点，我们就直接返回，不做任何操作。
-	// If n is already the head node, we just return directly without doing anything.
+	if l.initNodeInEmptyList(node) {
+		return
+	}
+
 	if node == l.head {
 		return
 	}
 
-	// 如果 n 的 Prev 不是 nil，我们就更新 n 的 Prev 的 Next 为 n 的 Next。
-	// If n's Prev is not nil, we update n's Prev's Next to n's Next.
 	if node.Left != nil {
 		node.Left.Right = node.Right
 	} else if node != l.head {
-		// 如果 n 不是头节点，我们就将 n 插入到链表的头部，然后返回。
-		// If n is not the head node, we insert n at the front of the list, and then return.
 		node.parentRef = toUnsafePtr(l)
 		node.Right = l.head
 		l.head.Left = node
@@ -280,23 +279,14 @@ func (l *List) MoveToFront(node *Node) {
 		return
 	}
 
-	// 如果 n 的 Next 不是 nil，我们就更新 n 的 Next 的 Prev 为 n 的 Prev。
-	// If n's Next is not nil, we update n's Next's Prev to n's Prev.
 	if node.Right != nil {
 		node.Right.Left = node.Left
 	} else {
-		// 否则，我们将链表的尾节点设置为 n 的 Prev。
-		// Otherwise, we set the tail node of the list to n's Prev.
 		l.tail = node.Left
 	}
 
-	// 我们将 n 的 Prev 设置为 nil，将 n 的 Next 设置为链表的头节点。
-	// We set n's Prev to nil, and n's Next to the head node of the list.
 	node.Left = nil
 	node.Right = l.head
-
-	// 我们将链表的头节点的 Prev 设置为 n，将链表的头节点设置为 n。
-	// We set the head node's Prev of the list to n, and the head node of the list to n.
 	l.head.Left = node
 	l.head = node
 }
@@ -304,37 +294,21 @@ func (l *List) MoveToFront(node *Node) {
 // MoveToBack 方法将节点 n 移动到链表的尾部。
 // The MoveToBack method moves node n to the end of the list.
 func (l *List) MoveToBack(node *Node) {
-	// 如果 n 是 nil，我们就直接返回，不做任何操作。
-	// If n is nil, we just return directly without doing anything.
 	if node == nil {
 		return
 	}
 
-	// 如果链表是空的，我们就将 n 设置为头节点和尾节点，然后返回。
-	// If the list is empty, we set n as the head node and tail node, and then return.
-	if l.head == nil && l.tail == nil {
-		node.parentRef = toUnsafePtr(l)
-		node.Left = nil
-		node.Right = nil
-		l.head = node
-		l.tail = node
-		l.count++
+	if l.initNodeInEmptyList(node) {
 		return
 	}
 
-	// 如果 n 已经是尾节点，我们就直接返回，不做任何操作。
-	// If n is already the tail node, we just return directly without doing anything.
 	if node == l.tail {
 		return
 	}
 
-	// 如果 n 的 Prev 不是 nil，我们就更新 n 的 Prev 的 Next 为 n 的 Next。
-	// If n's Prev is not nil, we update n's Prev's Next to n's Next.
 	if node.Left != nil {
 		node.Left.Right = node.Right
 	} else if node != l.head {
-		// 如果 n 不是头节点，我们就将 n 插入到链表的尾部，然后返回。
-		// If n is not the head node, we insert n at the end of the list, and then return.
 		node.parentRef = toUnsafePtr(l)
 		node.Left = l.tail
 		l.tail.Right = node
@@ -343,164 +317,111 @@ func (l *List) MoveToBack(node *Node) {
 		return
 	}
 
-	// 如果 n 的 Next 不是 nil，我们就更新 n 的 Next 的 Prev 为 n 的 Prev。
-	// If n's Next is not nil, we update n's Next's Prev to n's Prev.
 	if node.Right != nil {
 		node.Right.Left = node.Left
 	} else {
-		// 否则，我们将链表的头节点设置为 n 的 Next。
-		// Otherwise, we set the head node of the list to n's Next.
 		l.head = node.Right
 	}
 
-	// 我们将 n 的 Prev 设置为链表的尾节点，将 n 的 Next 设置为 nil。
-	// We set n's Prev to the tail node of the list, and n's Next to nil.
 	node.Left = l.tail
 	node.Right = nil
-
-	// 如果链表的尾节点不是 nil，我们就更新链表的尾节点的 Next 为 n。
-	// If the tail node of the list is not nil, we update the tail node's Next to n.
 	if l.tail != nil {
 		l.tail.Right = node
 	}
-
-	// 我们将链表的尾节点设置为 n。
-	// We set the tail node of the list to n.
 	l.tail = node
+}
+
+// validateSwapNodes 辅助方法用于验证交换节点的有效性
+// validateSwapNodes helper method validates if two nodes can be swapped
+func (l *List) validateSwapNodes(node, mark *Node) bool {
+	if node == nil || mark == nil || node == mark {
+		return false
+	}
+	return isPtrEqual(node.parentRef, l) && isPtrEqual(mark.parentRef, l)
 }
 
 // InsertBefore 方法将节点 n 插入到节点 mark 的前面。
 // The InsertBefore method inserts node n before node mark.
 func (l *List) InsertBefore(node, mark *Node) {
-	// 如果 n 或 mark 是 nil，我们就直接返回，不做任何操作。
-	// If n or mark is nil, we just return directly without doing anything.
 	if node == nil || mark == nil {
 		return
 	}
 
-	// 我们将 n 的 parentRef 设置为链表 l。
-	// We set n's parentRef to list l.
 	node.parentRef = toUnsafePtr(l)
+	node.Right = mark
+	node.Left = mark.Left
 
-	// 如果 mark 的 Prev 是 nil，说明 mark 是头节点，我们就将 n 插入到链表的头部。
-	// If mark's Prev is nil, it means mark is the head node, we insert n at the head of the list.
 	if mark.Left == nil {
-		node.Left = nil
 		l.head = node
 	} else {
-		// 否则，我们将 n 插入到 mark 的前面。
-		// Otherwise, we insert n before mark.
-		node.Left = mark.Left
 		mark.Left.Right = node
 	}
-
-	// 我们将 n 的 Next 设置为 mark，将 mark 的 Prev 设置为 n。
-	// We set n's Next to mark, and mark's Prev to n.
-	node.Right = mark
 	mark.Left = node
-
-	// 链表长度加 1。
-	// Increase the length of the list by 1.
 	l.count++
 }
 
 // InsertAfter 方法将节点 n 插入到节点 mark 的后面。
 // The InsertAfter method inserts node n after node mark.
 func (l *List) InsertAfter(node, mark *Node) {
-	// 如果 n 或 mark 是 nil，我们就直接返回，不做任何操作。
-	// If n or mark is nil, we just return directly without doing anything.
 	if node == nil || mark == nil {
 		return
 	}
 
-	// 我们将 n 的 parentRef 设置为链表 l。
-	// We set n's parentRef to list l.
 	node.parentRef = toUnsafePtr(l)
+	node.Left = mark
+	node.Right = mark.Right
 
-	// 如果 mark 的 Next 是 nil，说明 mark 是尾节点，我们就将 n 插入到链表的尾部。
-	// If mark's Next is nil, it means mark is the tail node, we insert n at the end of the list.
 	if mark.Right == nil {
-		node.Right = nil
 		l.tail = node
 	} else {
-		// 否则，我们将 n 插入到 mark 的后面。
-		// Otherwise, we insert n after mark.
-		node.Right = mark.Right
 		mark.Right.Left = node
 	}
-
-	// 我们将 n 的 Prev 设置为 mark，将 mark 的 Next 设置为 n。
-	// We set n's Prev to mark, and mark's Next to n.
-	node.Left = mark
 	mark.Right = node
-
-	// 链表长度加 1。
-	// Increase the length of the list by 1.
 	l.count++
 }
 
 // Swap 方法交换链表中的两个节点 n 和 mark 的位置。
 // The Swap method swaps the positions of two nodes n and mark in the list.
 func (l *List) Swap(node, mark *Node) {
-	// 如果 n 或 mark 是 nil，或者 n 和 mark 是同一个节点，我们就直接返回，不做任何操作。
-	// If n or mark is nil, or n and mark are the same node, we just return directly without doing anything.
-	if node == nil || mark == nil || node == mark {
+	if !l.validateSwapNodes(node, mark) {
 		return
 	}
 
-	// 如果 n 或 mark 不是链表 l 的节点，我们就直接返回，不做任何操作。
-	// If n or mark is not a node of list l, we just return directly without doing anything.
-	if !isPtrEqual(node.parentRef, l) || !isPtrEqual(mark.parentRef, l) {
-		return
-	}
-
-	// 如果 n 是 mark 的前一个节点，我们就移除 n，然后将 n 插入到 mark 的后面。
-	// If n is the previous node of mark, we remove n and then insert n after mark.
 	if node.Right == mark {
 		l.Remove(node)
 		l.InsertAfter(node, mark)
 		return
 	}
 
-	// 如果 n 是 mark 的后一个节点，我们就移除 n，然后将 n 插入到 mark 的前面。
-	// If n is the next node of mark, we remove n and then insert n before mark.
 	if node.Left == mark {
 		l.Remove(node)
 		l.InsertBefore(node, mark)
 		return
 	}
 
-	// 我们交换 n 和 mark 的 Prev 和 Next。
-	// We swap the Prev and Next of n and mark.
+	// 交换节点的链接
 	node.Left, mark.Left = mark.Left, node.Left
 	node.Right, mark.Right = mark.Right, node.Right
 
-	// 如果 n 的 Prev 不是 nil，我们就更新 n 的 Prev 的 Next 为 n，否则，我们将链表的头节点设置为 n。
-	// If n's Prev is not nil, we update n's Prev's Next to n, otherwise, we set the head node of the list to n.
+	// 更新相邻节点的链接
 	if node.Left != nil {
 		node.Left.Right = node
 	} else {
 		l.head = node
 	}
 
-	// 如果 n 的 Next 不是 nil，我们就更新 n 的 Next 的 Prev 为 n，否则，我们将链表的尾节点设置为 n。
-	// If n's Next is not nil, we update n's Next's Prev to n, otherwise, we set the tail node of the list to n.
 	if node.Right != nil {
 		node.Right.Left = node
 	} else {
 		l.tail = node
 	}
 
-	// 如果 mark 的 Prev 不是 nil，我们就更新 mark 的 Prev 的 Next 为 mark，否则，我们将链表的头节点设置为 mark。
-	// If mark's Prev is not nil, we update mark's Prev's Next to mark, otherwise, we set the head node of the list to mark.
 	if mark.Left != nil {
 		mark.Left.Right = mark
 	} else {
 		l.head = mark
 	}
 
-	// 如果 mark 的 Next 不是 nil，我们就更新 mark 的 Next 的 Prev 为 mark，否则，我们将链表的尾节点设置为 mark。
-	// If mark's Next is not nil, we update mark's Next's Prev to mark, otherwise, we set the tail node of the list to mark.
 	if mark.Right != nil {
 		mark.Right.Left = mark
 	} else {
@@ -535,7 +456,7 @@ func (l *List) Range(fn func(node *Node) bool) {
 // Slice 方法将链表转换为一个切片，切片中的元素顺序和链表中的节点顺序一致。
 // The Slice method converts the list to a slice, the order of the elements in the slice is consistent with the order of the nodes in the list.
 func (l *List) Slice() []interface{} {
-	// 我们创建一个空的切片，切片的容量为链表的长度。
+	// 我们创建一个空的切片，切片的容量为链的长度。
 	// We create an empty slice, the capacity of the slice is the length of the list.
 	nodes := make([]interface{}, 0, l.count)
 
