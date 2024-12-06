@@ -245,19 +245,18 @@ func (q *queueImpl) Get() (interface{}, error) {
 // Done 方法用于标记队列中的一个元素已经处理完成。
 // The Done method is used to mark an element in the queue as done.
 func (q *queueImpl) Done(value interface{}) {
-
 	if q.IsClosed() {
 		return
 	}
 
 	if q.config.idempotent {
-
 		q.lock.Lock()
-
+		if !q.processing.Contains(value) {
+			q.lock.Unlock()
+			return
+		}
 		q.processing.Remove(value)
-
 		q.lock.Unlock()
+		q.config.callback.OnDone(value)
 	}
-
-	q.config.callback.OnDone(value)
 }

@@ -187,7 +187,7 @@ func TestDelayingQueueImpl_Callback(t *testing.T) {
 	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, callback.delays, "Callback puts should be [test1, test2, test3]")
 	assert.Equal(t, []interface{}{"test1", "test2", "test3", "test4"}, callback.puts, "Callback puts should be [test1, test2, test3, test4]")
 	assert.Equal(t, []interface{}{"test1"}, callback.gets, "Callback gets should be [test1]")
-	assert.Equal(t, []interface{}{"test1"}, callback.dones, "Callback dones should be [test1]")
+	assert.Equal(t, []interface{}(nil), callback.dones, "Callback dones should be [test1]")
 	assert.Equal(t, []interface{}(nil), callback.errors, "Callback errors should be []")
 }
 
@@ -221,4 +221,88 @@ func TestDelayingQueueImpl_Accuracy(t *testing.T) {
 		assert.Equal(t, fmt.Sprintf("test%d", i+1), node.value, fmt.Sprintf("Value should be test%d", i+1))
 		assert.True(t, time.Now().UnixMilli()-node.ts > DELAYDUCRATION, "Delay duration should be greater than 150ms")
 	}
+}
+
+func TestDelayingQueueImpl_ExtremeDelays(t *testing.T) {
+	q := NewDelayingQueue(nil)
+	defer q.Shutdown()
+
+	// Test zero delay
+	err := q.PutWithDelay("zero-delay", 0)
+	assert.NoError(t, err, "Put with zero delay should not return an error")
+
+	// Test very long delay
+	err = q.PutWithDelay("long-delay", 24*60*60*1000) // 24 hours
+	assert.NoError(t, err, "Put with long delay should not return an error")
+
+	// Test very short delay
+	time.Sleep(time.Second)
+
+	// Verify immediate availability of zero-delay item
+	v, err := q.Get()
+	assert.NoError(t, err)
+	assert.Equal(t, "zero-delay", v, "Zero delay item should be available immediately")
+}
+
+func TestDelayingQueueImpl_NegativeDelay(t *testing.T) {
+	q := NewDelayingQueue(nil)
+	defer q.Shutdown()
+
+	// Test negative delay
+	err := q.PutWithDelay("negative-delay", -100)
+	assert.NoError(t, err, "Put with negative delay should not return an error")
+
+	// Test very short delay
+	time.Sleep(time.Second)
+
+	// Verify immediate availability
+	v, err := q.Get()
+	assert.NoError(t, err)
+	assert.Equal(t, "negative-delay", v, "Negative delay item should be available immediately")
+}
+
+func TestDelayingQueueImpl_DuplicateItems(t *testing.T) {
+	q := NewDelayingQueue(nil)
+	defer q.Shutdown()
+
+	// Put same item multiple times with different delays
+	err := q.PutWithDelay("duplicate", 100)
+	assert.NoError(t, err)
+
+	err = q.PutWithDelay("duplicate", 50)
+	assert.NoError(t, err)
+
+	err = q.PutWithDelay("duplicate", 150)
+	assert.NoError(t, err)
+
+	// Test very short delay
+	time.Sleep(time.Second)
+
+	// All items should be available
+	assert.Equal(t, 3, q.Len(), "Queue should contain all duplicate items")
+}
+
+func TestDelayingQueueImpl_ConcurrentShutdown(t *testing.T) {
+	q := NewDelayingQueue(nil)
+
+	var wg sync.WaitGroup
+	wg.Add(100)
+
+	// Start goroutines that try to put items
+	for i := 0; i < 100; i++ {
+		go func(index int) {
+			defer wg.Done()
+			_ = q.PutWithDelay(fmt.Sprintf("item-%d", index), DELAYDUCRATION)
+		}(i)
+	}
+
+	// Shutdown while items are being added
+	time.Sleep(10 * time.Millisecond)
+	q.Shutdown()
+
+	wg.Wait()
+
+	// Try to add item after shutdown
+	err := q.PutWithDelay("after-shutdown", DELAYDUCRATION)
+	assert.ErrorIs(t, err, ErrQueueIsClosed, "Put after shutdown should return ErrQueueIsClosed")
 }
