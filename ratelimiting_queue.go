@@ -1,7 +1,5 @@
 package workqueue
 
-import goif "github.com/shengyanli1982/go-if"
-
 // ratelimitingQueueImpl 结构体，实现了 RateLimitingQueue 接口
 type ratelimitingQueueImpl struct {
 	DelayingQueue
@@ -37,8 +35,13 @@ func (q *ratelimitingQueueImpl) PutWithLimited(value interface{}) error {
 	// 获取延迟时间
 	delay := q.config.limiter.When(value).Milliseconds()
 
-	// 延迟放入队列
-	err := goif.If(delay > 0, q.PutWithDelay(value, delay), q.Put(value))
+	// 根据延迟时间决定使用哪种方式添加元素
+	var err error
+	if delay > 0 {
+		err = q.PutWithDelay(value, delay)
+	} else {
+		err = q.Put(value)
+	}
 
 	// 回调通知
 	q.config.callback.OnLimited(value)

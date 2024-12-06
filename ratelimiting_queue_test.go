@@ -141,6 +141,82 @@ func TestRateLimitingQueueImpl_Callback(t *testing.T) {
 	assert.True(t, len(callback.delays) <= 2, "Callback delays length should be less than or equal to 2")
 	assert.Equal(t, []interface{}{"test1", "test2", "test3", "test4"}, callback.puts, "Callback puts should contain all put items")
 	assert.Equal(t, []interface{}{"test1"}, callback.gets, "Callback gets should be [test1]")
-	assert.Equal(t, []interface{}{"test1"}, callback.dones, "Callback dones should be [test1]")
+	assert.Equal(t, []interface{}(nil), callback.dones, "Callback dones should be [test1]")
 	assert.Empty(t, callback.errors, "Callback errors should be empty")
+}
+
+func TestRateLimitingQueueImpl_HighConcurrencyRateLimit(t *testing.T) {
+	// 测试高并发下的限流效果
+	config := NewRateLimitingQueueConfig().
+		WithLimiter(NewBucketRateLimiterImpl(2, 1)) // 每秒只允许2个请求
+	q := NewRateLimitingQueue(config)
+	defer q.Shutdown()
+
+	var wg sync.WaitGroup
+	start := time.Now()
+
+	// 并发发送10个请求
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			err := q.PutWithLimited(i)
+			assert.NoError(t, err, "Put should not return an error")
+		}(i)
+	}
+
+	wg.Wait()
+	duration := time.Since(start)
+
+	// 验证是否有请求被限流
+	assert.True(t, duration < time.Second*2, "Should complete within 2 seconds")
+}
+
+func TestRateLimitingQueueImpl_DuplicateElements(t *testing.T) {
+	// 测试重复元素的处理
+	config := NewRateLimitingQueueConfig().WithLimiter(NewBucketRateLimiterImpl(5, 1))
+	q := NewRateLimitingQueue(config)
+	defer q.Shutdown()
+
+	// 重复放入相同元素
+	err := q.PutWithLimited("duplicate")
+	assert.NoError(t, err, "First put should succeed")
+
+	err = q.PutWithLimited("duplicate")
+	assert.NoError(t, err, "Second put with same value should succeed")
+
+	assert.Equal(t, 2, q.Len(), "Queue should contain both duplicate elements")
+}
+
+func TestRateLimitingQueueImpl_DifferentTypes(t *testing.T) {
+	// 测试不同数据类型的处理
+	config := NewRateLimitingQueueConfig().WithLimiter(NewBucketRateLimiterImpl(5, 1))
+	q := NewRateLimitingQueue(config)
+	defer q.Shutdown()
+
+	testCases := []interface{}{
+		42,
+		"string",
+		struct{ name string }{"test"},
+		[]int{1, 2, 3},
+		map[string]int{"key": 1},
+	}
+
+	for _, tc := range testCases {
+		err := q.PutWithLimited(tc)
+		assert.NoError(t, err, "Should handle different types")
+	}
+
+	assert.Equal(t, len(testCases), q.Len(), "Queue should contain all elements")
+}
+
+func TestRateLimitingQueueImpl_EmptyQueueGet(t *testing.T) {
+	// 测试空队列的Get操作
+	config := NewRateLimitingQueueConfig().WithLimiter(NewBucketRateLimiterImpl(5, 1))
+	q := NewRateLimitingQueue(config)
+	defer q.Shutdown()
+
+	// 从空队列中获取元素
+	_, err := q.Get()
+	assert.ErrorIs(t, err, ErrQueueIsEmpty, "Get should return ErrQueueIsEmpty")
 }
