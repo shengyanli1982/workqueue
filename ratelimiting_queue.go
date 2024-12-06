@@ -1,13 +1,17 @@
 package workqueue
 
-// ratelimitingQueueImpl 结构体，实现了 RateLimitingQueue 接口
+// ratelimitingQueueImpl implements the RateLimitingQueue interface
+// ratelimitingQueueImpl 结构体实现了 RateLimitingQueue 接口，提供限速队列功能
 type ratelimitingQueueImpl struct {
-	DelayingQueue
-	config *RateLimitingQueueConfig
+	DelayingQueue                          // 内嵌延迟队列 / Embedded DelayingQueue
+	config        *RateLimitingQueueConfig // 限速队列配置 / Rate limiting queue configuration
 }
 
-// NewRateLimitingQueue 函数用于创建一个新的 RateLimitingQueue
+// NewRateLimitingQueue creates a new RateLimitingQueue with the given configuration
+// NewRateLimitingQueue 函数用于创建一个新的限速队列，接收配置参数
 func NewRateLimitingQueue(config *RateLimitingQueueConfig) RateLimitingQueue {
+	// Validate and set default configuration if needed
+	// 验证配置并设置默认值（如果需要）
 	config = isRateLimitingQueueConfigEffective(config)
 
 	q := &ratelimitingQueueImpl{
@@ -17,14 +21,19 @@ func NewRateLimitingQueue(config *RateLimitingQueueConfig) RateLimitingQueue {
 	return q
 }
 
-// Shutdown 方法用于关闭 RateLimitingQueue
+// Shutdown stops the queue from accepting new items and shuts down internal workers
+// Shutdown 方法用于关闭限速队列，停止接收新元素并关闭内部工作协程
 func (q *ratelimitingQueueImpl) Shutdown() {
 	q.DelayingQueue.Shutdown()
 }
 
-// PutWithLimited 方法用于将一个元素放入 RateLimitingQueue
+// PutWithLimited adds an item to the queue with rate limiting applied
+// If the limiter returns a delay > 0, the item will be delayed for that duration
+// PutWithLimited 方法用于将元素添加到限速队列中
+// 如果限速器返回的延迟时间大于0，该元素将被延迟相应时间后再加入队列
 func (q *ratelimitingQueueImpl) PutWithLimited(value interface{}) error {
-	// 合并错误检查逻辑
+	// Check for queue closure and nil value
+	// 检查队列是否已关闭以及输入值是否为nil
 	if q.IsClosed() || value == nil {
 		if q.IsClosed() {
 			return ErrQueueIsClosed
@@ -32,10 +41,12 @@ func (q *ratelimitingQueueImpl) PutWithLimited(value interface{}) error {
 		return ErrElementIsNil
 	}
 
-	// 获取延迟时间
+	// Get delay duration from rate limiter
+	// 从限速器获取延迟时间
 	delay := q.config.limiter.When(value).Milliseconds()
 
-	// 根据延迟时间决定使用哪种方式添加元素
+	// Add element either with delay or immediately based on limiter response
+	// 根据限速器返回的延迟时间决定是直接添加还是延迟添加
 	var err error
 	if delay > 0 {
 		err = q.PutWithDelay(value, delay)
@@ -43,7 +54,8 @@ func (q *ratelimitingQueueImpl) PutWithLimited(value interface{}) error {
 		err = q.Put(value)
 	}
 
-	// 回调通知
+	// Notify callback of rate limiting event
+	// 触发限速回调通知
 	q.config.callback.OnLimited(value)
 
 	return err
