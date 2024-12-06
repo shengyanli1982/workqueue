@@ -1,8 +1,8 @@
 package heap
 
 import (
-	goif "github.com/shengyanli1982/go-if"
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
+	"github.com/shengyanli1982/workqueue/v2/internal/ternary"
 )
 
 // RBTree represents a Red-Black Tree data structure
@@ -158,7 +158,7 @@ func (tree *RBTree) insert(node *lst.Node) {
 	// Traverse to find proper insertion position
 	for current != nil {
 		parent = current
-		current = goif.If(node.Priority < current.Priority, current.Left, current.Right)
+		current = ternary.If(node.Priority < current.Priority, current.Left, current.Right)
 	}
 
 	// 设置新节点的父节点
@@ -217,7 +217,7 @@ func deleteFixUp(tree *RBTree, node *lst.Node) {
 		}
 
 		isLeftChild := node == node.Parent.Left
-		sibling := goif.If(isLeftChild, node.Parent.Right, node.Parent.Left)
+		sibling := ternary.If(isLeftChild, node.Parent.Right, node.Parent.Left)
 
 		if sibling == nil {
 			break
@@ -298,8 +298,8 @@ func (tree *RBTree) delete(node *lst.Node) {
 
 	// 找到实际要删除的节点
 	// Find the actual node to delete
-	target := goif.If(node.Left == nil || node.Right == nil, node, tree.successor(node))
-	child := goif.If(target.Left != nil, target.Left, target.Right)
+	target := ternary.If(node.Left == nil || node.Right == nil, node, tree.successor(node))
+	child := ternary.If(target.Left != nil, target.Left, target.Right)
 
 	// 处理子节点的父指针
 	// Handle child's parent pointer
