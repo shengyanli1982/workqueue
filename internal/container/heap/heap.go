@@ -215,6 +215,19 @@ func (tree *RBTree) delete(node *lst.Node) {
 		return
 	}
 
+	// 检查节点是否在树中
+	found := false
+	tree.Range(func(n *lst.Node) bool {
+		if n == node {
+			found = true
+			return false
+		}
+		return true
+	})
+	if !found {
+		return
+	}
+
 	target := goif.If(node.Left == nil || node.Right == nil, node, tree.successor(node))
 	child := goif.If(target.Left != nil, target.Left, target.Right)
 
