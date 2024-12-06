@@ -1,8 +1,8 @@
 package heap
 
 import (
-	goif "github.com/shengyanli1982/go-if"
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
+	"github.com/shengyanli1982/workqueue/v2/internal/ternary"
 )
 
 // RBTree represents a Red-Black Tree data structure
@@ -28,7 +28,7 @@ func New() *RBTree { return &RBTree{} }
 // 执行左旋转时：
 // 1. 右子节点成为子树的新根
 // 2. 原节点成为新根的左子节点
-// 3. 右子节点的左子���点成为原节点的右子节点
+// 3. 右子节点的左子点成为原节点的右子节点
 func leftRotate(tree *RBTree, node *lst.Node) {
 	if node == nil || node.Right == nil {
 		return
@@ -158,7 +158,7 @@ func (tree *RBTree) insert(node *lst.Node) {
 	// Traverse to find proper insertion position
 	for current != nil {
 		parent = current
-		current = goif.If(node.Priority < current.Priority, current.Left, current.Right)
+		current = ternary.If(node.Priority < current.Priority, current.Left, current.Right)
 	}
 
 	// 设置新节点的父节点
@@ -217,7 +217,7 @@ func deleteFixUp(tree *RBTree, node *lst.Node) {
 		}
 
 		isLeftChild := node == node.Parent.Left
-		sibling := goif.If(isLeftChild, node.Parent.Right, node.Parent.Left)
+		sibling := ternary.If(isLeftChild, node.Parent.Right, node.Parent.Left)
 
 		if sibling == nil {
 			break
@@ -298,8 +298,8 @@ func (tree *RBTree) delete(node *lst.Node) {
 
 	// 找到实际要删除的节点
 	// Find the actual node to delete
-	target := goif.If(node.Left == nil || node.Right == nil, node, tree.successor(node))
-	child := goif.If(target.Left != nil, target.Left, target.Right)
+	target := ternary.If(node.Left == nil || node.Right == nil, node, tree.successor(node))
+	child := ternary.If(target.Left != nil, target.Left, target.Right)
 
 	// 处理子节点的父指针
 	// Handle child's parent pointer
@@ -383,7 +383,7 @@ func (tree *RBTree) maximum(node *lst.Node) *lst.Node {
 // successor 查找具有下一个更大优先级的节点
 // 对于给定节点：
 // 1. 如果存在右子树，返回右子树中的最小节点
-// 2. 否则，向上遍历树，直到找到一个包���该节点在其左子树中的父节点
+// 2. 否则，向上遍历树，直到找到一个包该节点在其左子树中的父节点
 func (tree *RBTree) successor(node *lst.Node) *lst.Node {
 	if node.Right != nil {
 		return tree.minimum(node.Right)
@@ -421,7 +421,7 @@ func (tree *RBTree) Remove(node *lst.Node) { tree.delete(node) }
 // Returns false if the provided function returns false, true otherwise
 //
 // Range 按中序遍历树，并对每个节点应用给定的函数
-// 遍历顺序为��左子树 -> 当前节点 -> 右子树
+// 遍历顺序为左子树 -> 当前节点 -> 右子树
 // 如果提供的函数返回 false 则返回 false，否则返回 true
 func inOrderTraverse(node *lst.Node, fn func(*lst.Node) bool) bool {
 	if node == nil {
