@@ -162,6 +162,12 @@ go run ./examples/<queue_dir>
 
 ## Architecture
 
+![arch](./assets/architecture.png)
+
 ## API Reference
 
 - GoDoc: <https://pkg.go.dev/github.com/shengyanli1982/workqueue/v2>
+
+## DeepWiki
+
+- <https://deepwiki.com/shengyanli1982/workqueue>
