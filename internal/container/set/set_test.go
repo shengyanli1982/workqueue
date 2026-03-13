@@ -9,11 +9,10 @@ import (
 
 func TestSet_Add(t *testing.T) {
 	t.Run("Integer", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add integers to the set
 		s.Add(-1)
 		assert.True(t, s.Contains(-1))
 		s.Add(int8(-2))
@@ -37,11 +36,10 @@ func TestSet_Add(t *testing.T) {
 	})
 
 	t.Run("Float", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add floats to the set
 		s.Add(float32(1.1))
 		assert.True(t, s.Contains(float32(1.1)))
 		s.Add(float64(2.2))
@@ -49,11 +47,10 @@ func TestSet_Add(t *testing.T) {
 	})
 
 	t.Run("String", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add strings to the set
 		s.Add("a")
 		assert.True(t, s.Contains("a"))
 		s.Add("b")
@@ -63,11 +60,10 @@ func TestSet_Add(t *testing.T) {
 	})
 
 	t.Run("Boolean", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add booleans to the set
 		s.Add(true)
 		assert.True(t, s.Contains(true))
 		s.Add(false)
@@ -75,31 +71,28 @@ func TestSet_Add(t *testing.T) {
 	})
 
 	t.Run("Complex", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add complex numbers to the set
 		s.Add(complex(1, 1))
 		assert.True(t, s.Contains(complex(1, 1)))
 	})
 
 	t.Run("Nil", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add nil to the set
 		s.Add(nil)
 		assert.True(t, s.Contains(nil))
 	})
 
 	t.Run("Struct", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add struct to the set
 		type testStruct struct {
 			A int
 			B string
@@ -112,7 +105,6 @@ func TestSet_Add(t *testing.T) {
 		s.Add(p)
 		assert.True(t, s.Contains(p))
 
-		// Add struct with nocopy
 		type testStructNoCopy struct {
 			lock sync.Mutex
 		}
@@ -120,7 +112,6 @@ func TestSet_Add(t *testing.T) {
 		s.Add(testStructNoCopy{lock: sync.Mutex{}})
 		assert.True(t, s.Contains(testStructNoCopy{lock: sync.Mutex{}}))
 
-		// Add struct with mixed fields
 		type testStructMixed struct {
 			a    int
 			b    string
@@ -136,45 +127,38 @@ func TestSet_Add(t *testing.T) {
 
 func TestSet_Remove(t *testing.T) {
 	t.Run("Integer", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add integers to the set
 		s.Add(1)
 		s.Add(2)
 		s.Add(3)
 
-		// Remove an integer from the set
 		s.Remove(2)
 
-		// Assert that the removed integer is no longer in the set
 		assert.False(t, s.Contains(2))
 	})
 
 	t.Run("String", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add strings to the set
 		s.Add("a")
 		s.Add("b")
 		s.Add("c")
 
-		// Remove a string from the set
 		s.Remove("b")
 
-		// Assert that the removed string is no longer in the set
 		assert.False(t, s.Contains("b"))
 	})
 
 	t.Run("Struct", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add struct to the set
 		type testStruct struct {
 			A int
 			B string
@@ -184,73 +168,60 @@ func TestSet_Remove(t *testing.T) {
 		s.Add(testStruct{A: 2, B: "b"})
 		s.Add(testStruct{A: 3, B: "c"})
 
-		// Remove a struct from the set
 		s.Remove(testStruct{A: 2, B: "b"})
 
-		// Assert that the removed struct is no longer in the set
 		assert.False(t, s.Contains(testStruct{A: 2, B: "b"}))
 	})
 
 	t.Run("Nil", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add nil to the set
 		s.Add(nil)
 
-		// Remove nil from the set
 		s.Remove(nil)
 
-		// Assert that nil is no longer in the set
 		assert.False(t, s.Contains(nil))
 	})
 
 	t.Run("Complex", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add complex numbers to the set
 		s.Add(complex(1, 1))
 		s.Add(complex(2, 2))
 		s.Add(complex(3, 3))
 
-		// Remove a complex number from the set
 		s.Remove(complex(2, 2))
 
-		// Assert that the removed complex number is no longer in the set
 		assert.False(t, s.Contains(complex(2, 2)))
 	})
 }
 
 func TestSet_List(t *testing.T) {
 	t.Run("EmptySet", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Get the list of items from the set
 		list := s.List()
 
-		// Assert that the list is empty
 		assert.Empty(t, list)
 	})
 
 	t.Run("NonEmptySet", func(t *testing.T) {
-		// Create a new set
+
 		s := New()
 		defer s.Cleanup()
 
-		// Add items to the set
 		s.Add(1)
 		s.Add("a")
 		s.Add(true)
 
-		// Get the list of items from the set
 		list := s.List()
 
-		// Assert that the list contains the added items
 		assert.ElementsMatch(t, []interface{}{1, "a", true}, list)
 	})
 }
