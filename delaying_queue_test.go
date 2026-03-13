@@ -15,7 +15,6 @@ func TestDelayingQueueImpl_PutWithDelay(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
 
-	// Put content into queue
 	err := q.PutWithDelay("test1", DELAYDUCRATION)
 	assert.NoError(t, err, "Put should not return an error")
 
@@ -27,7 +26,6 @@ func TestDelayingQueueImpl_PutWithDelay(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	// Verify the queue state
 	assert.Equal(t, 3, q.Len(), "Queue length should be 3")
 	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, q.Values(), "Queue values should be [test1, test2, test3]")
 }
@@ -36,7 +34,6 @@ func TestDelayingQueueImpl_PutWithDelay_Closed(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	q.Shutdown()
 
-	// Put nil content into queue
 	err := q.PutWithDelay("test", 0)
 	assert.ErrorIs(t, err, ErrQueueIsClosed, "Put should return ErrQueueIsClosed")
 
@@ -47,7 +44,6 @@ func TestDelayingQueueImpl_PutWithDelay_Nil(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
 
-	// Put nil content into queue
 	err := q.PutWithDelay(nil, 0)
 	assert.ErrorIs(t, err, ErrElementIsNil, "Put should return ErrElementIsNil")
 
@@ -60,7 +56,6 @@ func TestDelayingQueueImpl_PutWithDelay_Parallel(t *testing.T) {
 
 	count := 1000
 
-	// Put content into queue in parallel
 	wg := sync.WaitGroup{}
 	wg.Add(count)
 	for i := 0; i < count; i++ {
@@ -74,7 +69,6 @@ func TestDelayingQueueImpl_PutWithDelay_Parallel(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	// Verify the queue state
 	assert.Equal(t, count, q.Len(), "Queue length should be 1000")
 }
 
@@ -82,7 +76,6 @@ func TestDelayingQueueImpl_HeapRange(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
 
-	// Put content into queue
 	err := q.PutWithDelay("test1", DELAYDUCRATION)
 	assert.NoError(t, err, "Put should not return an error")
 
@@ -92,7 +85,6 @@ func TestDelayingQueueImpl_HeapRange(t *testing.T) {
 	err = q.PutWithDelay("test3", DELAYDUCRATION)
 	assert.NoError(t, err, "Put should not return an error")
 
-	// Range content from queue
 	values := []interface{}{}
 	q.HeapRange(func(value interface{}, _ int64) bool {
 		values = append(values, value)
@@ -101,14 +93,12 @@ func TestDelayingQueueImpl_HeapRange(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	// Verify the queue state
 	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, values, "Queue values should be [test1, test2, test3]")
 }
 
 func TestDelayingQueueImpl_HeapRange_Closed(t *testing.T) {
 	q := NewDelayingQueue(nil)
 
-	// Put content into queue
 	err := q.PutWithDelay("test1", DELAYDUCRATION)
 	assert.NoError(t, err, "Put should not return an error")
 
@@ -120,7 +110,6 @@ func TestDelayingQueueImpl_HeapRange_Closed(t *testing.T) {
 
 	q.Shutdown()
 
-	// Range content from queue
 	values := []interface{}{}
 	q.HeapRange(func(value interface{}, _ int64) bool {
 		values = append(values, value)
@@ -160,7 +149,6 @@ func TestDelayingQueueImpl_Callback(t *testing.T) {
 	q := NewDelayingQueue(config)
 	defer q.Shutdown()
 
-	// Put content into queue
 	err := q.PutWithDelay("test1", DELAYDUCRATION)
 	assert.NoError(t, err, "Put should not return an error")
 
@@ -175,15 +163,12 @@ func TestDelayingQueueImpl_Callback(t *testing.T) {
 	err = q.Put("test4")
 	assert.NoError(t, err, "Put should not return an error")
 
-	// Get content from queue
 	v, err := q.Get()
 	assert.NoError(t, err, "Get should not return an error")
 	assert.Equal(t, "test1", v, "Get value should be test1")
 
-	// Done content from queue
 	q.Done(v)
 
-	// Verify the callback state
 	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, callback.delays, "Callback puts should be [test1, test2, test3]")
 	assert.Equal(t, []interface{}{"test1", "test2", "test3", "test4"}, callback.puts, "Callback puts should be [test1, test2, test3, test4]")
 	assert.Equal(t, []interface{}{"test1"}, callback.gets, "Callback gets should be [test1]")
@@ -200,7 +185,6 @@ func TestDelayingQueueImpl_Accuracy(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
 
-	// Put content into queue
 	err := q.PutWithDelay(&testAccNode{value: "test1", ts: time.Now().UnixMilli()}, DELAYDUCRATION)
 	assert.NoError(t, err, "Put should not return an error")
 
@@ -212,7 +196,6 @@ func TestDelayingQueueImpl_Accuracy(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	// Verify the queue state
 	assert.Equal(t, 3, q.Len(), "Queue length should be 3")
 
 	values := q.Values()
@@ -227,18 +210,14 @@ func TestDelayingQueueImpl_ExtremeDelays(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
 
-	// Test zero delay
 	err := q.PutWithDelay("zero-delay", 0)
 	assert.NoError(t, err, "Put with zero delay should not return an error")
 
-	// Test very long delay
-	err = q.PutWithDelay("long-delay", 24*60*60*1000) // 24 hours
+	err = q.PutWithDelay("long-delay", 24*60*60*1000)
 	assert.NoError(t, err, "Put with long delay should not return an error")
 
-	// Test very short delay
 	time.Sleep(time.Second)
 
-	// Verify immediate availability of zero-delay item
 	v, err := q.Get()
 	assert.NoError(t, err)
 	assert.Equal(t, "zero-delay", v, "Zero delay item should be available immediately")
@@ -248,14 +227,11 @@ func TestDelayingQueueImpl_NegativeDelay(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
 
-	// Test negative delay
 	err := q.PutWithDelay("negative-delay", -100)
 	assert.NoError(t, err, "Put with negative delay should not return an error")
 
-	// Test very short delay
 	time.Sleep(time.Second)
 
-	// Verify immediate availability
 	v, err := q.Get()
 	assert.NoError(t, err)
 	assert.Equal(t, "negative-delay", v, "Negative delay item should be available immediately")
@@ -265,7 +241,6 @@ func TestDelayingQueueImpl_DuplicateItems(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
 
-	// Put same item multiple times with different delays
 	err := q.PutWithDelay("duplicate", 100)
 	assert.NoError(t, err)
 
@@ -275,10 +250,8 @@ func TestDelayingQueueImpl_DuplicateItems(t *testing.T) {
 	err = q.PutWithDelay("duplicate", 150)
 	assert.NoError(t, err)
 
-	// Test very short delay
 	time.Sleep(time.Second)
 
-	// All items should be available
 	assert.Equal(t, 3, q.Len(), "Queue should contain all duplicate items")
 }
 
@@ -288,7 +261,6 @@ func TestDelayingQueueImpl_ConcurrentShutdown(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(100)
 
-	// Start goroutines that try to put items
 	for i := 0; i < 100; i++ {
 		go func(index int) {
 			defer wg.Done()
@@ -296,13 +268,11 @@ func TestDelayingQueueImpl_ConcurrentShutdown(t *testing.T) {
 		}(i)
 	}
 
-	// Shutdown while items are being added
 	time.Sleep(10 * time.Millisecond)
 	q.Shutdown()
 
 	wg.Wait()
 
-	// Try to add item after shutdown
 	err := q.PutWithDelay("after-shutdown", DELAYDUCRATION)
 	assert.ErrorIs(t, err, ErrQueueIsClosed, "Put after shutdown should return ErrQueueIsClosed")
 }

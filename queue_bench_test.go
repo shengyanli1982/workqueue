@@ -71,3 +71,26 @@ func BenchmarkQueue_Idempotent_PutAndGet(b *testing.B) {
 		_, _ = q.Get()
 	}
 }
+
+func BenchmarkQueue_Idempotent_PutGetDone(b *testing.B) {
+	conf := NewQueueConfig().WithValueIdempotent()
+	q := NewQueue(conf)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = q.Put(i)
+		v, _ := q.Get()
+		q.Done(v)
+	}
+}
+
+func BenchmarkQueue_Idempotent_DuplicatePut(b *testing.B) {
+	conf := NewQueueConfig().WithValueIdempotent()
+	q := NewQueue(conf)
+	_ = q.Put("same")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = q.Put("same")
+	}
+}

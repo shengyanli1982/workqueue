@@ -13,7 +13,6 @@ func TestRateLimitingQueueImpl_PutWithLimited(t *testing.T) {
 	q := NewRateLimitingQueue(config)
 	defer q.Shutdown()
 
-	// Put content into queue
 	err := q.PutWithLimited("test1")
 	assert.NoError(t, err, "Put should not return an error")
 
@@ -25,7 +24,6 @@ func TestRateLimitingQueueImpl_PutWithLimited(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	// Verify the queue state
 	assert.Equal(t, 3, q.Len(), "Queue length should be 3")
 	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, q.Values(), "Queue values should be [test1, test2, test3]")
 }
@@ -35,7 +33,6 @@ func TestRateLimitingQueueImpl_PutWithLimited_Closed(t *testing.T) {
 	q := NewRateLimitingQueue(config)
 	q.Shutdown()
 
-	// Put nil content into queue
 	err := q.PutWithLimited("test")
 	assert.ErrorIs(t, err, ErrQueueIsClosed, "Put should return ErrQueueIsClosed")
 
@@ -47,7 +44,6 @@ func TestRateLimitingQueueImpl_PutWithLimited_Nil(t *testing.T) {
 	q := NewRateLimitingQueue(config)
 	defer q.Shutdown()
 
-	// Put nil content into queue
 	err := q.PutWithLimited(nil)
 	assert.ErrorIs(t, err, ErrElementIsNil, "Put should return ErrElementIsNil")
 
@@ -76,7 +72,6 @@ func TestRateLimitingQueueImpl_PutWithLimited_Parallel(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	// Verify the queue state
 	assert.Equal(t, count, q.Len(), "Queue length should be 1000")
 }
 
@@ -114,7 +109,6 @@ func TestRateLimitingQueueImpl_Callback(t *testing.T) {
 	q := NewRateLimitingQueue(config)
 	defer q.Shutdown()
 
-	// Put content into queue
 	err := q.PutWithLimited("test1")
 	assert.NoError(t, err, "Put should not return an error")
 
@@ -129,15 +123,12 @@ func TestRateLimitingQueueImpl_Callback(t *testing.T) {
 	err = q.Put("test4")
 	assert.NoError(t, err, "Put should not return an error")
 
-	// Get content from queue
 	v, err := q.Get()
 	assert.NoError(t, err, "Get should not return an error")
 	assert.Equal(t, "test1", v, "Get value should be test1")
 
-	// Done content from queue
 	q.Done(v)
 
-	// Verify the callback state
 	assert.True(t, len(callback.delays) <= 2, "Callback delays length should be less than or equal to 2")
 	assert.Equal(t, []interface{}{"test1", "test2", "test3", "test4"}, callback.puts, "Callback puts should contain all put items")
 	assert.Equal(t, []interface{}{"test1"}, callback.gets, "Callback gets should be [test1]")
@@ -146,16 +137,15 @@ func TestRateLimitingQueueImpl_Callback(t *testing.T) {
 }
 
 func TestRateLimitingQueueImpl_HighConcurrencyRateLimit(t *testing.T) {
-	// 测试高并发下的限流效果
+
 	config := NewRateLimitingQueueConfig().
-		WithLimiter(NewBucketRateLimiterImpl(2, 1)) // 每秒只允许2个请求
+		WithLimiter(NewBucketRateLimiterImpl(2, 1))
 	q := NewRateLimitingQueue(config)
 	defer q.Shutdown()
 
 	var wg sync.WaitGroup
 	start := time.Now()
 
-	// 并发发送10个请求
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(i int) {
@@ -168,17 +158,15 @@ func TestRateLimitingQueueImpl_HighConcurrencyRateLimit(t *testing.T) {
 	wg.Wait()
 	duration := time.Since(start)
 
-	// 验证是否有请求被限流
 	assert.True(t, duration < time.Second*2, "Should complete within 2 seconds")
 }
 
 func TestRateLimitingQueueImpl_DuplicateElements(t *testing.T) {
-	// 测试重复元素的处理
+
 	config := NewRateLimitingQueueConfig().WithLimiter(NewBucketRateLimiterImpl(5, 1))
 	q := NewRateLimitingQueue(config)
 	defer q.Shutdown()
 
-	// 重复放入相同元素
 	err := q.PutWithLimited("duplicate")
 	assert.NoError(t, err, "First put should succeed")
 
@@ -189,7 +177,7 @@ func TestRateLimitingQueueImpl_DuplicateElements(t *testing.T) {
 }
 
 func TestRateLimitingQueueImpl_DifferentTypes(t *testing.T) {
-	// 测试不同数据类型的处理
+
 	config := NewRateLimitingQueueConfig().WithLimiter(NewBucketRateLimiterImpl(5, 1))
 	q := NewRateLimitingQueue(config)
 	defer q.Shutdown()
@@ -211,12 +199,11 @@ func TestRateLimitingQueueImpl_DifferentTypes(t *testing.T) {
 }
 
 func TestRateLimitingQueueImpl_EmptyQueueGet(t *testing.T) {
-	// 测试空队列的Get操作
+
 	config := NewRateLimitingQueueConfig().WithLimiter(NewBucketRateLimiterImpl(5, 1))
 	q := NewRateLimitingQueue(config)
 	defer q.Shutdown()
 
-	// 从空队列中获取元素
 	_, err := q.Get()
 	assert.ErrorIs(t, err, ErrQueueIsEmpty, "Get should return ErrQueueIsEmpty")
 }
