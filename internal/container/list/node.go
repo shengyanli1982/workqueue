@@ -7,28 +7,20 @@ import (
 
 // 红黑树颜色标记。
 const (
-	RED = uint8(0)
-
+	RED   = uint8(0)
 	BLACK = uint8(1)
 )
 
 // Node 既用于链表，也用于堆中的红黑树节点。
 type Node struct {
-	Value interface{}
-
-	Left *Node
-
-	Right *Node
-
-	Parent *Node
-
+	Value     interface{}
+	Left      *Node
+	Right     *Node
+	Parent    *Node
 	parentRef unsafe.Pointer
-
-	Priority int64
-
-	Color uint8
-
-	_ [7]uint8
+	Priority  int64
+	Color     uint8
+	_         [7]uint8
 }
 
 func (n *Node) Reset() {
@@ -51,9 +43,7 @@ type NodePool struct {
 func NewNodePool() *NodePool {
 	return &NodePool{
 		pool: sync.Pool{
-
 			New: func() interface{} {
-
 				return NewNode()
 			},
 		},
@@ -61,13 +51,10 @@ func NewNodePool() *NodePool {
 }
 
 func (p *NodePool) Get() *Node {
-
 	return p.pool.Get().(*Node)
 }
 
 func (p *NodePool) Put(n *Node) {
-
 	n.Reset()
-
 	p.pool.Put(n)
 }

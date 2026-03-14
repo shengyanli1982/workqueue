@@ -86,7 +86,6 @@ func (l *List) PopBack() *Node {
 	}
 
 	n := l.tail
-
 	l.tail = n.Left
 
 	if l.tail == nil {
@@ -109,7 +108,6 @@ func (l *List) PopFront() *Node {
 	}
 
 	n := l.head
-
 	l.head = n.Right
 
 	if l.head == nil {
