@@ -10,7 +10,7 @@ import (
 // NewSetFunc 用于自定义幂等集合实现。
 type NewSetFunc = func() Set
 
-var defaultNewSetFunc = func() Set { return set.New() }
+var defaultNewSetFunc = func() Set { return set.NewWithCapacity(64) }
 
 var defaultRetryKeyFunc = func(value interface{}) string {
 	if value == nil {

@@ -201,6 +201,10 @@ type Set = interface {
 
 	Contains(item interface{}) bool
 
+	TryAdd(item interface{}) bool
+
+	TryRemove(item interface{}) bool
+
 	List() []interface{}
 
 	Len() int
