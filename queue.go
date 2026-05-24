@@ -15,8 +15,7 @@ type queueImpl struct {
 	config      *QueueConfig
 	list        container
 	elementpool *lst.NodePool
-	processing  Set
-	dirty       Set
+	state       Set
 }
 
 // NewQueue 创建基础队列。
@@ -33,8 +32,7 @@ func newQueue(list container, elementpool *lst.NodePool, config *QueueConfig) *q
 	}
 
 	if q.config.idempotent {
-		q.processing = q.config.setCreator()
-		q.dirty = q.config.setCreator()
+		q.state = q.config.setCreator()
 	}
 
 	return q
@@ -56,8 +54,7 @@ func (q *queueImpl) Shutdown() {
 		q.list.Cleanup()
 
 		if q.config.idempotent {
-			q.processing.Cleanup()
-			q.dirty.Cleanup()
+			q.state.Cleanup()
 		}
 
 		q.lock.Unlock()
@@ -109,22 +106,28 @@ func (q *queueImpl) Put(value interface{}) error {
 	}
 
 	if q.config.idempotent {
-		// 幂等模式先判重再分配节点，减少重复入队时的对象池开销。
 		q.lock.Lock()
-		if q.dirty.Contains(value) || q.processing.Contains(value) {
+		if q.closed.Load() {
+			q.lock.Unlock()
+			return ErrQueueIsClosed
+		}
+		if !q.state.TryAdd(value) {
 			q.lock.Unlock()
 			return ErrElementAlreadyExist
 		}
 		last := q.elementpool.Get()
 		last.Value = value
 		q.list.Push(last)
-		q.dirty.Add(value)
 		q.lock.Unlock()
 	} else {
-		// 非幂等模式在锁外申请节点，缩短临界区。
 		last := q.elementpool.Get()
 		last.Value = value
 		q.lock.Lock()
+		if q.closed.Load() {
+			q.lock.Unlock()
+			q.elementpool.Put(last)
+			return ErrQueueIsClosed
+		}
 		q.list.Push(last)
 		q.lock.Unlock()
 	}
@@ -149,10 +152,6 @@ func (q *queueImpl) Get() (interface{}, error) {
 	front := q.list.Pop().(*lst.Node)
 	value := front.Value
 
-	if q.config.idempotent {
-		q.processing.Add(value)
-		q.dirty.Remove(value)
-	}
 	q.lock.Unlock()
 
 	q.elementpool.Put(front)
@@ -171,14 +170,11 @@ func (q *queueImpl) Done(value interface{}) {
 	if q.config.idempotent {
 		q.lock.Lock()
 
-		if !q.processing.Contains(value) {
+		if q.state.TryRemove(value) {
 			q.lock.Unlock()
-			return
+			q.config.callback.OnDone(value)
+		} else {
+			q.lock.Unlock()
 		}
-
-		q.processing.Remove(value)
-		q.lock.Unlock()
-
-		q.config.callback.OnDone(value)
 	}
 }

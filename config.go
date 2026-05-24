@@ -10,7 +10,7 @@ import (
 // NewSetFunc 用于自定义幂等集合实现。
 type NewSetFunc = func() Set
 
-var defaultNewSetFunc = func() Set { return set.New() }
+var defaultNewSetFunc = func() Set { return set.NewWithCapacity(64) }
 
 var defaultRetryKeyFunc = func(value interface{}) string {
 	if value == nil {
@@ -381,6 +381,7 @@ func (c *RateLimitingQueueConfig) WithLimiter(limiter Limiter) *RateLimitingQueu
 
 func isRateLimitingQueueConfigEffective(c *RateLimitingQueueConfig) *RateLimitingQueueConfig {
 	if c != nil {
+		c.DelayingQueueConfig.QueueConfig = *isQueueConfigEffective(&c.DelayingQueueConfig.QueueConfig)
 
 		if c.callback == nil {
 			c.callback = NewNopRateLimitingQueueCallbackImpl()

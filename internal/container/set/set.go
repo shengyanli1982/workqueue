@@ -14,6 +14,12 @@ func New() *Set {
 	}
 }
 
+func NewWithCapacity(capacity int) *Set {
+	return &Set{
+		m: make(map[interface{}]struct{}, capacity),
+	}
+}
+
 func (s *Set) Add(item interface{}) {
 
 	s.m[item] = setValue
@@ -28,6 +34,22 @@ func (s *Set) Contains(item interface{}) bool {
 
 	_, c := s.m[item]
 	return c
+}
+
+func (s *Set) TryAdd(item interface{}) bool {
+	_, exists := s.m[item]
+	if !exists {
+		s.m[item] = setValue
+	}
+	return !exists
+}
+
+func (s *Set) TryRemove(item interface{}) bool {
+	_, exists := s.m[item]
+	if exists {
+		delete(s.m, item)
+	}
+	return exists
 }
 
 func (s *Set) Len() int {

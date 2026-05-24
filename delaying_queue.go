@@ -8,9 +8,8 @@ import (
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 )
 
-// toDelay 将相对毫秒延迟转换为绝对 Unix 毫秒时间戳。
 func toDelay(duration int64) int64 {
-	return time.Now().Add(time.Millisecond * time.Duration(duration)).UnixMilli()
+	return time.Now().UnixMilli() + duration
 }
 
 // delayingQueueImpl 通过排序树维护尚未到期的元素。
@@ -22,7 +21,6 @@ type delayingQueueImpl struct {
 	lock        sync.Mutex
 	once        sync.Once
 	wg          sync.WaitGroup
-	closed      bool
 }
 
 // NewDelayingQueue 创建延迟队列并启动搬运协程。
@@ -46,7 +44,6 @@ func (q *delayingQueueImpl) Shutdown() {
 	q.Queue.Shutdown()
 	q.once.Do(func() {
 		q.lock.Lock()
-		q.closed = true
 		q.sorting.Range(func(node *lst.Node) bool {
 			q.elementpool.Put(node)
 			return true
@@ -79,29 +76,37 @@ func (q *delayingQueueImpl) PutWithDelay(value interface{}, delay int64) error {
 }
 
 func (q *delayingQueueImpl) puller() {
-	// 心跳轮询用于从延迟树中搬运已到期元素。
 	heartbeat := time.NewTicker(time.Millisecond * 300)
 	defer func() {
 		heartbeat.Stop()
 		q.wg.Done()
 	}()
 
+	var expired []*lst.Node
+
 	for !q.IsClosed() {
+		now := time.Now().UnixMilli()
 		q.lock.Lock()
+		expired = expired[:0]
+		for q.sorting.Len() > 0 && q.sorting.Front().Priority <= now {
+			expired = append(expired, q.sorting.Pop())
+			if len(expired) >= 128 {
+				break
+			}
+		}
+		q.lock.Unlock()
 
-		if q.sorting.Len() > 0 && q.sorting.Front().Priority <= time.Now().UnixMilli() {
-			top := q.sorting.Pop()
-			value := top.Value
-			q.lock.Unlock()
-
-			q.elementpool.Put(top)
+		for _, node := range expired {
+			value := node.Value
+			q.elementpool.Put(node)
 			if err := q.Queue.Put(value); err != nil {
 				q.config.callback.OnPullError(value, err)
 			}
-			continue
 		}
-		q.lock.Unlock()
-		<-heartbeat.C
+
+		if len(expired) == 0 {
+			<-heartbeat.C
+		}
 	}
 }
 
@@ -115,7 +120,7 @@ func (q *delayingQueueImpl) HeapRange(fn func(value interface{}, delay int64) bo
 
 func (q *delayingQueueImpl) Len() int {
 	q.lock.Lock()
-	count := int(q.sorting.Len() + q.Queue.(*queueImpl).list.Len())
+	count := int(q.sorting.Len())
 	q.lock.Unlock()
-	return count
+	return count + q.Queue.Len()
 }

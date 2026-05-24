@@ -23,6 +23,7 @@ func NewBoundedBlockingQueue(config *BoundedBlockingQueueConfig) BoundedBlocking
 	capacity := config.capacity
 	if capacity <= 0 {
 		capacity = 1024
+		config.capacity = capacity
 	}
 
 	q := &boundedBlockingQueueImpl{
@@ -64,13 +65,8 @@ func (q *boundedBlockingQueueImpl) Put(value interface{}) error {
 		return err
 	}
 
-	select {
-	case <-q.closed:
-		q.releaseSlot()
-		return ErrQueueIsClosed
-	case q.items <- struct{}{}:
-		return nil
-	}
+	q.items <- struct{}{}
+	return nil
 }
 
 func (q *boundedBlockingQueueImpl) Get() (value interface{}, err error) {
@@ -116,13 +112,8 @@ func (q *boundedBlockingQueueImpl) PutWithContext(ctx context.Context, value int
 		return err
 	}
 
-	select {
-	case <-q.closed:
-		q.releaseSlot()
-		return ErrQueueIsClosed
-	case q.items <- struct{}{}:
-		return nil
-	}
+	q.items <- struct{}{}
+	return nil
 }
 
 func (q *boundedBlockingQueueImpl) GetWithContext(ctx context.Context) (interface{}, error) {
@@ -153,6 +144,22 @@ func (q *boundedBlockingQueueImpl) Shutdown() {
 		close(q.closed)
 	})
 	q.Queue.Shutdown()
+
+	for {
+		select {
+		case <-q.items:
+		default:
+			goto drainSlots
+		}
+	}
+drainSlots:
+	for {
+		select {
+		case <-q.slots:
+		default:
+			return
+		}
+	}
 }
 
 func (q *boundedBlockingQueueImpl) releaseSlot() {

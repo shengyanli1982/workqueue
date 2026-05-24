@@ -2,7 +2,6 @@ package heap
 
 import (
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
-	"github.com/shengyanli1982/workqueue/v2/internal/ternary"
 )
 
 // RBTree 是按 Priority 排序的红黑树实现。
@@ -116,7 +115,11 @@ func (tree *RBTree) insert(node *lst.Node) {
 
 	for current != nil {
 		parent = current
-		current = ternary.If(node.Priority < current.Priority, current.Left, current.Right)
+		if node.Priority < current.Priority {
+			current = current.Left
+		} else {
+			current = current.Right
+		}
 	}
 
 	node.Parent = parent

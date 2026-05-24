@@ -2,7 +2,6 @@ package workqueue
 
 import (
 	"math"
-	"sync"
 
 	hp "github.com/shengyanli1982/workqueue/v2/internal/container/heap"
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
@@ -23,7 +22,6 @@ type priorityQueueImpl struct {
 	config      *PriorityQueueConfig
 	sorting     *hp.RBTree
 	elementpool *lst.NodePool
-	lock        sync.Mutex
 }
 
 // NewPriorityQueue 创建优先级队列。
@@ -64,19 +62,26 @@ func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) e
 	last.Value = value
 	last.Priority = priority
 
-	q.lock.Lock()
+	qi := q.Queue.(*queueImpl)
+	qi.lock.Lock()
+	if q.IsClosed() {
+		qi.lock.Unlock()
+		q.elementpool.Put(last)
+		return ErrQueueIsClosed
+	}
 	q.sorting.Push(last)
-	q.lock.Unlock()
+	qi.lock.Unlock()
 
 	q.config.callback.OnPriority(value, priority)
 
 	return nil
 }
 
-func (q *priorityQueueImpl) HeapRange(fn func(value interface{}, delay int64) bool) {
-	q.lock.Lock()
+func (q *priorityQueueImpl) HeapRange(fn func(value interface{}, priority int64) bool) {
+	qi := q.Queue.(*queueImpl)
+	qi.lock.Lock()
 	q.sorting.Range(func(node *lst.Node) bool {
 		return fn(node.Value, node.Priority)
 	})
-	q.lock.Unlock()
+	qi.lock.Unlock()
 }
