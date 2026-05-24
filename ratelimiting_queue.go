@@ -41,7 +41,9 @@ func (q *ratelimitingQueueImpl) PutWithLimited(value interface{}) error {
 		err = q.Put(value)
 	}
 
-	q.config.callback.OnLimited(value)
+	if err == nil {
+		q.config.callback.OnLimited(value)
+	}
 
 	return err
 }

@@ -1,6 +1,7 @@
 package workqueue
 
 import (
+	"math"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -23,7 +24,9 @@ func (rl *bucketRateLimiterImpl) When(interface{}) time.Duration {
 
 // NewBucketRateLimiterImpl 使用 token bucket 策略创建限流器。
 func NewBucketRateLimiterImpl(r float64, burst int64) Limiter {
-
+	if burst > math.MaxInt {
+		burst = math.MaxInt
+	}
 	return &bucketRateLimiterImpl{
 		r: rate.NewLimiter(rate.Limit(r), int(burst)),
 	}

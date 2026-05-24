@@ -381,6 +381,7 @@ func (c *RateLimitingQueueConfig) WithLimiter(limiter Limiter) *RateLimitingQueu
 
 func isRateLimitingQueueConfigEffective(c *RateLimitingQueueConfig) *RateLimitingQueueConfig {
 	if c != nil {
+		c.DelayingQueueConfig.QueueConfig = *isQueueConfigEffective(&c.DelayingQueueConfig.QueueConfig)
 
 		if c.callback == nil {
 			c.callback = NewNopRateLimitingQueueCallbackImpl()

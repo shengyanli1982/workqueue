@@ -42,7 +42,7 @@ type PriorityQueue = interface {
 
 	PutWithPriority(value interface{}, priority int64) error
 
-	HeapRange(fn func(value interface{}, delay int64) bool)
+	HeapRange(fn func(value interface{}, priority int64) bool)
 }
 
 // RateLimitingQueue 在 DelayingQueue 基础上提供限流入队能力。

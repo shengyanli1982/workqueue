@@ -109,8 +109,11 @@ func (q *queueImpl) Put(value interface{}) error {
 	}
 
 	if q.config.idempotent {
-		// 幂等模式先判重再分配节点，减少重复入队时的对象池开销。
 		q.lock.Lock()
+		if q.closed.Load() {
+			q.lock.Unlock()
+			return ErrQueueIsClosed
+		}
 		if q.dirty.Contains(value) || q.processing.Contains(value) {
 			q.lock.Unlock()
 			return ErrElementAlreadyExist
@@ -121,10 +124,14 @@ func (q *queueImpl) Put(value interface{}) error {
 		q.dirty.Add(value)
 		q.lock.Unlock()
 	} else {
-		// 非幂等模式在锁外申请节点，缩短临界区。
 		last := q.elementpool.Get()
 		last.Value = value
 		q.lock.Lock()
+		if q.closed.Load() {
+			q.lock.Unlock()
+			q.elementpool.Put(last)
+			return ErrQueueIsClosed
+		}
 		q.list.Push(last)
 		q.lock.Unlock()
 	}

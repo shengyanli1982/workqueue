@@ -278,6 +278,12 @@ func matchTimerValue(candidate, target interface{}) bool {
 	case string:
 		cv, ok := candidate.(string)
 		return ok && cv == tv
+	case float32:
+		cv, ok := candidate.(float32)
+		return ok && cv == tv
+	case float64:
+		cv, ok := candidate.(float64)
+		return ok && cv == tv
 	default:
 		return reflect.DeepEqual(candidate, target)
 	}

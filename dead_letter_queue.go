@@ -96,11 +96,12 @@ func (q *deadLetterQueueImpl) RequeueDead(letter *DeadLetter, target Queue) erro
 		return ErrInvalidTargetQueue
 	}
 
-	if err := target.Put(letter.Payload); err != nil {
+	if err := q.AckDead(letter); err != nil {
 		return err
 	}
 
-	if err := q.AckDead(letter); err != nil {
+	if err := target.Put(letter.Payload); err != nil {
+		_ = q.PutDead(letter)
 		return err
 	}
 

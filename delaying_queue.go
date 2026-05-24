@@ -22,7 +22,6 @@ type delayingQueueImpl struct {
 	lock        sync.Mutex
 	once        sync.Once
 	wg          sync.WaitGroup
-	closed      bool
 }
 
 // NewDelayingQueue 创建延迟队列并启动搬运协程。
@@ -46,7 +45,6 @@ func (q *delayingQueueImpl) Shutdown() {
 	q.Queue.Shutdown()
 	q.once.Do(func() {
 		q.lock.Lock()
-		q.closed = true
 		q.sorting.Range(func(node *lst.Node) bool {
 			q.elementpool.Put(node)
 			return true
@@ -115,7 +113,7 @@ func (q *delayingQueueImpl) HeapRange(fn func(value interface{}, delay int64) bo
 
 func (q *delayingQueueImpl) Len() int {
 	q.lock.Lock()
-	count := int(q.sorting.Len() + q.Queue.(*queueImpl).list.Len())
+	count := int(q.sorting.Len())
 	q.lock.Unlock()
-	return count
+	return count + q.Queue.Len()
 }
