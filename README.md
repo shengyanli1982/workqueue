@@ -19,13 +19,13 @@ You can start with a simple FIFO queue, then evolve to delayed, prioritized, lea
 - **Built for hot paths**: object pooling (`sync.Pool`), short lock critical sections, and `O(log n)` scheduling structures.
 - **Clear reliability semantics**: explicit errors, shutdown guarantees, idempotent mode, retry policy, and lease expiration recovery.
 - **Cross-platform confidence**: CI runs `go test -v ./...` on Linux, macOS, and Windows.
-- **Evidence over slogans**: the repo includes `163` tests and `68` benchmarks (current tree count).
+- **Evidence over slogans**: the repo includes `163` tests and `92` benchmarks (current tree count).
 
 ## Queue Portfolio
 
 | Queue                  | Best for                   | Key capability                                                    |
 | ---------------------- | -------------------------- | ----------------------------------------------------------------- |
-| `Queue`                | Standard async processing  | FIFO with optional idempotent dedup (`dirty` + `processing` sets) |
+| `Queue`                | Standard async processing  | FIFO with optional idempotent dedup (unified `state` set) |
 | `DelayingQueue`        | Deferred execution         | Delay-based enqueue with background puller                        |
 | `PriorityQueue`        | SLA-based scheduling       | Priority-driven ordering                                          |
 | `RateLimitingQueue`    | Producer throttling        | Limiter-driven delay (token bucket provided)                      |
@@ -102,35 +102,35 @@ goos: windows
 goarch: amd64
 pkg: github.com/shengyanli1982/workqueue/v2
 cpu: 12th Gen Intel(R) Core(TM) i5-12400F
-BenchmarkDelayingQueue_Put-12                            9660178               113.7 ns/op            72 B/op          1 allocs/op
-BenchmarkDelayingQueue_PutWithDelay-12                   7223593               204.3 ns/op            72 B/op          1 allocs/op
-BenchmarkDelayingQueue_Get-12                           43128854                26.13 ns/op           25 B/op          0 allocs/op
-BenchmarkDelayingQueue_PutAndGet-12                     28233632                43.19 ns/op            8 B/op          0 allocs/op
-BenchmarkDelayingQueue_PutWithDelayAndGet-12             7812835               173.3 ns/op            23 B/op          1 allocs/op
-BenchmarkPriorityQueue_Put-12                            8790770               152.1 ns/op            71 B/op          1 allocs/op
-BenchmarkPriorityQueue_PutWithPriority-12                8905075               147.6 ns/op            71 B/op          1 allocs/op
-BenchmarkPriorityQueue_Get-12                           35805717                38.58 ns/op           30 B/op          0 allocs/op
-BenchmarkPriorityQueue_PutAndGet-12                     27909182                43.27 ns/op            7 B/op          0 allocs/op
-BenchmarkPriorityQueue_PutWithPriorityAndGet-12         28891783                41.20 ns/op            8 B/op          0 allocs/op
-BenchmarkQueue_Put-12                                   15871357                71.97 ns/op           71 B/op          1 allocs/op
-BenchmarkQueue_Get-12                                   46386312                28.14 ns/op           20 B/op          0 allocs/op
-BenchmarkQueue_PutAndGet-12                             30368137                40.18 ns/op            8 B/op          0 allocs/op
-BenchmarkQueue_Idempotent_Put-12                         3958620               390.7 ns/op           192 B/op          3 allocs/op
-BenchmarkQueue_Idempotent_Get-12                         3932238               402.2 ns/op           136 B/op          0 allocs/op
-BenchmarkQueue_Idempotent_PutAndGet-12                   4843734               315.1 ns/op           100 B/op          1 allocs/op
-BenchmarkQueue_Idempotent_PutGetDone-12                  8454412               134.9 ns/op             8 B/op          0 allocs/op
-BenchmarkQueue_Idempotent_DuplicatePut-12               58935621                18.90 ns/op            0 B/op          0 allocs/op
-BenchmarkDeadLetterQueue_PutGetAck-12                    7876915               202.6 ns/op           464 B/op          4 allocs/op
-BenchmarkRetryQueue_RetryPath-12                         8142548               143.9 ns/op             8 B/op          0 allocs/op
-BenchmarkLeasedQueue_GetAck-12                          10255945               119.1 ns/op            15 B/op          1 allocs/op
-BenchmarkBoundedBlockingQueue_PutGet-12                  6371674               189.4 ns/op             8 B/op          0 allocs/op
-BenchmarkTimerQueue_PutAtGet-12                         24577572                46.05 ns/op            8 B/op          0 allocs/op
-BenchmarkTimerQueue_Cancel-12                           10201149               115.2 ns/op            16 B/op          1 allocs/op
-BenchmarkRateLimitingQueue_Put-12                       15276328                75.14 ns/op           72 B/op          1 allocs/op
-BenchmarkRateLimitingQueue_PutWithLimited-12             5905118               246.6 ns/op           136 B/op          2 allocs/op
-BenchmarkRateLimitingQueue_Get-12                       38158107                26.46 ns/op           28 B/op          0 allocs/op
-BenchmarkRateLimitingQueue_PutAndGet-12                 28648164                42.73 ns/op            8 B/op          0 allocs/op
-BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12       5478241               229.2 ns/op           135 B/op          2 allocs/op
+BenchmarkDelayingQueue_Put-12                            8744570               125.9 ns/op            72 B/op          1 allocs/op
+BenchmarkDelayingQueue_PutWithDelay-12                   6334335               229.0 ns/op            72 B/op          1 allocs/op
+BenchmarkDelayingQueue_Get-12                           39822523                29.93 ns/op            23 B/op          0 allocs/op
+BenchmarkDelayingQueue_PutAndGet-12                     28233632                43.19 ns/op             8 B/op          0 allocs/op
+BenchmarkDelayingQueue_PutWithDelayAndGet-12             5966746               183.7 ns/op            26 B/op          1 allocs/op
+BenchmarkPriorityQueue_Put-12                            6252663               194.5 ns/op            72 B/op          1 allocs/op
+BenchmarkPriorityQueue_PutWithPriority-12                6300078               195.3 ns/op            72 B/op          1 allocs/op
+BenchmarkPriorityQueue_Get-12                           29511438                39.75 ns/op            27 B/op          0 allocs/op
+BenchmarkPriorityQueue_PutAndGet-12                     24923566                48.11 ns/op             8 B/op          1 allocs/op
+BenchmarkPriorityQueue_PutWithPriorityAndGet-12         25398705                46.46 ns/op             8 B/op          1 allocs/op
+BenchmarkQueue_Put-12                                    8481649               118.5 ns/op            72 B/op          1 allocs/op
+BenchmarkQueue_Get-12                                   38985721                29.26 ns/op            27 B/op          0 allocs/op
+BenchmarkQueue_PutAndGet-12                             27054385                44.12 ns/op             8 B/op          1 allocs/op
+BenchmarkQueue_Idempotent_Put-12                         2337792               504.3 ns/op           175 B/op          3 allocs/op
+BenchmarkQueue_Idempotent_Get-12                        40418056                29.33 ns/op            19 B/op          0 allocs/op
+BenchmarkQueue_Idempotent_PutAndGet-12                   3680174               346.3 ns/op           100 B/op          1 allocs/op
+BenchmarkQueue_Idempotent_PutGetDone-12                 10314355               105.4 ns/op             8 B/op          0 allocs/op
+BenchmarkQueue_Idempotent_DuplicatePut-12               57036388                21.11 ns/op             0 B/op          0 allocs/op
+BenchmarkDeadLetterQueue_PutGetAck-12                    6015043               209.3 ns/op           464 B/op          5 allocs/op
+BenchmarkRetryQueue_RetryPath-12                         6997924               185.9 ns/op             8 B/op          0 allocs/op
+BenchmarkLeasedQueue_GetAck-12                           8392528               138.0 ns/op            16 B/op          1 allocs/op
+BenchmarkBoundedBlockingQueue_PutGet-12                  6363626               181.6 ns/op             8 B/op          0 allocs/op
+BenchmarkTimerQueue_PutAtGet-12                         21816039                55.51 ns/op             8 B/op          1 allocs/op
+BenchmarkTimerQueue_Cancel-12                            9758358               121.9 ns/op            16 B/op          2 allocs/op
+BenchmarkRateLimitingQueue_Put-12                        8048953               127.7 ns/op            72 B/op          1 allocs/op
+BenchmarkRateLimitingQueue_PutWithLimited-12             4103247               303.3 ns/op           136 B/op          2 allocs/op
+BenchmarkRateLimitingQueue_Get-12                       38873950                30.52 ns/op            24 B/op          0 allocs/op
+BenchmarkRateLimitingQueue_PutAndGet-12                 25310528                45.61 ns/op             8 B/op          1 allocs/op
+BenchmarkRateLimitingQueue_PutWithLimitedAndGet-12       4022172               305.4 ns/op           136 B/op          2 allocs/op
 ```
 
 ## Reliability by Design
