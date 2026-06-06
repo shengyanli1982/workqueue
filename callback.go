@@ -29,6 +29,22 @@ func (impl *delayingQueueCallbackImpl) OnDelay(interface{}, int64) {}
 
 func (impl *delayingQueueCallbackImpl) OnPullError(interface{}, error) {}
 
+type timerQueueCallbackImpl struct {
+	queueCallbackImpl
+}
+
+// NewNopTimerQueueCallbackImpl 返回空实现定时回调。
+func NewNopTimerQueueCallbackImpl() *timerQueueCallbackImpl {
+
+	return &timerQueueCallbackImpl{
+		queueCallbackImpl: queueCallbackImpl{},
+	}
+}
+
+func (impl *timerQueueCallbackImpl) OnSchedule(interface{}, int64) {}
+
+func (impl *timerQueueCallbackImpl) OnScheduleError(interface{}, error) {}
+
 type priorityQueueCallbackImpl struct {
 	queueCallbackImpl
 }

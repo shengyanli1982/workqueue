@@ -46,8 +46,10 @@ func (q *queueImpl) Shutdown() {
 
 		q.lock.Lock()
 
+		// 先收集所有节点，避免遍历中归还池会 Reset 指针破坏遍历。
+		nodes := make([]*lst.Node, 0, q.list.Len())
 		q.list.Range(func(value interface{}) bool {
-			q.elementpool.Put(value.(*lst.Node))
+			nodes = append(nodes, value.(*lst.Node))
 			return true
 		})
 
@@ -58,6 +60,11 @@ func (q *queueImpl) Shutdown() {
 		}
 
 		q.lock.Unlock()
+
+		// 锁外统一归还池，缩短临界区。
+		for _, node := range nodes {
+			q.elementpool.Put(node)
+		}
 	})
 }
 

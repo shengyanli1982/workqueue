@@ -230,18 +230,36 @@ func isBoundedBlockingQueueConfigEffective(c *BoundedBlockingQueueConfig) *Bound
 // TimerQueueConfig 定义定时队列配置。
 type TimerQueueConfig struct {
 	QueueConfig
+	callback TimerQueueCallback
 }
 
 // NewTimerQueueConfig 返回带默认值的定时队列配置。
 func NewTimerQueueConfig() *TimerQueueConfig {
 	return &TimerQueueConfig{
 		QueueConfig: *NewQueueConfig(),
+
+		callback: NewNopTimerQueueCallbackImpl(),
 	}
+}
+
+// WithCallback 设置定时队列回调。
+func (c *TimerQueueConfig) WithCallback(cb TimerQueueCallback) *TimerQueueConfig {
+	c.callback = cb
+	c.QueueConfig.callback = cb
+
+	return c
 }
 
 func isTimerQueueConfigEffective(c *TimerQueueConfig) *TimerQueueConfig {
 	if c != nil {
 		c.QueueConfig = *isQueueConfigEffective(&c.QueueConfig)
+
+		if c.callback == nil {
+			c.callback = NewNopTimerQueueCallbackImpl()
+		}
+		if c.QueueConfig.callback == nil {
+			c.QueueConfig.callback = NewNopQueueCallbackImpl()
+		}
 	} else {
 		c = NewTimerQueueConfig()
 	}

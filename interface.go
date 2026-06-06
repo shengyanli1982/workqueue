@@ -144,6 +144,15 @@ type DelayingQueueCallback = interface {
 	OnPullError(value interface{}, reason error)
 }
 
+// TimerQueueCallback 扩展定时队列回调。
+type TimerQueueCallback = interface {
+	QueueCallback
+
+	OnSchedule(value interface{}, at int64)
+
+	OnScheduleError(value interface{}, reason error)
+}
+
 // PriorityQueueCallback 扩展优先队列回调。
 type PriorityQueueCallback = interface {
 	QueueCallback
