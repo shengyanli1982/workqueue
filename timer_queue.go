@@ -1,6 +1,7 @@
 package workqueue
 
 import (
+	"errors"
 	"reflect"
 	"sync"
 	"time"
@@ -47,9 +48,22 @@ func (q *timerQueueImpl) PutAt(value interface{}, at time.Time) error {
 	if value == nil {
 		return ErrElementIsNil
 	}
+	return q.putAtInternal(value, at.UnixMilli(), time.Now().UnixMilli())
+}
 
-	atMillis := at.UnixMilli()
-	if atMillis <= time.Now().UnixMilli() {
+func (q *timerQueueImpl) PutAfter(value interface{}, after time.Duration) error {
+	if q.IsClosed() {
+		return ErrQueueIsClosed
+	}
+	if value == nil {
+		return ErrElementIsNil
+	}
+	nowMillis := time.Now().UnixMilli()
+	return q.putAtInternal(value, nowMillis+after.Milliseconds(), nowMillis)
+}
+
+func (q *timerQueueImpl) putAtInternal(value interface{}, atMillis, nowMillis int64) error {
+	if atMillis <= nowMillis {
 		return q.Queue.Put(value)
 	}
 
@@ -66,11 +80,8 @@ func (q *timerQueueImpl) PutAt(value interface{}, at time.Time) error {
 	if shouldWake {
 		q.notifyWake()
 	}
+	q.config.callback.OnSchedule(value, atMillis)
 	return nil
-}
-
-func (q *timerQueueImpl) PutAfter(value interface{}, after time.Duration) error {
-	return q.PutAt(value, time.Now().Add(after))
 }
 
 func (q *timerQueueImpl) Cancel(value interface{}) bool {
@@ -116,12 +127,22 @@ func (q *timerQueueImpl) Shutdown() {
 		q.wg.Wait()
 
 		q.lock.Lock()
+
+		// 先收集所有节点，避免遍历中归还池会 Reset 指针破坏红黑树遍历。
+		nodes := make([]*lst.Node, 0, q.sorting.Len())
 		q.sorting.Range(func(node *lst.Node) bool {
-			q.elementpool.Put(node)
+			nodes = append(nodes, node)
 			return true
 		})
+
 		q.sorting.Cleanup()
+
 		q.lock.Unlock()
+
+		// 锁外统一归还池，缩短临界区。
+		for _, node := range nodes {
+			q.elementpool.Put(node)
+		}
 	})
 }
 
@@ -151,6 +172,8 @@ func (q *timerQueueImpl) scheduler() {
 		}
 	}()
 
+	cb := q.config.callback // 局部变量捕获回调引用，避免数据竞争
+
 	for {
 		wait, due, ok := q.nextWait()
 		if !ok {
@@ -160,7 +183,12 @@ func (q *timerQueueImpl) scheduler() {
 		if due != nil {
 			value := due.Value
 			q.elementpool.Put(due)
-			_ = q.Queue.Put(value)
+			if err := q.Queue.Put(value); err != nil {
+				if errors.Is(err, ErrQueueIsClosed) {
+					return
+				}
+				cb.OnScheduleError(value, err)
+			}
 			continue
 		}
 

@@ -21,6 +21,7 @@ type delayingQueueImpl struct {
 	lock        sync.Mutex
 	once        sync.Once
 	wg          sync.WaitGroup
+	closed      chan struct{}
 }
 
 // NewDelayingQueue 创建延迟队列并启动搬运协程。
@@ -32,6 +33,7 @@ func NewDelayingQueue(config *DelayingQueueConfig) DelayingQueue {
 		elementpool: lst.NewNodePool(),
 		once:        sync.Once{},
 		wg:          sync.WaitGroup{},
+		closed:      make(chan struct{}),
 	}
 
 	q.Queue = newQueue(&wrapInternalList{List: lst.New()}, q.elementpool, &config.QueueConfig)
@@ -43,13 +45,27 @@ func NewDelayingQueue(config *DelayingQueueConfig) DelayingQueue {
 func (q *delayingQueueImpl) Shutdown() {
 	q.Queue.Shutdown()
 	q.once.Do(func() {
+		// 关闭 closed channel 以唤醒可能阻塞在 heartbeat ticker 上的 puller goroutine。
+		close(q.closed)
+
 		q.lock.Lock()
+
+		// 先收集所有节点，避免遍历中归还池会 Reset 指针破坏红黑树遍历。
+		nodes := make([]*lst.Node, 0, q.sorting.Len())
 		q.sorting.Range(func(node *lst.Node) bool {
-			q.elementpool.Put(node)
+			nodes = append(nodes, node)
 			return true
 		})
+
 		q.sorting.Cleanup()
+
 		q.lock.Unlock()
+
+		// 锁外统一归还池，缩短临界区。
+		for _, node := range nodes {
+			q.elementpool.Put(node)
+		}
+
 		q.wg.Wait()
 	})
 }
@@ -83,6 +99,7 @@ func (q *delayingQueueImpl) puller() {
 	}()
 
 	var expired []*lst.Node
+	cb := q.config.callback // 局部变量捕获回调引用，避免数据竞争
 
 	for !q.IsClosed() {
 		now := time.Now().UnixMilli()
@@ -100,12 +117,16 @@ func (q *delayingQueueImpl) puller() {
 			value := node.Value
 			q.elementpool.Put(node)
 			if err := q.Queue.Put(value); err != nil {
-				q.config.callback.OnPullError(value, err)
+				cb.OnPullError(value, err)
 			}
 		}
 
 		if len(expired) == 0 {
-			<-heartbeat.C
+			select {
+			case <-heartbeat.C:
+			case <-q.closed:
+				return
+			}
 		}
 	}
 }

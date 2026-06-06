@@ -140,11 +140,16 @@ func (q *boundedBlockingQueueImpl) GetWithContext(ctx context.Context) (interfac
 }
 
 func (q *boundedBlockingQueueImpl) Shutdown() {
+	// 1. 关闭 closed channel，唤醒所有阻塞在 Put/Get select 上的 goroutine。
+	//    这些 goroutine 会收到 ErrQueueIsClosed 并退出。
 	q.once.Do(func() {
 		close(q.closed)
 	})
+
+	// 2. 关闭底层队列，阻止新的 Put/Get 操作。
 	q.Queue.Shutdown()
 
+	// 3. 排空 items channel：释放已入队信号，确保不会因为 channel 满而阻塞。
 	for {
 		select {
 		case <-q.items:
@@ -152,6 +157,8 @@ func (q *boundedBlockingQueueImpl) Shutdown() {
 			goto drainSlots
 		}
 	}
+
+	// 4. 排空 slots channel：释放所有可用槽位，避免 Shutdown 后残留信号。
 drainSlots:
 	for {
 		select {

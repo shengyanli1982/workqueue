@@ -76,30 +76,43 @@ func TestRateLimitingQueueImpl_PutWithLimited_Parallel(t *testing.T) {
 }
 
 type testRateLimitingQueueCallback struct {
+	sync.Mutex
 	puts, gets, dones, delays, errors, limits []interface{}
 }
 
 func (c *testRateLimitingQueueCallback) OnPut(value interface{}) {
+	c.Lock()
+	defer c.Unlock()
 	c.puts = append(c.puts, value)
 }
 
 func (c *testRateLimitingQueueCallback) OnGet(value interface{}) {
+	c.Lock()
+	defer c.Unlock()
 	c.gets = append(c.gets, value)
 }
 
 func (c *testRateLimitingQueueCallback) OnDone(value interface{}) {
+	c.Lock()
+	defer c.Unlock()
 	c.dones = append(c.dones, value)
 }
 
 func (c *testRateLimitingQueueCallback) OnDelay(value interface{}, delay int64) {
+	c.Lock()
+	defer c.Unlock()
 	c.delays = append(c.delays, value)
 }
 
 func (c *testRateLimitingQueueCallback) OnPullError(value interface{}, err error) {
+	c.Lock()
+	defer c.Unlock()
 	c.errors = append(c.errors, value)
 }
 
 func (c *testRateLimitingQueueCallback) OnLimited(value interface{}) {
+	c.Lock()
+	defer c.Unlock()
 	c.limits = append(c.limits, value)
 }
 
@@ -129,11 +142,19 @@ func TestRateLimitingQueueImpl_Callback(t *testing.T) {
 
 	q.Done(v)
 
-	assert.True(t, len(callback.delays) <= 2, "Callback delays length should be less than or equal to 2")
-	assert.Equal(t, []interface{}{"test1", "test2", "test3", "test4"}, callback.puts, "Callback puts should contain all put items")
-	assert.Equal(t, []interface{}{"test1"}, callback.gets, "Callback gets should be [test1]")
-	assert.Equal(t, []interface{}(nil), callback.dones, "Callback dones should be [test1]")
-	assert.Empty(t, callback.errors, "Callback errors should be empty")
+	callback.Lock()
+	delaysLen := len(callback.delays)
+	puts := callback.puts
+	gets := callback.gets
+	dones := callback.dones
+	errors := callback.errors
+	callback.Unlock()
+
+	assert.True(t, delaysLen <= 2, "Callback delays length should be less than or equal to 2")
+	assert.Equal(t, []interface{}{"test1", "test2", "test3", "test4"}, puts, "Callback puts should contain all put items")
+	assert.Equal(t, []interface{}{"test1"}, gets, "Callback gets should be [test1]")
+	assert.Equal(t, []interface{}(nil), dones, "Callback dones should be [test1]")
+	assert.Empty(t, errors, "Callback errors should be empty")
 }
 
 func TestRateLimitingQueueImpl_HighConcurrencyRateLimit(t *testing.T) {

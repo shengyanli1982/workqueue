@@ -81,13 +81,19 @@ func (q *leasedQueueImpl) Ack(leaseID string) error {
 }
 
 func (q *leasedQueueImpl) Nack(leaseID string, _ error) error {
-	value, ok := q.removeLease(leaseID)
+	value, ok := q.peekLease(leaseID)
 	if !ok {
 		return ErrLeaseNotFound
 	}
 
+	// 先入队，成功后再释放租约，避免入队失败时元素丢失。
+	if err := q.Queue.Put(value); err != nil {
+		return err
+	}
+
+	q.removeLease(leaseID)
 	q.Queue.Done(value)
-	return q.Queue.Put(value)
+	return nil
 }
 
 func (q *leasedQueueImpl) ExtendLease(leaseID string, timeout time.Duration) error {
@@ -123,6 +129,22 @@ func (q *leasedQueueImpl) Shutdown() {
 	q.Queue.Shutdown()
 }
 
+// peekLease 只读查看租约内容，不删除。
+func (q *leasedQueueImpl) peekLease(leaseID string) (value interface{}, ok bool) {
+	if leaseID == "" {
+		return nil, false
+	}
+
+	q.lock.Lock()
+	item, ok := q.leases[leaseID]
+	q.lock.Unlock()
+
+	if !ok {
+		return nil, false
+	}
+	return item.value, true
+}
+
 func (q *leasedQueueImpl) removeLease(leaseID string) (value interface{}, ok bool) {
 	if leaseID == "" {
 		return nil, false
@@ -155,21 +177,31 @@ func (q *leasedQueueImpl) requeueExpiredLeases() {
 		case <-ticker.C:
 			now := time.Now()
 			expired := q.collectExpired(now)
-			for _, value := range expired {
-				q.Queue.Done(value)
-				_ = q.Queue.Put(value)
+			for _, e := range expired {
+				// 先入队，成功后再释放租约，避免入队失败时元素丢失。
+				// 入队失败的元素保留在 leases map 中，下次扫描时再试。
+				if err := q.Queue.Put(e.value); err != nil {
+					continue
+				}
+				q.removeLease(e.id)
+				q.Queue.Done(e.value)
 			}
 		}
 	}
 }
 
-func (q *leasedQueueImpl) collectExpired(now time.Time) []interface{} {
+type expiredLease struct {
+	id    string
+	value interface{}
+}
+
+// collectExpired 只收集过期的租约条目，不从 leases map 中移除。
+func (q *leasedQueueImpl) collectExpired(now time.Time) []expiredLease {
 	q.lock.Lock()
-	var expired []interface{}
+	var expired []expiredLease
 	for id, item := range q.leases {
 		if !item.deadline.After(now) {
-			expired = append(expired, item.value)
-			delete(q.leases, id)
+			expired = append(expired, expiredLease{id: id, value: item.value})
 		}
 	}
 	q.lock.Unlock()
