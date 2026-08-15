@@ -222,6 +222,6 @@ func TestSet_List(t *testing.T) {
 
 		list := s.List()
 
-		assert.ElementsMatch(t, []interface{}{1, "a", true}, list)
+		assert.ElementsMatch(t, []any{1, "a", true}, list)
 	})
 }

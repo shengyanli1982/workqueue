@@ -384,8 +384,8 @@ func (l *List) Range(fn func(node *Node) bool) {
 	}
 }
 
-func (l *List) Slice() []interface{} {
-	nodes := make([]interface{}, 0, l.count)
+func (l *List) Slice() []any {
+	nodes := make([]any, 0, l.count)
 
 	l.Range(func(node *Node) bool {
 		nodes = append(nodes, node.Value)

@@ -17,7 +17,7 @@ import (
 
 type immediateRetryPolicy struct{}
 
-func (p *immediateRetryPolicy) NextDelay(interface{}, int, error) (time.Duration, bool) {
+func (p *immediateRetryPolicy) NextDelay(any, int, error) (time.Duration, bool) {
 	return 0, true
 }
 
@@ -140,7 +140,7 @@ func runDeadLetter(ctx context.Context, workers int) uint64 {
 func runRetry(ctx context.Context, workers int) uint64 {
 	cfg := wq.NewRetryQueueConfig().
 		WithPolicy(&immediateRetryPolicy{}).
-		WithKeyFunc(func(interface{}) string { return "retry" })
+		WithKeyFunc(func(any) string { return "retry" })
 	queue := wq.NewRetryQueue(cfg)
 	defer queue.Shutdown()
 	var ops atomic.Uint64

@@ -87,9 +87,12 @@ func TestBoundedBlockingQueue_GetWithContext_ReleasesSlotOnGetError(t *testing.T
 	<-q.slots
 	q.items <- struct{}{}
 
+	// G3 契约：阻塞消费永不返回 ErrQueueIsEmpty——令牌与元素配对下该窗口
+	// 仅存在于关停竞态，透传的空队列错误对齐为 ErrQueueIsClosed。
 	_, err := q.GetWithContext(context.Background())
-	assert.ErrorIs(t, err, ErrQueueIsEmpty)
+	assert.ErrorIs(t, err, ErrQueueIsClosed)
 
+	// 本测试的核心意图不变：错误路径必须释放槽位，后续容量 1 的入队不阻塞。
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	assert.NoError(t, q.PutWithContext(ctx, "ok"))

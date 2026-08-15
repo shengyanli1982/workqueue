@@ -145,39 +145,53 @@ func (tree *RBTree) insert(node *lst.Node) {
 	if tree.head == nil || node.Priority < tree.head.Priority {
 		tree.head = node
 	}
-	if tree.tail == nil || node.Priority > tree.tail.Priority {
+	// 同优先级节点沿右链插入，新节点成为最右节点，tail 更新必须取等。
+	if tree.tail == nil || node.Priority >= tree.tail.Priority {
 		tree.tail = node
 	}
 }
 
-func deleteFixUp(tree *RBTree, node *lst.Node) {
+func deleteFixUp(tree *RBTree, node *lst.Node, parent *lst.Node) {
 	// 删除黑节点后可能破坏红黑树性质，这里执行标准修复流程。
+	// node 可能为 nil（被删黑节点的子节点为空），此时无法经 node.Parent 回溯，
+	// 必须显式携带 parent 定位兄弟节点；否则修复被跳过，红黑性质（含根必为黑）
+	// 遭破坏，后续 insert/delete 会解引用损坏的父链。
 	for node != tree.root && (node == nil || node.Color == lst.BLACK) {
-		if node == nil || node.Parent == nil {
+		if parent == nil {
 			break
 		}
 
-		isLeftChild := node == node.Parent.Left
+		isLeftChild := node == parent.Left
 		var sibling *lst.Node
 		if isLeftChild {
-			sibling = node.Parent.Right
+			sibling = parent.Right
 		} else {
-			sibling = node.Parent.Left
+			sibling = parent.Left
 		}
 
 		if sibling == nil {
-			break
+			// 兄弟为空等价于“兄弟两子皆黑”：兄弟侧无可借节点，
+			// 将黑缺口上移至父节点继续修复。
+			node = parent
+			parent = parent.Parent
+			continue
 		}
 
 		if sibling.Color == lst.RED {
 			sibling.Color = lst.BLACK
-			node.Parent.Color = lst.RED
+			parent.Color = lst.RED
 			if isLeftChild {
-				leftRotate(tree, node.Parent)
-				sibling = node.Parent.Right
+				leftRotate(tree, parent)
+				sibling = parent.Right
 			} else {
-				rightRotate(tree, node.Parent)
-				sibling = node.Parent.Left
+				rightRotate(tree, parent)
+				sibling = parent.Left
+			}
+			// 旋转后的新兄弟可能为空（nil 表示下红兄弟的子节点可为空树），同样上移修复。
+			if sibling == nil {
+				node = parent
+				parent = parent.Parent
+				continue
 			}
 		}
 
@@ -186,7 +200,8 @@ func deleteFixUp(tree *RBTree, node *lst.Node) {
 
 		if siblingLeftBlack && siblingRightBlack {
 			sibling.Color = lst.RED
-			node = node.Parent
+			node = parent
+			parent = parent.Parent
 		} else {
 			if isLeftChild {
 				if siblingRightBlack {
@@ -195,7 +210,7 @@ func deleteFixUp(tree *RBTree, node *lst.Node) {
 					}
 					sibling.Color = lst.RED
 					rightRotate(tree, sibling)
-					sibling = node.Parent.Right
+					sibling = parent.Right
 				}
 			} else {
 				if siblingLeftBlack {
@@ -204,19 +219,19 @@ func deleteFixUp(tree *RBTree, node *lst.Node) {
 					}
 					sibling.Color = lst.RED
 					leftRotate(tree, sibling)
-					sibling = node.Parent.Left
+					sibling = parent.Left
 				}
 			}
 
-			sibling.Color = node.Parent.Color
-			node.Parent.Color = lst.BLACK
+			sibling.Color = parent.Color
+			parent.Color = lst.BLACK
 
 			if isLeftChild && sibling.Right != nil {
 				sibling.Right.Color = lst.BLACK
-				leftRotate(tree, node.Parent)
+				leftRotate(tree, parent)
 			} else if !isLeftChild && sibling.Left != nil {
 				sibling.Left.Color = lst.BLACK
-				rightRotate(tree, node.Parent)
+				rightRotate(tree, parent)
 			}
 
 			node = tree.root
@@ -248,41 +263,74 @@ func (tree *RBTree) delete(node *lst.Node) {
 		nextTail = tree.predecessor(node)
 	}
 
-	var target *lst.Node
-	if node.Left == nil || node.Right == nil {
-		target = node
-	} else {
-		target = tree.successor(node)
-	}
-
 	var child *lst.Node
-	if target.Left != nil {
-		child = target.Left
-	} else {
+	var parent *lst.Node
+	removedColor := node.Color
+
+	if node.Left != nil && node.Right != nil {
+		// 双子节点：将后继节点物理换位到 node 的位置，再解链 node 本身，
+		// 确保调用者给定的节点真正脱离树。调用方（Cancel/CancelDelay）随后
+		// 会把该节点归还节点池并 Reset 其指针；若沿用“复制后继值”实现，
+		// 该节点仍留在树中，Reset 会破坏树结构（且 tail 可能滞留失效节点）。
+		target := tree.successor(node)
+		removedColor = target.Color
 		child = target.Right
-	}
+		parent = target.Parent
 
-	if child != nil {
-		child.Parent = target.Parent
-	}
-
-	if target.Parent == nil {
-		tree.root = child
-	} else {
-		if target == target.Parent.Left {
-			target.Parent.Left = child
+		// 先把 target 从原位置摘下，其右子树（可为空）上移填补。
+		if child != nil {
+			child.Parent = parent
+		}
+		if parent.Left == target {
+			parent.Left = child
 		} else {
-			target.Parent.Right = child
+			parent.Right = child
+		}
+
+		// 让 target 占据 node 的位置，node 原位颜色保留在该位置。
+		target.Parent = node.Parent
+		if node.Parent == nil {
+			tree.root = target
+		} else if node.Parent.Left == node {
+			node.Parent.Left = target
+		} else {
+			node.Parent.Right = target
+		}
+		target.Left = node.Left
+		node.Left.Parent = target
+		target.Right = node.Right
+		if node.Right != nil {
+			node.Right.Parent = target
+		}
+		target.Color = node.Color
+		if parent == node {
+			// 后继是 node 的直接右子时，换位后 child 的父位置由 target 接管，
+			// 修复阶段必须从 target 而非已解链的 node 开始回溯。
+			parent = target
+		}
+	} else {
+		if node.Left != nil {
+			child = node.Left
+		} else {
+			child = node.Right
+		}
+		parent = node.Parent
+
+		if child != nil {
+			child.Parent = parent
+		}
+
+		if parent == nil {
+			tree.root = child
+		} else if parent.Left == node {
+			parent.Left = child
+		} else {
+			parent.Right = child
 		}
 	}
 
-	if target != node {
-		node.Value = target.Value
-		node.Priority = target.Priority
-	}
-
-	if target.Color == lst.BLACK {
-		deleteFixUp(tree, child)
+	if removedColor == lst.BLACK {
+		deleteFixUp(tree, child, parent)
 	}
 
 	tree.count--
@@ -375,7 +423,7 @@ func (tree *RBTree) popMin() *lst.Node {
 	}
 
 	if node.Color == lst.BLACK {
-		deleteFixUp(tree, child)
+		deleteFixUp(tree, child, parent)
 	}
 
 	tree.count--
@@ -420,11 +468,11 @@ func (tree *RBTree) Range(fn func(*lst.Node) bool) {
 	inOrderTraverse(tree.root, fn)
 }
 
-func (tree *RBTree) Slice() []interface{} {
+func (tree *RBTree) Slice() []any {
 	if tree.count == 0 {
 		return nil
 	}
-	nodes := make([]interface{}, 0, tree.count)
+	nodes := make([]any, 0, tree.count)
 	tree.Range(func(node *lst.Node) bool {
 		nodes = append(nodes, node.Value)
 		return true

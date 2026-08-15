@@ -1,6 +1,7 @@
 package workqueue
 
 import (
+	"context"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -8,8 +9,20 @@ import (
 )
 
 type leasedItem struct {
-	value    interface{}
+	value    any
 	deadline time.Time
+}
+
+// LeaseInfo 是单个在租租约的只读快照。
+type LeaseInfo struct {
+	// LeaseID 为租约唯一标识。
+	LeaseID string
+
+	// Value 为租约持有的元素。
+	Value any
+
+	// Deadline 为租约到期时间，到期后由 reaper 回收重入队。
+	Deadline time.Time
 }
 
 type leasedQueueImpl struct {
@@ -23,6 +36,10 @@ type leasedQueueImpl struct {
 	closed chan struct{}
 	once   sync.Once
 	wg     sync.WaitGroup
+
+	// draining 在 drain 开始时置位：拒绝新的用户 Put；
+	// Nack/reaper 经内层队列的归还路径不受影响，在租项照常回收。
+	draining atomic.Bool
 }
 
 // NewLeasedQueue 创建租约队列。
@@ -42,7 +59,7 @@ func NewLeasedQueue(config *LeasedQueueConfig) LeasedQueue {
 	return q
 }
 
-func (q *leasedQueueImpl) GetWithLease(timeout time.Duration) (value interface{}, leaseID string, err error) {
+func (q *leasedQueueImpl) GetWithLease(timeout time.Duration) (value any, leaseID string, err error) {
 	if timeout <= 0 {
 		timeout = q.config.leaseDuration
 	}
@@ -50,7 +67,53 @@ func (q *leasedQueueImpl) GetWithLease(timeout time.Duration) (value interface{}
 		return nil, "", ErrInvalidLeaseDuration
 	}
 
+	seq := q.leaseID.Add(1)
+	var raw [16]byte
+	leaseID = string(strconv.AppendUint(raw[:0], seq, 36))
+	deadline := time.Now().Add(timeout)
+
+	// pop 与租约登记同在一个 q.lock 临界区：与 drainedForShutdown 串行化，
+	// 保证 drain 判定不会落入“元素已出队但租约未登记”的窗口。
+	q.lock.Lock()
+
 	value, err = q.Queue.Get()
+	if err != nil {
+		q.lock.Unlock()
+		return nil, "", err
+	}
+
+	if q.leases == nil {
+		// 关停已清理租约表：刚弹出的元素随关停丢弃，语义与 Shutdown 一致。
+		q.lock.Unlock()
+		return nil, "", ErrQueueIsClosed
+	}
+
+	q.leases[leaseID] = leasedItem{
+		value:    value,
+		deadline: deadline,
+	}
+	q.lock.Unlock()
+
+	return value, leaseID, nil
+}
+
+// GetWithLeaseWithContext 是 GetWithLease 的阻塞变体：阻塞直到内层队列取到值、
+// ctx 完成或队列关闭，成功后登记租约并返回值与租约 ID；timeout<=0 回退
+// config.leaseDuration，语义与 GetWithLease 一致。
+//
+// 租约登记复用 GetWithLease 的同临界区路径（q.lock 内检查 leases 清理状态，
+// 与 drainedForShutdown 串行化）；阻塞等待阶段不持 q.lock。等待期间若关停
+// 恰在“取到值后、登记前”窗口清理 leases 表，该元素随关停丢弃并返回
+// ErrQueueIsClosed（与 GetWithLease 遇清理的丢弃语义一致）。
+func (q *leasedQueueImpl) GetWithLeaseWithContext(ctx context.Context, timeout time.Duration) (value any, leaseID string, err error) {
+	if timeout <= 0 {
+		timeout = q.config.leaseDuration
+	}
+	if timeout <= 0 {
+		return nil, "", ErrInvalidLeaseDuration
+	}
+
+	value, err = q.Queue.(BlockingGetQueue).GetWithContext(ctx)
 	if err != nil {
 		return nil, "", err
 	}
@@ -61,6 +124,12 @@ func (q *leasedQueueImpl) GetWithLease(timeout time.Duration) (value interface{}
 	deadline := time.Now().Add(timeout)
 
 	q.lock.Lock()
+
+	if q.leases == nil {
+		q.lock.Unlock()
+		return nil, "", ErrQueueIsClosed
+	}
+
 	q.leases[leaseID] = leasedItem{
 		value:    value,
 		deadline: deadline,
@@ -80,7 +149,7 @@ func (q *leasedQueueImpl) Ack(leaseID string) error {
 	return nil
 }
 
-func (q *leasedQueueImpl) Nack(leaseID string, _ error) error {
+func (q *leasedQueueImpl) Nack(leaseID string, reason error) error {
 	value, ok := q.peekLease(leaseID)
 	if !ok {
 		return ErrLeaseNotFound
@@ -93,6 +162,7 @@ func (q *leasedQueueImpl) Nack(leaseID string, _ error) error {
 
 	q.removeLease(leaseID)
 	q.Queue.Done(value)
+	q.config.callback.OnNack(value, reason)
 	return nil
 }
 
@@ -116,21 +186,96 @@ func (q *leasedQueueImpl) ExtendLease(leaseID string, timeout time.Duration) err
 	return nil
 }
 
-func (q *leasedQueueImpl) Shutdown() {
-	q.once.Do(func() {
-		close(q.closed)
-		q.wg.Wait()
+// LeaseInfos 返回当前全部在租租约的只读快照。
+// q.lock 持锁拷贝所有租约条目，锁外返回副本：调用方可安全遍历、修改切片
+// 而不影响内部 leases 表；快照期间不阻塞并发的 GetWithLease/Ack/Nack。
+func (q *leasedQueueImpl) LeaseInfos() []LeaseInfo {
+	q.lock.Lock()
 
-		q.lock.Lock()
-		q.leases = nil
-		q.lock.Unlock()
-	})
+	infos := make([]LeaseInfo, 0, len(q.leases))
+	for id, item := range q.leases {
+		infos = append(infos, LeaseInfo{
+			LeaseID:  id,
+			Value:    item.value,
+			Deadline: item.deadline,
+		})
+	}
+
+	q.lock.Unlock()
+
+	return infos
+}
+
+func (q *leasedQueueImpl) Shutdown() {
+	q.once.Do(q.closeNow)
 
 	q.Queue.Shutdown()
 }
 
+// ShutdownWithDrain 优雅关停：置位 draining 拒绝新用户入队，等待内层队列
+// drained ∧ leases 清空后关闭；超时或取消时强制关闭并返回 ctx.Err()。
+// 在租项由 reaper 照常回收过期租约→重入队→被消费后 Ack 释放；
+// 超时后残余租约随强制关闭丢弃（与 Shutdown 的 leases=nil 语义一致）。
+func (q *leasedQueueImpl) ShutdownWithDrain(ctx context.Context) error {
+
+	if q.IsClosed() {
+		return nil
+	}
+
+	q.draining.Store(true)
+
+	inner := q.Queue.(*queueImpl)
+
+	err := waitForDrain(ctx, inner.IsClosed, func() bool {
+		return q.drainedForShutdown(inner)
+	})
+
+	// 与 Shutdown 一致的关闭顺序：先停 reaper 并清空 leases，再关内层队列。
+	q.once.Do(q.closeNow)
+	q.Queue.Shutdown()
+
+	return err
+}
+
+// drainedForShutdown 判定租约队列 drain 完成：无在租项 ∧ 内层队列已 drained。
+// 持 q.lock 跨越内层判定：reaper 的“Put→removeLease”与 GetWithLease 的
+// “pop→登记租约”两段过渡均经 q.lock 串行化，避免判定窗口内元素既不在
+// leases 也不在内层队列视野内（TOCTOU）。
+func (q *leasedQueueImpl) drainedForShutdown(inner *queueImpl) bool {
+
+	q.lock.Lock()
+	defer q.lock.Unlock()
+
+	if len(q.leases) != 0 {
+		return false
+	}
+
+	return inner.isDrained()
+}
+
+// Put 覆写嵌入 Queue：drain 期间拒绝新用户入队；
+// Nack/reaper 走内层队列路径完成在租项归还，不受 draining 影响。
+func (q *leasedQueueImpl) Put(value any) error {
+
+	if q.draining.Load() {
+		return ErrQueueIsClosed
+	}
+
+	return q.Queue.Put(value)
+}
+
+// closeNow 停止 reaper 并清空 leases。
+func (q *leasedQueueImpl) closeNow() {
+	close(q.closed)
+	q.wg.Wait()
+
+	q.lock.Lock()
+	q.leases = nil
+	q.lock.Unlock()
+}
+
 // peekLease 只读查看租约内容，不删除。
-func (q *leasedQueueImpl) peekLease(leaseID string) (value interface{}, ok bool) {
+func (q *leasedQueueImpl) peekLease(leaseID string) (value any, ok bool) {
 	if leaseID == "" {
 		return nil, false
 	}
@@ -145,7 +290,7 @@ func (q *leasedQueueImpl) peekLease(leaseID string) (value interface{}, ok bool)
 	return item.value, true
 }
 
-func (q *leasedQueueImpl) removeLease(leaseID string) (value interface{}, ok bool) {
+func (q *leasedQueueImpl) removeLease(leaseID string) (value any, ok bool) {
 	if leaseID == "" {
 		return nil, false
 	}
@@ -192,7 +337,7 @@ func (q *leasedQueueImpl) requeueExpiredLeases() {
 
 type expiredLease struct {
 	id    string
-	value interface{}
+	value any
 }
 
 // collectExpired 只收集过期的租约条目，不从 leases map 中移除。

@@ -12,7 +12,7 @@ type NewSetFunc = func() Set
 
 var defaultNewSetFunc = func() Set { return set.NewWithCapacity(64) }
 
-var defaultRetryKeyFunc = func(value interface{}) string {
+var defaultRetryKeyFunc = func(value any) string {
 	if value == nil {
 		return ""
 	}
@@ -25,6 +25,9 @@ type QueueConfig struct {
 	callback   QueueCallback
 	idempotent bool
 	setCreator NewSetFunc
+	// drainTracking 在非幂等模式下启用 in-flight 计数（Get +1 / Done -1），
+	// 使 ShutdownWithDrain 的 drain 判定能感知处理中的在途项。
+	drainTracking bool
 }
 
 // NewQueueConfig 返回带默认值的基础队列配置。
@@ -51,6 +54,16 @@ func (c *QueueConfig) WithValueIdempotent() *QueueConfig {
 // WithSetCreator 设置幂等集合构造器。
 func (c *QueueConfig) WithSetCreator(fn NewSetFunc) *QueueConfig {
 	c.setCreator = fn
+
+	return c
+}
+
+// WithDrainTracking 为非幂等模式启用 drain 判定的 in-flight 计数
+// （Get +1 / Done -1，负值钳制为 0）。未启用时 ShutdownWithDrain
+// 仅等在队项清空，处理中的在途项不可知。幂等模式自带 processing
+// 集合追踪，启用该选项不产生额外效果。
+func (c *QueueConfig) WithDrainTracking() *QueueConfig {
+	c.drainTracking = true
 
 	return c
 }
@@ -152,6 +165,7 @@ func isPriorityQueueConfigEffective(c *PriorityQueueConfig) *PriorityQueueConfig
 // LeasedQueueConfig 定义租约队列配置。
 type LeasedQueueConfig struct {
 	QueueConfig
+	callback      LeasedQueueCallback
 	leaseDuration time.Duration
 	scanInterval  time.Duration
 }
@@ -160,6 +174,7 @@ type LeasedQueueConfig struct {
 func NewLeasedQueueConfig() *LeasedQueueConfig {
 	return &LeasedQueueConfig{
 		QueueConfig:   *NewQueueConfig(),
+		callback:      NewNopLeasedQueueCallbackImpl(),
 		leaseDuration: 30 * time.Second,
 		scanInterval:  100 * time.Millisecond,
 	}
@@ -177,10 +192,21 @@ func (c *LeasedQueueConfig) WithScanInterval(interval time.Duration) *LeasedQueu
 	return c
 }
 
+// WithCallback 设置租约队列回调，同时启用内嵌配置的基础回调。
+func (c *LeasedQueueConfig) WithCallback(cb LeasedQueueCallback) *LeasedQueueConfig {
+	c.callback = cb
+	c.QueueConfig.callback = cb
+
+	return c
+}
+
 func isLeasedQueueConfigEffective(c *LeasedQueueConfig) *LeasedQueueConfig {
 	if c != nil {
 		c.QueueConfig = *isQueueConfigEffective(&c.QueueConfig)
 
+		if c.callback == nil {
+			c.callback = NewNopLeasedQueueCallbackImpl()
+		}
 		if c.leaseDuration <= 0 {
 			c.leaseDuration = 30 * time.Second
 		}
@@ -272,6 +298,9 @@ type RetryQueueConfig struct {
 	callback RetryQueueCallback
 	policy   RetryPolicy
 	keyFunc  RetryKeyFunc
+
+	deadLetterQueue  DeadLetterQueue
+	deadLetterSource string
 }
 
 // NewRetryQueueConfig 返回带默认值的重试队列配置。
@@ -301,6 +330,19 @@ func (c *RetryQueueConfig) WithPolicy(policy RetryPolicy) *RetryQueueConfig {
 // WithKeyFunc 设置重试 key 生成函数。
 func (c *RetryQueueConfig) WithKeyFunc(fn RetryKeyFunc) *RetryQueueConfig {
 	c.keyFunc = fn
+	return c
+}
+
+// WithDeadLetterQueue 接通“重试耗尽 → 死信”自动桥：policy 拒绝重试时，在
+// OnRetryExhausted 回调之后自动 PutDead(&DeadLetter{Payload: value,
+// SourceQueue: sourceName, Attempts: 耗尽时计数, LastError: reason, ...})，
+// Retry 仍返回 ErrRetryExhausted。
+//
+// PutDead 失败（如死信队列已关停）时桥静默跳过：耗尽事件已由先触发的
+// OnRetryExhausted 报告，不再引入额外回调。未配置该选项时耗尽行为不变。
+func (c *RetryQueueConfig) WithDeadLetterQueue(dlq DeadLetterQueue, sourceName string) *RetryQueueConfig {
+	c.deadLetterQueue = dlq
+	c.deadLetterSource = sourceName
 	return c
 }
 

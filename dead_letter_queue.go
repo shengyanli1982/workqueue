@@ -1,6 +1,7 @@
 package workqueue
 
 import (
+	"context"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -10,6 +11,8 @@ type deadLetterQueueImpl struct {
 	Queue
 	config *DeadLetterQueueConfig
 	seed   atomic.Uint64
+	// draining 在 drain 开始时置位：拒绝新的 PutDead/Put。
+	draining atomic.Bool
 }
 
 // NewDeadLetterQueue 创建死信队列。
@@ -22,7 +25,7 @@ func NewDeadLetterQueue(config *DeadLetterQueueConfig) DeadLetterQueue {
 	}
 }
 
-func (q *deadLetterQueueImpl) Put(value interface{}) error {
+func (q *deadLetterQueueImpl) Put(value any) error {
 	letter, ok := toDeadLetter(value)
 	if !ok {
 		return ErrInvalidDeadLetter
@@ -31,11 +34,11 @@ func (q *deadLetterQueueImpl) Put(value interface{}) error {
 	return q.PutDead(letter)
 }
 
-func (q *deadLetterQueueImpl) Get() (interface{}, error) {
+func (q *deadLetterQueueImpl) Get() (any, error) {
 	return q.GetDead()
 }
 
-func (q *deadLetterQueueImpl) Done(value interface{}) {
+func (q *deadLetterQueueImpl) Done(value any) {
 	letter, ok := toDeadLetter(value)
 	if !ok {
 		return
@@ -45,7 +48,7 @@ func (q *deadLetterQueueImpl) Done(value interface{}) {
 }
 
 func (q *deadLetterQueueImpl) PutDead(letter *DeadLetter) error {
-	if q.IsClosed() {
+	if q.IsClosed() || q.draining.Load() {
 		return ErrQueueIsClosed
 	}
 	if letter == nil {
@@ -79,6 +82,44 @@ func (q *deadLetterQueueImpl) GetDead() (*DeadLetter, error) {
 	return letter, nil
 }
 
+// GetWithContext 阻塞直到消费到一个死信、ctx 完成或队列关闭，永不返回
+// ErrQueueIsEmpty。委托内层队列并将结果还原为 *DeadLetter（与 GetDead 一致）。
+func (q *deadLetterQueueImpl) GetWithContext(ctx context.Context) (any, error) {
+	value, err := q.Queue.(BlockingGetQueue).GetWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	letter, ok := toDeadLetter(value)
+	if !ok {
+		return nil, ErrInvalidDeadLetter
+	}
+
+	return letter, nil
+}
+
+// ShutdownWithDrain 优雅关停：置位 draining 拒绝新死信写入，主队列（死信存储区）
+// drained 即视为完成；超时或取消时强制关闭并返回 ctx.Err()。
+// 契约：死信侧为存储区，drain 仅按基础队列语义等待在队项清空与
+// Get/AckDead（Done）的 in-flight 追踪，不额外追踪死信的 Ack 状态。
+func (q *deadLetterQueueImpl) ShutdownWithDrain(ctx context.Context) error {
+
+	if q.IsClosed() {
+		return nil
+	}
+
+	q.draining.Store(true)
+
+	inner := q.Queue.(*queueImpl)
+
+	err := waitForDrain(ctx, inner.IsClosed, inner.isDrained)
+
+	q.Queue.Shutdown()
+
+	return err
+}
+
+// AckDead 确认死信处理完成。
 func (q *deadLetterQueueImpl) AckDead(letter *DeadLetter) error {
 	if letter == nil {
 		return ErrInvalidDeadLetter
@@ -115,7 +156,7 @@ func (q *deadLetterQueueImpl) RangeDead(fn func(letter *DeadLetter) bool) {
 		return
 	}
 
-	q.Queue.Range(func(value interface{}) bool {
+	q.Queue.Range(func(value any) bool {
 		letter, ok := toDeadLetter(value)
 		if !ok {
 			return true
@@ -150,7 +191,7 @@ func (q *deadLetterQueueImpl) nextID() string {
 	return strconv.FormatUint(q.seed.Add(1), 36)
 }
 
-func toDeadLetter(value interface{}) (*DeadLetter, bool) {
+func toDeadLetter(value any) (*DeadLetter, bool) {
 	switch v := value.(type) {
 	case *DeadLetter:
 		if v == nil {

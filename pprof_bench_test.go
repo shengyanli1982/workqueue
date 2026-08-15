@@ -305,7 +305,7 @@ func BenchmarkRateLimitingQueue_PutWithLimited_Pprof(b *testing.B) {
 func BenchmarkRetryQueue_RetryPath_Pprof(b *testing.B) {
 	cfg := NewRetryQueueConfig().
 		WithPolicy(NewExponentialRetryPolicy(time.Nanosecond, time.Nanosecond, -1)).
-		WithKeyFunc(func(interface{}) string { return "k" })
+		WithKeyFunc(func(any) string { return "k" })
 	q := NewRetryQueue(cfg)
 	b.Cleanup(q.Shutdown)
 
