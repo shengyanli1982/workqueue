@@ -2,7 +2,9 @@ package workqueue
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"sync/atomic"
 )
 
 type boundedBlockingQueueImpl struct {
@@ -14,6 +16,10 @@ type boundedBlockingQueueImpl struct {
 
 	closed chan struct{}
 	once   sync.Once
+
+	// draining 在 drain 开始时置位：拒绝新的 Put/PutWithContext，
+	// 阻塞等待者的唤醒沿用现有 closed channel 关闭路径。
+	draining atomic.Bool
 }
 
 // NewBoundedBlockingQueue 创建有界阻塞队列。
@@ -45,8 +51,8 @@ func (q *boundedBlockingQueueImpl) Cap() int {
 	return q.config.capacity
 }
 
-func (q *boundedBlockingQueueImpl) Put(value interface{}) error {
-	if q.IsClosed() {
+func (q *boundedBlockingQueueImpl) Put(value any) error {
+	if q.IsClosed() || q.draining.Load() {
 		return ErrQueueIsClosed
 	}
 	if value == nil {
@@ -59,6 +65,12 @@ func (q *boundedBlockingQueueImpl) Put(value interface{}) error {
 	case <-q.slots:
 	}
 
+	// 获取槽位后复查 draining：等待期间开始的 drain 不得再接收新元素。
+	if q.draining.Load() {
+		q.releaseSlot()
+		return ErrQueueIsClosed
+	}
+
 	err := q.Queue.Put(value)
 	if err != nil {
 		q.releaseSlot()
@@ -69,7 +81,7 @@ func (q *boundedBlockingQueueImpl) Put(value interface{}) error {
 	return nil
 }
 
-func (q *boundedBlockingQueueImpl) Get() (value interface{}, err error) {
+func (q *boundedBlockingQueueImpl) Get() (value any, err error) {
 	if q.IsClosed() {
 		return nil, ErrQueueIsClosed
 	}
@@ -90,8 +102,8 @@ func (q *boundedBlockingQueueImpl) Get() (value interface{}, err error) {
 	return value, nil
 }
 
-func (q *boundedBlockingQueueImpl) PutWithContext(ctx context.Context, value interface{}) error {
-	if q.IsClosed() {
+func (q *boundedBlockingQueueImpl) PutWithContext(ctx context.Context, value any) error {
+	if q.IsClosed() || q.draining.Load() {
 		return ErrQueueIsClosed
 	}
 	if value == nil {
@@ -106,6 +118,12 @@ func (q *boundedBlockingQueueImpl) PutWithContext(ctx context.Context, value int
 	case <-q.slots:
 	}
 
+	// 获取槽位后复查 draining：等待期间开始的 drain 不得再接收新元素。
+	if q.draining.Load() {
+		q.releaseSlot()
+		return ErrQueueIsClosed
+	}
+
 	err := q.Queue.Put(value)
 	if err != nil {
 		q.releaseSlot()
@@ -116,7 +134,7 @@ func (q *boundedBlockingQueueImpl) PutWithContext(ctx context.Context, value int
 	return nil
 }
 
-func (q *boundedBlockingQueueImpl) GetWithContext(ctx context.Context) (interface{}, error) {
+func (q *boundedBlockingQueueImpl) GetWithContext(ctx context.Context) (any, error) {
 	if q.IsClosed() {
 		return nil, ErrQueueIsClosed
 	}
@@ -132,6 +150,12 @@ func (q *boundedBlockingQueueImpl) GetWithContext(ctx context.Context) (interfac
 	value, err := q.Queue.Get()
 	if err != nil {
 		q.releaseSlot()
+		// items 令牌与内层元素一一配对，正常路径 Get 不会遇空队列；
+		// 仅关停清理竞态可能透传 ErrQueueIsEmpty，将其对齐为 ErrQueueIsClosed，
+		// 保证阻塞消费永不返回 ErrQueueIsEmpty。
+		if errors.Is(err, ErrQueueIsEmpty) {
+			return nil, ErrQueueIsClosed
+		}
 		return nil, err
 	}
 
@@ -140,6 +164,31 @@ func (q *boundedBlockingQueueImpl) GetWithContext(ctx context.Context) (interfac
 }
 
 func (q *boundedBlockingQueueImpl) Shutdown() {
+	q.closeNow()
+}
+
+// ShutdownWithDrain 优雅关停：置位 draining 拒绝新入队，等待内层队列 drained
+// 后关闭；超时或取消时强制关闭并返回 ctx.Err()。
+// 强制关闭经 closeNow 关闭 closed channel，阻塞在 Put/Get 上的等待者
+// 被唤醒并收到 ErrQueueIsClosed（沿用现有关闭路径）。
+func (q *boundedBlockingQueueImpl) ShutdownWithDrain(ctx context.Context) error {
+
+	if q.IsClosed() {
+		return nil
+	}
+
+	q.draining.Store(true)
+
+	inner := q.Queue.(*queueImpl)
+
+	err := waitForDrain(ctx, inner.IsClosed, inner.isDrained)
+
+	q.closeNow()
+
+	return err
+}
+
+func (q *boundedBlockingQueueImpl) closeNow() {
 	// 1. 关闭 closed channel，唤醒所有阻塞在 Put/Get select 上的 goroutine。
 	//    这些 goroutine 会收到 ErrQueueIsClosed 并退出。
 	q.once.Do(func() {

@@ -27,3 +27,6 @@ go.work.sum
 scripts/
 profiles/
 cmd/
+pprof_output/
+.agent-*/
+

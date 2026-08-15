@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func getWithSpin(b *testing.B, q Queue) interface{} {
+func getWithSpin(b *testing.B, q Queue) any {
 	for {
 		value, err := q.Get()
 		if err == nil {
@@ -51,7 +51,7 @@ func BenchmarkDeadLetterQueue_PutGetAck(b *testing.B) {
 func BenchmarkRetryQueue_RetryPath(b *testing.B) {
 	cfg := NewRetryQueueConfig().
 		WithPolicy(NewExponentialRetryPolicy(time.Nanosecond, time.Nanosecond, -1)).
-		WithKeyFunc(func(interface{}) string { return "k" })
+		WithKeyFunc(func(any) string { return "k" })
 	q := NewRetryQueue(cfg)
 	b.Cleanup(q.Shutdown)
 

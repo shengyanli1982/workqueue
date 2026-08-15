@@ -1,6 +1,6 @@
 module github.com/shengyanli1982/workqueue/v2/analyzer
 
-go 1.19
+go 1.21.0
 
 require (
 	github.com/shengyanli1982/workqueue/v2 v2.0.0-00010101000000-000000000000
@@ -15,6 +15,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/time v0.5.0 // indirect
 )
 
 replace github.com/shengyanli1982/workqueue/v2 => ../

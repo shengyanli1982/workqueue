@@ -99,13 +99,13 @@ func TestDeadLetterQueue_RangeDead(t *testing.T) {
 	assert.NoError(t, dlq.PutDead(&DeadLetter{Payload: "a", FailedAt: time.Now()}))
 	assert.NoError(t, dlq.PutDead(&DeadLetter{Payload: "b", FailedAt: time.Now()}))
 
-	got := make([]interface{}, 0, 2)
+	got := make([]any, 0, 2)
 	dlq.RangeDead(func(letter *DeadLetter) bool {
 		got = append(got, letter.Payload)
 		return true
 	})
 
-	assert.ElementsMatch(t, []interface{}{"a", "b"}, got)
+	assert.ElementsMatch(t, []any{"a", "b"}, got)
 }
 
 type testDeadLetterQueueCallback struct {
@@ -116,11 +116,11 @@ type testDeadLetterQueueCallback struct {
 	requeues []string
 }
 
-func (c *testDeadLetterQueueCallback) OnPut(interface{}) {}
+func (c *testDeadLetterQueueCallback) OnPut(any) {}
 
-func (c *testDeadLetterQueueCallback) OnGet(interface{}) {}
+func (c *testDeadLetterQueueCallback) OnGet(any) {}
 
-func (c *testDeadLetterQueueCallback) OnDone(interface{}) {}
+func (c *testDeadLetterQueueCallback) OnDone(any) {}
 
 func (c *testDeadLetterQueueCallback) OnDead(letter *DeadLetter) {
 	c.mu.Lock()

@@ -4,7 +4,7 @@ import "time"
 
 type nopRetryPolicyImpl struct{}
 
-func (p *nopRetryPolicyImpl) NextDelay(interface{}, int, error) (time.Duration, bool) {
+func (p *nopRetryPolicyImpl) NextDelay(any, int, error) (time.Duration, bool) {
 	return 0, false
 }
 
@@ -17,7 +17,7 @@ type exponentialRetryPolicyImpl struct {
 	maxRetries int
 }
 
-func (p *exponentialRetryPolicyImpl) NextDelay(_ interface{}, attempt int, _ error) (time.Duration, bool) {
+func (p *exponentialRetryPolicyImpl) NextDelay(_ any, attempt int, _ error) (time.Duration, bool) {
 	if attempt <= 0 {
 		attempt = 1
 	}

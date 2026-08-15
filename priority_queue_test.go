@@ -29,7 +29,7 @@ func TestPriorityQueueImpl_PutWithPriority(t *testing.T) {
 	assert.NoError(t, err, "Put should not return an error")
 
 	assert.Equal(t, 5, q.Len(), "Queue length should be 5")
-	assert.Equal(t, []interface{}{"test4", "test5", "test1", "test2", "test3"}, q.Values(), "Queue values should be [test4 test5 test1 test2 test3]")
+	assert.Equal(t, []any{"test4", "test5", "test1", "test2", "test3"}, q.Values(), "Queue values should be [test4 test5 test1 test2 test3]")
 }
 
 func TestPriorityQueueImpl_PutWithPriority_Closed(t *testing.T) {
@@ -70,22 +70,22 @@ func TestPriorityQueueImpl_PutWithPriority_Parallel(t *testing.T) {
 }
 
 type testPriorityQueueCallback struct {
-	puts, gets, dones, priorities []interface{}
+	puts, gets, dones, priorities []any
 }
 
-func (c *testPriorityQueueCallback) OnPut(value interface{}) {
+func (c *testPriorityQueueCallback) OnPut(value any) {
 	c.puts = append(c.puts, value)
 }
 
-func (c *testPriorityQueueCallback) OnGet(value interface{}) {
+func (c *testPriorityQueueCallback) OnGet(value any) {
 	c.gets = append(c.gets, value)
 }
 
-func (c *testPriorityQueueCallback) OnDone(value interface{}) {
+func (c *testPriorityQueueCallback) OnDone(value any) {
 	c.dones = append(c.dones, value)
 }
 
-func (c *testPriorityQueueCallback) OnPriority(value interface{}, priority int64) {
+func (c *testPriorityQueueCallback) OnPriority(value any, priority int64) {
 	c.priorities = append(c.priorities, value)
 }
 
@@ -116,9 +116,9 @@ func TestPriorityQueueImpl_Callback(t *testing.T) {
 	q.Done(v)
 
 	assert.Nil(t, callback.puts, "Callback puts should be nil")
-	assert.Equal(t, []interface{}{"test3"}, callback.gets, "Callback gets should be [test3]")
-	assert.Equal(t, []interface{}(nil), callback.dones, "Callback dones should be [test3]")
-	assert.Equal(t, []interface{}{"test1", "test2", "test3", "test4"}, callback.priorities, "Callback priorities should be [test1 test2 test3 test4]")
+	assert.Equal(t, []any{"test3"}, callback.gets, "Callback gets should be [test3]")
+	assert.Equal(t, []any(nil), callback.dones, "Callback dones should be [test3]")
+	assert.Equal(t, []any{"test1", "test2", "test3", "test4"}, callback.priorities, "Callback priorities should be [test1 test2 test3 test4]")
 }
 
 func TestPriorityQueueImpl_Shutdown(t *testing.T) {
@@ -142,15 +142,15 @@ func TestPriorityQueueImpl_HeapRange(t *testing.T) {
 	err = q.PutWithPriority("test3", 2)
 	assert.NoError(t, err, "Put should not return an error")
 
-	values := []interface{}{}
-	q.HeapRange(func(value interface{}, _ int64) bool {
+	values := []any{}
+	q.HeapRange(func(value any, _ int64) bool {
 		values = append(values, value)
 		return true
 	})
 
 	time.Sleep(time.Second)
 
-	assert.Equal(t, []interface{}{"test1", "test2", "test3"}, values, "Queue values should be [test1, test2, test3]")
+	assert.Equal(t, []any{"test1", "test2", "test3"}, values, "Queue values should be [test1, test2, test3]")
 }
 
 func TestPriorityQueueImpl_HeapRange_Closed(t *testing.T) {
@@ -167,13 +167,13 @@ func TestPriorityQueueImpl_HeapRange_Closed(t *testing.T) {
 
 	q.Shutdown()
 
-	values := []interface{}{}
-	q.HeapRange(func(value interface{}, _ int64) bool {
+	values := []any{}
+	q.HeapRange(func(value any, _ int64) bool {
 		values = append(values, value)
 		return true
 	})
 
-	assert.Equal(t, []interface{}{}, values, "Values should be []")
+	assert.Equal(t, []any{}, values, "Values should be []")
 }
 
 func TestPriorityQueueImpl_NegativePriority(t *testing.T) {

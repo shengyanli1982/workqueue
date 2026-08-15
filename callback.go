@@ -7,11 +7,11 @@ type queueCallbackImpl struct{}
 // NewNopQueueCallbackImpl 返回空实现回调。
 func NewNopQueueCallbackImpl() *queueCallbackImpl { return &queueCallbackImpl{} }
 
-func (impl *queueCallbackImpl) OnPut(interface{}) {}
+func (impl *queueCallbackImpl) OnPut(any) {}
 
-func (impl *queueCallbackImpl) OnGet(interface{}) {}
+func (impl *queueCallbackImpl) OnGet(any) {}
 
-func (impl *queueCallbackImpl) OnDone(interface{}) {}
+func (impl *queueCallbackImpl) OnDone(any) {}
 
 type delayingQueueCallbackImpl struct {
 	queueCallbackImpl
@@ -25,9 +25,9 @@ func NewNopDelayingQueueCallbackImpl() *delayingQueueCallbackImpl {
 	}
 }
 
-func (impl *delayingQueueCallbackImpl) OnDelay(interface{}, int64) {}
+func (impl *delayingQueueCallbackImpl) OnDelay(any, int64) {}
 
-func (impl *delayingQueueCallbackImpl) OnPullError(interface{}, error) {}
+func (impl *delayingQueueCallbackImpl) OnPullError(any, error) {}
 
 type timerQueueCallbackImpl struct {
 	queueCallbackImpl
@@ -41,9 +41,9 @@ func NewNopTimerQueueCallbackImpl() *timerQueueCallbackImpl {
 	}
 }
 
-func (impl *timerQueueCallbackImpl) OnSchedule(interface{}, int64) {}
+func (impl *timerQueueCallbackImpl) OnSchedule(any, int64) {}
 
-func (impl *timerQueueCallbackImpl) OnScheduleError(interface{}, error) {}
+func (impl *timerQueueCallbackImpl) OnScheduleError(any, error) {}
 
 type priorityQueueCallbackImpl struct {
 	queueCallbackImpl
@@ -57,7 +57,7 @@ func NewNopPriorityQueueCallbackImpl() *priorityQueueCallbackImpl {
 	}
 }
 
-func (impl *priorityQueueCallbackImpl) OnPriority(interface{}, int64) {}
+func (impl *priorityQueueCallbackImpl) OnPriority(any, int64) {}
 
 type ratelimitingQueueCallbackImpl struct {
 	delayingQueueCallbackImpl
@@ -73,7 +73,7 @@ func NewNopRateLimitingQueueCallbackImpl() *ratelimitingQueueCallbackImpl {
 	}
 }
 
-func (impl *ratelimitingQueueCallbackImpl) OnLimited(interface{}) {}
+func (impl *ratelimitingQueueCallbackImpl) OnLimited(any) {}
 
 type retryQueueCallbackImpl struct {
 	delayingQueueCallbackImpl
@@ -89,11 +89,11 @@ func NewNopRetryQueueCallbackImpl() *retryQueueCallbackImpl {
 	}
 }
 
-func (impl *retryQueueCallbackImpl) OnRetry(interface{}, int, time.Duration, error) {}
+func (impl *retryQueueCallbackImpl) OnRetry(any, int, time.Duration, error) {}
 
-func (impl *retryQueueCallbackImpl) OnRetryExhausted(interface{}, int, error) {}
+func (impl *retryQueueCallbackImpl) OnRetryExhausted(any, int, error) {}
 
-func (impl *retryQueueCallbackImpl) OnForget(interface{}) {}
+func (impl *retryQueueCallbackImpl) OnForget(any) {}
 
 type deadLetterQueueCallbackImpl struct {
 	queueCallbackImpl
@@ -112,3 +112,17 @@ func (impl *deadLetterQueueCallbackImpl) OnDead(*DeadLetter) {}
 func (impl *deadLetterQueueCallbackImpl) OnAckDead(*DeadLetter) {}
 
 func (impl *deadLetterQueueCallbackImpl) OnRequeueDead(*DeadLetter, Queue) {}
+
+type leasedQueueCallbackImpl struct {
+	queueCallbackImpl
+}
+
+// NewNopLeasedQueueCallbackImpl 返回空实现租约回调。
+func NewNopLeasedQueueCallbackImpl() *leasedQueueCallbackImpl {
+
+	return &leasedQueueCallbackImpl{
+		queueCallbackImpl: queueCallbackImpl{},
+	}
+}
+
+func (impl *leasedQueueCallbackImpl) OnNack(any, error) {}

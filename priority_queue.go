@@ -1,7 +1,9 @@
 package workqueue
 
 import (
+	"context"
 	"math"
+	"sync/atomic"
 
 	hp "github.com/shengyanli1982/workqueue/v2/internal/container/heap"
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
@@ -22,6 +24,8 @@ type priorityQueueImpl struct {
 	config      *PriorityQueueConfig
 	sorting     *hp.RBTree
 	elementpool *lst.NodePool
+	// draining 在 drain 开始时置位：拒绝新的 Put/PutWithPriority。
+	draining atomic.Bool
 }
 
 // NewPriorityQueue 创建优先级队列。
@@ -44,13 +48,34 @@ func (q *priorityQueueImpl) Shutdown() {
 	q.Queue.Shutdown()
 }
 
-func (q *priorityQueueImpl) Put(value interface{}) error {
+// ShutdownWithDrain 优雅关停：置位 draining 拒绝新入队，等待内层队列 drained
+// 后关闭；超时或取消时强制关闭并返回 ctx.Err()。
+// 堆即内层队列的存储本身，堆中项全部可被 Get 直接消费，无独立搬运过程，
+// drain 判定与基础队列一致。
+func (q *priorityQueueImpl) ShutdownWithDrain(ctx context.Context) error {
+
+	if q.IsClosed() {
+		return nil
+	}
+
+	q.draining.Store(true)
+
+	inner := q.Queue.(*queueImpl)
+
+	err := waitForDrain(ctx, inner.IsClosed, inner.isDrained)
+
+	q.Queue.Shutdown()
+
+	return err
+}
+
+func (q *priorityQueueImpl) Put(value any) error {
 	return q.PutWithPriority(value, PRIORITY_NORMAL)
 }
 
-func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) error {
+func (q *priorityQueueImpl) PutWithPriority(value any, priority int64) error {
 
-	if q.IsClosed() {
+	if q.IsClosed() || q.draining.Load() {
 		return ErrQueueIsClosed
 	}
 
@@ -70,6 +95,9 @@ func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) e
 		return ErrQueueIsClosed
 	}
 	q.sorting.Push(last)
+	// 堆即内层存储：成功入堆与广播唤醒同在内层临界区，
+	// 唤醒阻塞在 GetWithContext 上的消费者。
+	qi.notifyWaitersLocked()
 	qi.lock.Unlock()
 
 	q.config.callback.OnPriority(value, priority)
@@ -77,7 +105,14 @@ func (q *priorityQueueImpl) PutWithPriority(value interface{}, priority int64) e
 	return nil
 }
 
-func (q *priorityQueueImpl) HeapRange(fn func(value interface{}, priority int64) bool) {
+// GetWithContext 阻塞直到消费到一个值、ctx 完成或队列关闭，永不返回
+// ErrQueueIsEmpty。堆即内层队列的存储本身：pop 的双集合搬运、等待者注册
+// 与广播唤醒全部复用内层 queueImpl 机制，无独立唤醒结构。
+func (q *priorityQueueImpl) GetWithContext(ctx context.Context) (any, error) {
+	return q.Queue.(BlockingGetQueue).GetWithContext(ctx)
+}
+
+func (q *priorityQueueImpl) HeapRange(fn func(value any, priority int64) bool) {
 	qi := q.Queue.(*queueImpl)
 	qi.lock.Lock()
 	q.sorting.Range(func(node *lst.Node) bool {

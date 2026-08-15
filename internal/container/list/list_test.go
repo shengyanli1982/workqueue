@@ -1350,7 +1350,7 @@ func TestList_ConcurrentMoveOperations(t *testing.T) {
 
 	assert.Equal(t, int64(count), l.Len(), "list length should remain unchanged")
 
-	nodeMap := make(map[interface{}]bool)
+	nodeMap := make(map[any]bool)
 	for node := l.Front(); node != nil; node = node.Right {
 		nodeMap[node.Value] = true
 	}

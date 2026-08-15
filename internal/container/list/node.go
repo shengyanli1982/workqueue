@@ -14,7 +14,7 @@ const (
 
 // Node 既用于链表，也用于堆中的红黑树节点。
 type Node struct {
-	Value interface{}
+	Value any
 
 	Left *Node
 
@@ -52,7 +52,7 @@ func NewNodePool() *NodePool {
 	return &NodePool{
 		pool: sync.Pool{
 
-			New: func() interface{} {
+			New: func() any {
 
 				return NewNode()
 			},
