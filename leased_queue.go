@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// leasedItem 租约表中的单条记录：元素值与租约到期时间。
 type leasedItem struct {
 	value    any
 	deadline time.Time
@@ -25,6 +26,9 @@ type LeaseInfo struct {
 	Deadline time.Time
 }
 
+// leasedQueueImpl 租约队列实现：在内层队列上叠加租约消费语义。GetWithLease 弹出
+// 元素后登记租约（value + deadline），消费方通过 Ack 确认完成或 Nack 否定重入队；
+// 过期租约由 reaper 协程定期扫描并自动重入队，实现 at-least-once 交付保障。
 type leasedQueueImpl struct {
 	Queue
 	config *LeasedQueueConfig
@@ -59,6 +63,9 @@ func NewLeasedQueue(config *LeasedQueueConfig) LeasedQueue {
 	return q
 }
 
+// GetWithLease 从队列弹出一个元素并登记租约：返回元素值与唯一租约 ID。
+// timeout<=0 时回退到 config.leaseDuration；pop 与租约登记在同一临界区完成，
+// 保证 drain 判定不会落入"元素已出队但租约未登记"的窗口。
 func (q *leasedQueueImpl) GetWithLease(timeout time.Duration) (value any, leaseID string, err error) {
 	if timeout <= 0 {
 		timeout = q.config.leaseDuration
@@ -139,6 +146,7 @@ func (q *leasedQueueImpl) GetWithLeaseWithContext(ctx context.Context, timeout t
 	return value, leaseID, nil
 }
 
+// Ack 确认租约：移除租约记录并调用 Done 释放处理中追踪。租约不存在时返回 ErrLeaseNotFound。
 func (q *leasedQueueImpl) Ack(leaseID string) error {
 	value, ok := q.removeLease(leaseID)
 	if !ok {
@@ -149,6 +157,8 @@ func (q *leasedQueueImpl) Ack(leaseID string) error {
 	return nil
 }
 
+// Nack 否定确认：将元素重新入队并释放租约，触发 OnNack 回调。
+// 先入队成功后再移除租约，避免入队失败时元素丢失。
 func (q *leasedQueueImpl) Nack(leaseID string, reason error) error {
 	value, ok := q.peekLease(leaseID)
 	if !ok {
@@ -166,6 +176,8 @@ func (q *leasedQueueImpl) Nack(leaseID string, reason error) error {
 	return nil
 }
 
+// ExtendLease 续租：将指定租约的到期时间重置为当前时间 + timeout。
+// timeout<=0 返回 ErrInvalidLeaseDuration；租约不存在返回 ErrLeaseNotFound。
 func (q *leasedQueueImpl) ExtendLease(leaseID string, timeout time.Duration) error {
 	if timeout <= 0 {
 		return ErrInvalidLeaseDuration
@@ -290,6 +302,7 @@ func (q *leasedQueueImpl) peekLease(leaseID string) (value any, ok bool) {
 	return item.value, true
 }
 
+// removeLease 移除指定租约并返回其元素值：空 ID 或未命中返回 ok=false。
 func (q *leasedQueueImpl) removeLease(leaseID string) (value any, ok bool) {
 	if leaseID == "" {
 		return nil, false
@@ -308,6 +321,9 @@ func (q *leasedQueueImpl) removeLease(leaseID string) (value any, ok bool) {
 	return item.value, true
 }
 
+// requeueExpiredLeases reaper 协程：按 scanInterval 周期扫描过期租约，
+// 将过期元素重新入队并释放租约，实现 at-least-once 交付保障。
+// 入队失败时元素保留在 leases 中，下次扫描再试。
 func (q *leasedQueueImpl) requeueExpiredLeases() {
 	ticker := time.NewTicker(q.config.scanInterval)
 	defer func() {
@@ -315,13 +331,16 @@ func (q *leasedQueueImpl) requeueExpiredLeases() {
 		q.wg.Done()
 	}()
 
+	// 复用缓冲区，稳态下（无过期租约）零分配，有过期租约时复用底层数组。
+	var expiredBuf []expiredLease
+
 	for {
 		select {
 		case <-q.closed:
 			return
 		case <-ticker.C:
 			now := time.Now()
-			expired := q.collectExpired(now)
+			expired := q.collectExpired(now, expiredBuf[:0])
 			for _, e := range expired {
 				// 先入队，成功后再释放租约，避免入队失败时元素丢失。
 				// 入队失败的元素保留在 leases map 中，下次扫描时再试。
@@ -331,24 +350,26 @@ func (q *leasedQueueImpl) requeueExpiredLeases() {
 				q.removeLease(e.id)
 				q.Queue.Done(e.value)
 			}
+			expiredBuf = expired
 		}
 	}
 }
 
+// expiredLease 过期租约的中间表示，由 collectExpired 收集供 requeueExpiredLeases 处理。
 type expiredLease struct {
 	id    string
 	value any
 }
 
 // collectExpired 只收集过期的租约条目，不从 leases map 中移除。
-func (q *leasedQueueImpl) collectExpired(now time.Time) []expiredLease {
+// buf 为复用的缓冲区，调用方传入 buf[:0] 以复用底层数组，减少 GC 压力。
+func (q *leasedQueueImpl) collectExpired(now time.Time, buf []expiredLease) []expiredLease {
 	q.lock.Lock()
-	var expired []expiredLease
 	for id, item := range q.leases {
 		if !item.deadline.After(now) {
-			expired = append(expired, expiredLease{id: id, value: item.value})
+			buf = append(buf, expiredLease{id: id, value: item.value})
 		}
 	}
 	q.lock.Unlock()
-	return expired
+	return buf
 }

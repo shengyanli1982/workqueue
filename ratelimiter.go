@@ -8,17 +8,22 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// nopRateLimiterImpl 是无操作限流器，When 始终返回零等待时长。
 type nopRateLimiterImpl struct{}
 
+// When 始终返回 0，表示无需等待。
 func (rl *nopRateLimiterImpl) When(any) time.Duration { return 0 }
 
 // NewNopRateLimiterImpl 返回始终无等待的限流器。
 func NewNopRateLimiterImpl() Limiter { return &nopRateLimiterImpl{} }
 
+// bucketRateLimiterImpl 使用 token bucket（令牌桶）策略的限流器，
+// 基于 golang.org/x/time/rate 实现。
 type bucketRateLimiterImpl struct {
 	r *rate.Limiter
 }
 
+// When 预留一个令牌并返回对应的等待时长。
 func (rl *bucketRateLimiterImpl) When(any) time.Duration {
 	return rl.r.Reserve().Delay()
 }

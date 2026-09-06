@@ -44,6 +44,7 @@ func NewPriorityQueue(config *PriorityQueueConfig) PriorityQueue {
 	return q
 }
 
+// Shutdown 立即关停优先级队列：委托内层队列执行关停清理。
 func (q *priorityQueueImpl) Shutdown() {
 	q.Queue.Shutdown()
 }
@@ -69,6 +70,7 @@ func (q *priorityQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 	return err
 }
 
+// Put 以默认优先级（PRIORITY_NORMAL）入队，委托 PutWithPriority 实现。
 func (q *priorityQueueImpl) Put(value any) error {
 	return q.PutWithPriority(value, PRIORITY_NORMAL)
 }
@@ -112,6 +114,7 @@ func (q *priorityQueueImpl) GetWithContext(ctx context.Context) (any, error) {
 	return q.Queue.(BlockingGetQueue).GetWithContext(ctx)
 }
 
+// HeapRange 持锁遍历堆中全部元素，fn 返回 false 时提前终止。
 func (q *priorityQueueImpl) HeapRange(fn func(value any, priority int64) bool) {
 	qi := q.Queue.(*queueImpl)
 	qi.lock.Lock()

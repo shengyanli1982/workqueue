@@ -47,6 +47,8 @@ func NewQueue(config *QueueConfig) Queue {
 	return newQueue(&wrapInternalList{List: lst.New()}, lst.NewNodePool(), config)
 }
 
+// newQueue 内部构造函数，接受外部传入的容器与节点池，完成配置校验与字段初始化。
+// 幂等模式创建 state/processing 双集合；非幂等模式根据配置决定是否启用 in-flight 追踪。
 func newQueue(list container, elementpool *lst.NodePool, config *QueueConfig) *queueImpl {
 
 	q := &queueImpl{
@@ -66,6 +68,8 @@ func newQueue(list container, elementpool *lst.NodePool, config *QueueConfig) *q
 	return q
 }
 
+// Shutdown 立即关停队列：通过 sync.Once 保证 closeNow 恰好执行一次，
+// 关闭 closedCh 唤醒全部阻塞消费者，清空在队元素并归还节点池。
 func (q *queueImpl) Shutdown() {
 	q.once.Do(q.closeNow)
 }
@@ -184,10 +188,12 @@ func (q *queueImpl) isDrained() bool {
 	return true
 }
 
+// IsClosed 返回队列是否已关停：原子读取 closed 标记，无锁开销。
 func (q *queueImpl) IsClosed() bool {
 	return q.closed.Load()
 }
 
+// Len 返回当前在队元素数量，持锁读取保证一致性快照。
 func (q *queueImpl) Len() (count int) {
 
 	q.lock.Lock()
@@ -196,6 +202,8 @@ func (q *queueImpl) Len() (count int) {
 	return
 }
 
+// Values 返回当前在队元素的快照副本，持锁拷贝、锁外返回；
+// 副本可安全修改，不影响内部状态。
 func (q *queueImpl) Values() []any {
 
 	q.lock.Lock()
@@ -221,6 +229,7 @@ func (q *queueImpl) InFlight() []any {
 	return items
 }
 
+// Range 持锁遍历在队元素，fn 返回 false 时提前终止。fn 为 nil 时直接返回。
 func (q *queueImpl) Range(fn func(any) bool) {
 
 	if fn == nil {
@@ -246,6 +255,9 @@ func (q *queueImpl) notifyWaitersLocked() {
 	}
 }
 
+// Put 将元素入队。幂等模式下通过 state 集合去重：已在队元素返回 ErrElementAlreadyExist，
+// 处理中元素打挂起标记（Done 时重入队）；非幂等模式直接入队，允许重复值。
+// 两种路径均在锁内复查 closed 防止关停窗口丢失，成功后触发 OnPut 回调。
 func (q *queueImpl) Put(value any) error {
 
 	if q.IsClosed() || q.draining.Load() {
@@ -319,6 +331,8 @@ func (q *queueImpl) popLocked() (front *lst.Node, value any) {
 	return front, value
 }
 
+// Get 非阻塞弹出队首元素：队列空时返回 ErrQueueIsEmpty，关停时返回 ErrQueueIsClosed。
+// 幂等模式下 popLocked 将元素从 state 搬入 processing；非幂等启用 drainTracking 时递增 inFlight。
 func (q *queueImpl) Get() (any, error) {
 
 	if q.IsClosed() {
@@ -402,6 +416,9 @@ func (q *queueImpl) GetWithContext(ctx context.Context) (value any, err error) {
 	}
 }
 
+// Done 标记元素处理完成。非幂等模式仅递减 inFlight 计数；幂等模式将元素从
+// processing 移除，若处理期间有 Put 留下挂起标记则重新入队并唤醒阻塞消费者。
+// 非处理中元素的 Done 为安全 no-op，不误清在队项的去重标记。
 func (q *queueImpl) Done(value any) {
 
 	if q.IsClosed() {

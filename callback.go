@@ -2,17 +2,24 @@ package workqueue
 
 import "time"
 
+// queueCallbackImpl 是 QueueCallback 接口的空实现基类，
+// 可作为各队列类型回调的默认值使用。
 type queueCallbackImpl struct{}
 
 // NewNopQueueCallbackImpl 返回空实现回调。
 func NewNopQueueCallbackImpl() *queueCallbackImpl { return &queueCallbackImpl{} }
 
+// OnPut 为空实现。
 func (impl *queueCallbackImpl) OnPut(any) {}
 
+// OnGet 为空实现。
 func (impl *queueCallbackImpl) OnGet(any) {}
 
+// OnDone 为空实现。
 func (impl *queueCallbackImpl) OnDone(any) {}
 
+// delayingQueueCallbackImpl 是 DelayingQueueCallback 接口的空实现，
+// 内嵌 queueCallbackImpl 继承基础回调方法。
 type delayingQueueCallbackImpl struct {
 	queueCallbackImpl
 }
@@ -25,10 +32,14 @@ func NewNopDelayingQueueCallbackImpl() *delayingQueueCallbackImpl {
 	}
 }
 
+// OnDelay 为空实现。
 func (impl *delayingQueueCallbackImpl) OnDelay(any, int64) {}
 
+// OnPullError 为空实现。
 func (impl *delayingQueueCallbackImpl) OnPullError(any, error) {}
 
+// timerQueueCallbackImpl 是 TimerQueueCallback 接口的空实现，
+// 内嵌 queueCallbackImpl 继承基础回调方法。
 type timerQueueCallbackImpl struct {
 	queueCallbackImpl
 }
@@ -41,10 +52,14 @@ func NewNopTimerQueueCallbackImpl() *timerQueueCallbackImpl {
 	}
 }
 
+// OnSchedule 为空实现。
 func (impl *timerQueueCallbackImpl) OnSchedule(any, int64) {}
 
+// OnScheduleError 为空实现。
 func (impl *timerQueueCallbackImpl) OnScheduleError(any, error) {}
 
+// priorityQueueCallbackImpl 是 PriorityQueueCallback 接口的空实现，
+// 内嵌 queueCallbackImpl 继承基础回调方法。
 type priorityQueueCallbackImpl struct {
 	queueCallbackImpl
 }
@@ -57,8 +72,11 @@ func NewNopPriorityQueueCallbackImpl() *priorityQueueCallbackImpl {
 	}
 }
 
+// OnPriority 为空实现。
 func (impl *priorityQueueCallbackImpl) OnPriority(any, int64) {}
 
+// ratelimitingQueueCallbackImpl 是 RateLimitingQueueCallback 接口的空实现，
+// 内嵌 delayingQueueCallbackImpl 继承延迟队列回调方法。
 type ratelimitingQueueCallbackImpl struct {
 	delayingQueueCallbackImpl
 }
@@ -73,8 +91,11 @@ func NewNopRateLimitingQueueCallbackImpl() *ratelimitingQueueCallbackImpl {
 	}
 }
 
+// OnLimited 为空实现。
 func (impl *ratelimitingQueueCallbackImpl) OnLimited(any) {}
 
+// retryQueueCallbackImpl 是 RetryQueueCallback 接口的空实现，
+// 内嵌 delayingQueueCallbackImpl 继承延迟队列回调方法。
 type retryQueueCallbackImpl struct {
 	delayingQueueCallbackImpl
 }
@@ -89,12 +110,17 @@ func NewNopRetryQueueCallbackImpl() *retryQueueCallbackImpl {
 	}
 }
 
+// OnRetry 为空实现。
 func (impl *retryQueueCallbackImpl) OnRetry(any, int, time.Duration, error) {}
 
+// OnRetryExhausted 为空实现。
 func (impl *retryQueueCallbackImpl) OnRetryExhausted(any, int, error) {}
 
+// OnForget 为空实现。
 func (impl *retryQueueCallbackImpl) OnForget(any) {}
 
+// deadLetterQueueCallbackImpl 是 DeadLetterQueueCallback 接口的空实现，
+// 内嵌 queueCallbackImpl 继承基础回调方法。
 type deadLetterQueueCallbackImpl struct {
 	queueCallbackImpl
 }
@@ -107,12 +133,17 @@ func NewNopDeadLetterQueueCallbackImpl() *deadLetterQueueCallbackImpl {
 	}
 }
 
+// OnDead 为空实现。
 func (impl *deadLetterQueueCallbackImpl) OnDead(*DeadLetter) {}
 
+// OnAckDead 为空实现。
 func (impl *deadLetterQueueCallbackImpl) OnAckDead(*DeadLetter) {}
 
+// OnRequeueDead 为空实现。
 func (impl *deadLetterQueueCallbackImpl) OnRequeueDead(*DeadLetter, Queue) {}
 
+// leasedQueueCallbackImpl 是 LeasedQueueCallback 接口的空实现，
+// 内嵌 queueCallbackImpl 继承基础回调方法。
 type leasedQueueCallbackImpl struct {
 	queueCallbackImpl
 }
@@ -125,4 +156,5 @@ func NewNopLeasedQueueCallbackImpl() *leasedQueueCallbackImpl {
 	}
 }
 
+// OnNack 为空实现。
 func (impl *leasedQueueCallbackImpl) OnNack(any, error) {}

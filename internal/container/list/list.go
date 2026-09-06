@@ -11,19 +11,27 @@ func toUnsafePtr(lp *List) unsafe.Pointer {
 	return unsafe.Pointer(lp)
 }
 
+// List 是一个双向链表实现，支持 O(1) 的头尾访问、插入、删除，
+// 以及节点的移动、交换和任意位置插入。节点通过 parentRef 字段实现 O(1) 归属判断。
 type List struct {
 	head, tail *Node
 	count      int64
 }
 
+// New 创建一个空的双向链表。
 func New() *List { return &List{} }
 
+// Len 返回链表中的节点数量。
 func (l *List) Len() int64 { return l.count }
 
+// Front 返回链表的头节点（首节点），链表为空时返回 nil。
 func (l *List) Front() *Node { return l.head }
 
+// Back 返回链表的尾节点（末节点），链表为空时返回 nil。
 func (l *List) Back() *Node { return l.tail }
 
+// PushBack 将节点追加到链表尾部。若节点已在当前链表中，则执行移动操作避免重复挂接；
+// 若节点属于其他链表，则从原链表脱离后重新挂接。
 func (l *List) PushBack(node *Node) {
 	if node == nil {
 		return
@@ -53,6 +61,8 @@ func (l *List) PushBack(node *Node) {
 	l.count++
 }
 
+// PushFront 将节点插入链表头部。若节点已在当前链表中，则执行移动操作避免重复挂接；
+// 若节点属于其他链表，则从原链表脱离后重新挂接。
 func (l *List) PushFront(node *Node) {
 	if node == nil {
 		return
@@ -80,6 +90,7 @@ func (l *List) PushFront(node *Node) {
 	l.count++
 }
 
+// PopBack 弹出并返回链表尾部节点，同时清除其链表归属标记。链表为空时返回 nil。
 func (l *List) PopBack() *Node {
 	if l.tail == nil {
 		return nil
@@ -103,6 +114,7 @@ func (l *List) PopBack() *Node {
 	return n
 }
 
+// PopFront 弹出并返回链表头部节点，同时清除其链表归属标记。链表为空时返回 nil。
 func (l *List) PopFront() *Node {
 	if l.head == nil {
 		return nil
@@ -126,6 +138,7 @@ func (l *List) PopFront() *Node {
 	return n
 }
 
+// Remove 从链表中移除指定节点并清除其归属标记。节点为空、链表为空或节点不属于当前链表时不执行操作。
 func (l *List) Remove(node *Node) {
 
 	if node == nil || l.count == 0 || !isPtrEqual(node.parentRef, l) {
@@ -151,6 +164,7 @@ func (l *List) Remove(node *Node) {
 	l.count--
 }
 
+// initNodeInEmptyList 尝试在空链表中初始化节点为唯一节点。链表非空时返回 false。
 func (l *List) initNodeInEmptyList(node *Node) bool {
 	if l.head == nil {
 		node.parentRef = toUnsafePtr(l)
@@ -164,6 +178,8 @@ func (l *List) initNodeInEmptyList(node *Node) bool {
 	return false
 }
 
+// MoveToFront 将节点移动到链表头部。若节点不属于当前链表，则从原位置脱离后插入头部；
+// 若节点已在头部则不执行操作。
 func (l *List) MoveToFront(node *Node) {
 	if node == nil {
 		return
@@ -202,6 +218,8 @@ func (l *List) MoveToFront(node *Node) {
 	l.head = node
 }
 
+// MoveToBack 将节点移动到链表尾部。若节点不属于当前链表，则从原位置脱离后插入尾部；
+// 若节点已在尾部则不执行操作。
 func (l *List) MoveToBack(node *Node) {
 	if node == nil {
 		return
@@ -240,6 +258,7 @@ func (l *List) MoveToBack(node *Node) {
 	l.tail = node
 }
 
+// validateSwapNodes 校验两个交换节点的有效性：均非空、互不相同且均属于当前链表。
 func (l *List) validateSwapNodes(node, mark *Node) bool {
 	if node == nil || mark == nil || node == mark {
 		return false
@@ -247,6 +266,8 @@ func (l *List) validateSwapNodes(node, mark *Node) bool {
 	return isPtrEqual(node.parentRef, l) && isPtrEqual(mark.parentRef, l)
 }
 
+// InsertBefore 将 node 插入到 mark 节点之前。mark 不属于当前链表、参数为空或两节点相同时不执行操作；
+// node 已在当前链表中时先从原位置移除再插入。
 func (l *List) InsertBefore(node, mark *Node) {
 	if node == nil || mark == nil || node == mark {
 		return
@@ -273,6 +294,8 @@ func (l *List) InsertBefore(node, mark *Node) {
 	l.count++
 }
 
+// InsertAfter 将 node 插入到 mark 节点之后。mark 不属于当前链表、参数为空或两节点相同时不执行操作；
+// node 已在当前链表中时先从原位置移除再插入。
 func (l *List) InsertAfter(node, mark *Node) {
 	if node == nil || mark == nil || node == mark {
 		return
@@ -299,6 +322,8 @@ func (l *List) InsertAfter(node, mark *Node) {
 	l.count++
 }
 
+// Swap 交换链表中两个节点的位置。两节点相邻和非相邻分别走不同的指针交换路径，
+// 均保持 head/tail 的正确性。
 func (l *List) Swap(node, mark *Node) {
 
 	if !l.validateSwapNodes(node, mark) {
@@ -374,6 +399,7 @@ func (l *List) Swap(node, mark *Node) {
 	}
 }
 
+// Range 从头部到尾部遍历链表所有节点，fn 返回 false 时提前终止遍历。
 func (l *List) Range(fn func(node *Node) bool) {
 
 	for iterNode := l.head; iterNode != nil; iterNode = iterNode.Right {
@@ -384,6 +410,7 @@ func (l *List) Range(fn func(node *Node) bool) {
 	}
 }
 
+// Slice 将链表中所有节点的值从头到尾收集到切片并返回。
 func (l *List) Slice() []any {
 	nodes := make([]any, 0, l.count)
 
@@ -395,6 +422,8 @@ func (l *List) Slice() []any {
 	return nodes
 }
 
+// Cleanup 清空链表的所有节点引用，将链表重置为空状态。注意：节点本身不会被释放，
+// 调用方需自行管理节点的生命周期。
 func (l *List) Cleanup() {
 	l.head = nil
 	l.tail = nil

@@ -289,10 +289,13 @@ type wrapInternalList struct {
 	*lst.List
 }
 
+// Push 将节点追加到链表尾部。
 func (sl *wrapInternalList) Push(value any) { sl.List.PushBack(value.(*lst.Node)) }
 
+// Pop 弹出链表头部节点。
 func (sl *wrapInternalList) Pop() any { return sl.List.PopFront() }
 
+// Range 遍历链表全部节点，fn 返回 false 时提前终止。
 func (sl *wrapInternalList) Range(fn func(value any) bool) {
 	sl.List.Range(func(node *lst.Node) bool { return fn(node) })
 }
@@ -302,10 +305,13 @@ type wrapInternalHeap struct {
 	*hp.RBTree
 }
 
+// Push 将节点按优先级插入红黑树。
 func (sh *wrapInternalHeap) Push(value any) { sh.RBTree.Push(value.(*lst.Node)) }
 
+// Pop 弹出红黑树中最小优先级节点。
 func (sh *wrapInternalHeap) Pop() any { return sh.RBTree.Pop() }
 
+// Range 遍历红黑树全部节点，fn 返回 false 时提前终止。
 func (sh *wrapInternalHeap) Range(fn func(value any) bool) {
 	sh.RBTree.Range(func(node *lst.Node) bool { return fn(node) })
 }

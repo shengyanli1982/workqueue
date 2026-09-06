@@ -120,6 +120,8 @@ func (q *retryQueueImpl) forwardToDeadLetter(value any, attempt int, reason erro
 	_ = dlq.PutDead(letter)
 }
 
+// Forget 重置元素的重试计数：成功处理后调用，清除累积的 attempt 并触发 OnForget 回调。
+// nil 值或 keyFunc 出错时静默跳过。
 func (q *retryQueueImpl) Forget(value any) {
 	if value == nil {
 		return
@@ -134,6 +136,8 @@ func (q *retryQueueImpl) Forget(value any) {
 	q.config.callback.OnForget(value)
 }
 
+// NumRequeues 返回元素的当前重试次数：nil 值或 keyFunc 出错时返回 0。
+// 读锁访问 attempts 表，适合高频查询场景。
 func (q *retryQueueImpl) NumRequeues(value any) int {
 	if value == nil {
 		return 0
@@ -174,6 +178,8 @@ func (q *retryQueueImpl) GetWithContext(ctx context.Context) (any, error) {
 	return q.DelayingQueue.(BlockingGetQueue).GetWithContext(ctx)
 }
 
+// Shutdown 立即关停重试队列：委托内层 DelayingQueue 关停后重置重试计数表，
+// 释放内存并防止关停后残留计数影响后续使用。
 func (q *retryQueueImpl) Shutdown() {
 	q.DelayingQueue.Shutdown()
 
@@ -196,6 +202,7 @@ func (q *retryQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 	return err
 }
 
+// keyOf 通过配置的 keyFunc 计算元素的重试 key：空字符串返回 ErrRetryKeyEmpty。
 func (q *retryQueueImpl) keyOf(value any) (string, error) {
 	key := q.config.keyFunc(value)
 	if key == "" {

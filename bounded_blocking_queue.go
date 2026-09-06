@@ -7,6 +7,10 @@ import (
 	"sync/atomic"
 )
 
+// boundedBlockingQueueImpl 实现有界阻塞队列，基于双 channel 信号量机制：
+// slots channel 控制可用槽位（初始填满，Put 消费、Get/Done 归还），
+// items channel 控制已入队元素信号（Put 生产、Get 消费），
+// closed channel 用于广播关停事件唤醒所有阻塞 goroutine。
 type boundedBlockingQueueImpl struct {
 	Queue
 	config *BoundedBlockingQueueConfig
@@ -47,10 +51,14 @@ func NewBoundedBlockingQueue(config *BoundedBlockingQueueConfig) BoundedBlocking
 	return q
 }
 
+// Cap 返回队列容量上限。
 func (q *boundedBlockingQueueImpl) Cap() int {
 	return q.config.capacity
 }
 
+// Put 阻塞式入队：从 slots channel 获取槽位后将元素投入内层队列，
+// 同时在 items channel 投放已入队信号。队列满时阻塞等待槽位释放，
+// 队列关闭或 drain 中返回 ErrQueueIsClosed。
 func (q *boundedBlockingQueueImpl) Put(value any) error {
 	if q.IsClosed() || q.draining.Load() {
 		return ErrQueueIsClosed
@@ -81,6 +89,9 @@ func (q *boundedBlockingQueueImpl) Put(value any) error {
 	return nil
 }
 
+// Get 阻塞式出队：从 items channel 获取已入队信号后从内层队列取出元素，
+// 同时归还槽位到 slots channel。队列空时阻塞等待新元素入队，
+// 队列关闭时返回 ErrQueueIsClosed。
 func (q *boundedBlockingQueueImpl) Get() (value any, err error) {
 	if q.IsClosed() {
 		return nil, ErrQueueIsClosed

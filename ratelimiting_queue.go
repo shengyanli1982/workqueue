@@ -4,7 +4,9 @@ import (
 	"context"
 )
 
-// ratelimitingQueueImpl 组合 DelayingQueue 实现限流入队。
+// ratelimitingQueueImpl 通过组合模式内嵌 DelayingQueue 实现限流入队：
+// Limiter 返回的等待时长大于零时委托 PutWithDelay 延迟入队，
+// 否则直接入队。自身不持有存储，全部状态由内层延迟队列管理。
 type ratelimitingQueueImpl struct {
 	DelayingQueue
 	config *RateLimitingQueueConfig
@@ -51,6 +53,9 @@ func (q *ratelimitingQueueImpl) Forget(value any) {
 	}
 }
 
+// PutWithLimited 执行限流入队：通过 Limiter 计算等待时长，
+// 大于零时转为延迟入队（PutWithDelay），否则直接入队（Put）。
+// 入队成功后触发 OnLimited 回调。
 func (q *ratelimitingQueueImpl) PutWithLimited(value any) error {
 
 	if q.IsClosed() || value == nil {

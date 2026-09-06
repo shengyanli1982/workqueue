@@ -4,7 +4,9 @@ import (
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 )
 
-// RBTree 是按 Priority 排序的红黑树实现。
+// RBTree 是按 Priority 排序的红黑树实现，用作优先级堆的底层数据结构。
+// 树中节点按 Priority 升序排列，head 指向最小优先级节点，tail 指向最大优先级节点，
+// 支持 O(log n) 的插入与删除，以及 O(1) 的最小/最大节点访问。
 type RBTree struct {
 	count int64
 	root  *lst.Node
@@ -12,8 +14,11 @@ type RBTree struct {
 	tail  *lst.Node
 }
 
+// New 创建一个空的红黑树。
 func New() *RBTree { return &RBTree{} }
 
+// leftRotate 对节点执行左旋操作：将节点的右子节点提升为该位置的新根，
+// 原节点下沉为其左子节点。左旋用于红黑树插入和删除后的平衡修复。
 func leftRotate(tree *RBTree, node *lst.Node) {
 	if node == nil || node.Right == nil {
 		return
@@ -43,6 +48,8 @@ func leftRotate(tree *RBTree, node *lst.Node) {
 	node.Parent = rightChild
 }
 
+// rightRotate 对节点执行右旋操作：将节点的左子节点提升为该位置的新根，
+// 原节点下沉为其右子节点。右旋用于红黑树插入和删除后的平衡修复。
 func rightRotate(tree *RBTree, node *lst.Node) {
 	if node == nil || node.Left == nil {
 		return
@@ -66,6 +73,9 @@ func rightRotate(tree *RBTree, node *lst.Node) {
 	node.Parent = leftChild
 }
 
+// insertFixUp 在 BST 插入新节点后修复红黑树性质。新插入的节点初始为红色，
+// 当其父节点也是红色时违反"红节点不能有红子节点"性质，需通过叔叔节点着色
+// 和旋转操作逐层向上修复，最终确保根节点为黑色。
 func insertFixUp(tree *RBTree, node *lst.Node) {
 	for node.Parent != nil && node.Parent.Color == lst.RED {
 		if node.Parent == node.Parent.Parent.Left {
@@ -105,6 +115,8 @@ func insertFixUp(tree *RBTree, node *lst.Node) {
 	tree.root.Color = lst.BLACK
 }
 
+// insert 将节点插入红黑树。流程：BST 定位插入位置 → 着色为红 → insertFixUp 修复红黑性质 →
+// 更新 head（最小优先级）和 tail（最大优先级）指针。同优先级节点沿右链插入，新节点成为最右。
 func (tree *RBTree) insert(node *lst.Node) {
 	if node == nil {
 		return
@@ -356,6 +368,7 @@ func (tree *RBTree) delete(node *lst.Node) {
 	}
 }
 
+// minimum 返回以 node 为根的子树中优先级最小的节点（最左节点），节点为空时返回 nil。
 func (tree *RBTree) minimum(node *lst.Node) *lst.Node {
 	if node == nil {
 		return nil
@@ -367,6 +380,7 @@ func (tree *RBTree) minimum(node *lst.Node) *lst.Node {
 	return node
 }
 
+// maximum 返回以 node 为根的子树中优先级最大的节点（最右节点），节点为空时返回 nil。
 func (tree *RBTree) maximum(node *lst.Node) *lst.Node {
 	if node == nil {
 		return nil
@@ -378,6 +392,8 @@ func (tree *RBTree) maximum(node *lst.Node) *lst.Node {
 	return node
 }
 
+// successor 返回 node 的中序后继节点（优先级大于当前节点的最小节点）。
+// 若右子树非空，后继为右子树的最小节点；否则沿父链向上找第一个作为左子节点的祖先。
 func (tree *RBTree) successor(node *lst.Node) *lst.Node {
 	if node.Right != nil {
 		return tree.minimum(node.Right)
@@ -390,6 +406,8 @@ func (tree *RBTree) successor(node *lst.Node) *lst.Node {
 	return parent
 }
 
+// predecessor 返回 node 的中序前驱节点（优先级小于当前节点的最大节点）。
+// 若左子树非空，前驱为左子树的最大节点；否则沿父链向上找第一个作为右子节点的祖先。
 func (tree *RBTree) predecessor(node *lst.Node) *lst.Node {
 	if node.Left != nil {
 		return tree.maximum(node.Left)
@@ -402,6 +420,8 @@ func (tree *RBTree) predecessor(node *lst.Node) *lst.Node {
 	return parent
 }
 
+// popMin 弹出并返回最小优先级节点（head）。通过 O(1) 访问 head 获取最小节点，
+// 再执行删除修复（deleteFixUp）维持红黑树性质，最后更新 head 指针。
 func (tree *RBTree) popMin() *lst.Node {
 	node := tree.head
 	if node == nil {
@@ -441,16 +461,23 @@ func (tree *RBTree) popMin() *lst.Node {
 	return node
 }
 
+// Len 返回红黑树中的节点数量。
 func (tree *RBTree) Len() int64 { return tree.count }
 
+// Root 返回红黑树的根节点。
 func (tree *RBTree) Root() *lst.Node { return tree.root }
 
+// Front 返回最小优先级节点（head），不将其从树中移除。
 func (tree *RBTree) Front() *lst.Node { return tree.head }
 
+// Back 返回最大优先级节点（tail），不将其从树中移除。
 func (tree *RBTree) Back() *lst.Node { return tree.tail }
 
+// Remove 从红黑树中删除指定节点。
 func (tree *RBTree) Remove(node *lst.Node) { tree.delete(node) }
 
+// inOrderTraverse 以中序遍历（左→根→右）访问红黑树节点，按优先级升序回调 fn。
+// fn 返回 false 时提前终止遍历。
 func inOrderTraverse(node *lst.Node, fn func(*lst.Node) bool) bool {
 	if node == nil {
 		return true
@@ -464,10 +491,12 @@ func inOrderTraverse(node *lst.Node, fn func(*lst.Node) bool) bool {
 	return inOrderTraverse(node.Right, fn)
 }
 
+// Range 以中序遍历（优先级升序）访问所有节点，fn 返回 false 时提前终止。
 func (tree *RBTree) Range(fn func(*lst.Node) bool) {
 	inOrderTraverse(tree.root, fn)
 }
 
+// Slice 将红黑树中所有节点的值按优先级升序收集到切片并返回。
 func (tree *RBTree) Slice() []any {
 	if tree.count == 0 {
 		return nil
@@ -480,6 +509,7 @@ func (tree *RBTree) Slice() []any {
 	return nodes
 }
 
+// Cleanup 清空红黑树的所有节点引用，将树重置为空状态。
 func (tree *RBTree) Cleanup() {
 	tree.root = nil
 	tree.head = nil
@@ -487,12 +517,14 @@ func (tree *RBTree) Cleanup() {
 	tree.count = 0
 }
 
+// Push 将一个节点插入红黑树，节点为空时不执行操作。
 func (tree *RBTree) Push(node *lst.Node) {
 	if node != nil {
 		tree.insert(node)
 	}
 }
 
+// Pop 弹出并返回最小优先级节点，树为空时返回 nil。
 func (tree *RBTree) Pop() *lst.Node {
 	return tree.popMin()
 }

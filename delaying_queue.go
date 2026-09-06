@@ -10,6 +10,7 @@ import (
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 )
 
+// toDelay 将相对延迟（毫秒）转为绝对时间戳（毫秒），用于堆内排序。
 func toDelay(duration int64) int64 {
 	return time.Now().UnixMilli() + duration
 }
@@ -144,6 +145,8 @@ func (q *delayingQueueImpl) Put(value any) error {
 	return q.Queue.Put(value)
 }
 
+// PutWithDelay 按相对延迟（毫秒）将元素入延迟堆，到期后由 scheduler 搬入内层队列。
+// 锁内复查 closed 防止关停窗口丢失节点；仅当新项成为更早堆顶时唤醒 scheduler 重算 timer。
 func (q *delayingQueueImpl) PutWithDelay(value any, delay int64) error {
 
 	if q.IsClosed() || q.draining.Load() {
@@ -349,6 +352,7 @@ func (q *delayingQueueImpl) HeapRange(fn func(value any, delay int64) bool) {
 	q.lock.Unlock()
 }
 
+// Len 返回延迟队列总元素数：堆中待到期项 + 已搬入内层队列的在队项之和。
 func (q *delayingQueueImpl) Len() int {
 	q.lock.Lock()
 	count := int(q.sorting.Len())

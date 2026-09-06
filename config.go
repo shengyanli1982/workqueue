@@ -10,8 +10,11 @@ import (
 // NewSetFunc 用于自定义幂等集合实现。
 type NewSetFunc = func() Set
 
+// defaultNewSetFunc 为默认幂等集合构造器，创建初始容量为 64 的集合。
 var defaultNewSetFunc = func() Set { return set.NewWithCapacity(64) }
 
+// defaultRetryKeyFunc 为默认重试 key 生成函数，
+// 以 "类型:值" 格式（fmt.Sprintf("%T:%#v")）生成稳定的唯一键。
 var defaultRetryKeyFunc = func(value any) string {
 	if value == nil {
 		return ""

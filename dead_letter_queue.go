@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+// deadLetterQueueImpl 通过组合模式内嵌基础 Queue 实现死信队列，
+// 使用原子计数器生成进程内单调递增 ID，draining 标记控制 drain 期间的写入拒绝。
 type deadLetterQueueImpl struct {
 	Queue
 	config *DeadLetterQueueConfig
@@ -25,6 +27,8 @@ func NewDeadLetterQueue(config *DeadLetterQueueConfig) DeadLetterQueue {
 	}
 }
 
+// Put 适配 Queue 接口：将入参转换为 *DeadLetter 后委托 PutDead 入队，
+// 非死信类型返回 ErrInvalidDeadLetter。
 func (q *deadLetterQueueImpl) Put(value any) error {
 	letter, ok := toDeadLetter(value)
 	if !ok {
@@ -34,10 +38,13 @@ func (q *deadLetterQueueImpl) Put(value any) error {
 	return q.PutDead(letter)
 }
 
+// Get 适配 Queue 接口：委托 GetDead 返回 *DeadLetter（满足 Queue.Get 签名）。
 func (q *deadLetterQueueImpl) Get() (any, error) {
 	return q.GetDead()
 }
 
+// Done 适配 Queue 接口：将入参转换为 *DeadLetter 后委托 AckDead 确认完成，
+// 非死信类型静默忽略。
 func (q *deadLetterQueueImpl) Done(value any) {
 	letter, ok := toDeadLetter(value)
 	if !ok {
@@ -130,6 +137,9 @@ func (q *deadLetterQueueImpl) AckDead(letter *DeadLetter) error {
 	return nil
 }
 
+// RequeueDead 将死信重新放回目标队列：先 AckDead 确认原死信，再将 Payload
+// 投入 target。若 target.Put 失败，死信自动回退到本队列（PutDead）。
+// 成功后触发 OnRequeueDead 回调。
 func (q *deadLetterQueueImpl) RequeueDead(letter *DeadLetter, target Queue) error {
 	if letter == nil {
 		return ErrInvalidDeadLetter
@@ -191,6 +201,8 @@ func (q *deadLetterQueueImpl) nextID() string {
 	return strconv.FormatUint(q.seed.Add(1), 36)
 }
 
+// toDeadLetter 将任意值安全转换为 *DeadLetter：
+// *DeadLetter 直接返回，DeadLetter 值类型取其地址副本，其他类型返回 (nil, false)。
 func toDeadLetter(value any) (*DeadLetter, bool) {
 	switch v := value.(type) {
 	case *DeadLetter:
