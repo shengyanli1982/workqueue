@@ -30,8 +30,8 @@ func (l *List) Front() *Node { return l.head }
 // Back 返回链表的尾节点（末节点），链表为空时返回 nil。
 func (l *List) Back() *Node { return l.tail }
 
-// PushBack 将节点追加到链表尾部。若节点已在当前链表中，则执行移动操作避免重复挂接；
-// 若节点属于其他链表，则从原链表脱离后重新挂接。
+// PushBack 将节点追加到链表尾部。若节点已在当前链表中，则执行移动操作避免重复挂接。
+// 调用方必须保证节点已脱离其他链表（NodePool 回收路径已保证），否则原链表结构会被破坏。
 func (l *List) PushBack(node *Node) {
 	if node == nil {
 		return
@@ -61,8 +61,8 @@ func (l *List) PushBack(node *Node) {
 	l.count++
 }
 
-// PushFront 将节点插入链表头部。若节点已在当前链表中，则执行移动操作避免重复挂接；
-// 若节点属于其他链表，则从原链表脱离后重新挂接。
+// PushFront 将节点插入链表头部。若节点已在当前链表中，则执行移动操作避免重复挂接。
+// 调用方必须保证节点已脱离其他链表（NodePool 回收路径已保证），否则原链表结构会被破坏。
 func (l *List) PushFront(node *Node) {
 	if node == nil {
 		return
@@ -178,8 +178,8 @@ func (l *List) initNodeInEmptyList(node *Node) bool {
 	return false
 }
 
-// MoveToFront 将节点移动到链表头部。若节点不属于当前链表，则从原位置脱离后插入头部；
-// 若节点已在头部则不执行操作。
+// MoveToFront 将节点移动到链表头部；已在头部则不执行操作。节点属于当前链表时
+// 先从原位置脱离再插入头部。调用方必须保证节点已脱离其他链表（NodePool 回收路径已保证）。
 func (l *List) MoveToFront(node *Node) {
 	if node == nil {
 		return
@@ -218,8 +218,8 @@ func (l *List) MoveToFront(node *Node) {
 	l.head = node
 }
 
-// MoveToBack 将节点移动到链表尾部。若节点不属于当前链表，则从原位置脱离后插入尾部；
-// 若节点已在尾部则不执行操作。
+// MoveToBack 将节点移动到链表尾部；已在尾部则不执行操作。节点属于当前链表时
+// 先从原位置脱离再插入尾部。调用方必须保证节点已脱离其他链表（NodePool 回收路径已保证）。
 func (l *List) MoveToBack(node *Node) {
 	if node == nil {
 		return
@@ -267,7 +267,7 @@ func (l *List) validateSwapNodes(node, mark *Node) bool {
 }
 
 // InsertBefore 将 node 插入到 mark 节点之前。mark 不属于当前链表、参数为空或两节点相同时不执行操作；
-// node 已在当前链表中时先从原位置移除再插入。
+// node 已在当前链表中时先从原位置移除再插入。调用方必须保证 node 已脱离其他链表（NodePool 回收路径已保证）。
 func (l *List) InsertBefore(node, mark *Node) {
 	if node == nil || mark == nil || node == mark {
 		return
@@ -295,7 +295,7 @@ func (l *List) InsertBefore(node, mark *Node) {
 }
 
 // InsertAfter 将 node 插入到 mark 节点之后。mark 不属于当前链表、参数为空或两节点相同时不执行操作；
-// node 已在当前链表中时先从原位置移除再插入。
+// node 已在当前链表中时先从原位置移除再插入。调用方必须保证 node 已脱离其他链表（NodePool 回收路径已保证）。
 func (l *List) InsertAfter(node, mark *Node) {
 	if node == nil || mark == nil || node == mark {
 		return

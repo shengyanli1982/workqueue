@@ -64,8 +64,11 @@ func NewLeasedQueue(config *LeasedQueueConfig) LeasedQueue {
 }
 
 // GetWithLease 从队列弹出一个元素并登记租约：返回元素值与唯一租约 ID。
-// timeout<=0 时回退到 config.leaseDuration；pop 与租约登记在同一临界区完成，
-// 保证 drain 判定不会落入"元素已出队但租约未登记"的窗口。
+// timeout<=0 时回退到 config.leaseDuration；pop 在 q.lock 外完成、租约登记持锁，
+// 与 GetWithLeaseWithContext 的临界区模式一致。pop 不得持 q.lock：内层 Get 在
+// 释放内层锁后触发 OnGet（WithCallback 将同一回调注入内外两层），持锁跨越会使
+// 回调内重入 Ack/ExtendLease/LeaseInfos 二次加锁自死锁。
+// “已弹出未登记”窗口的 drain 安全性由内层簿记覆盖，见 drainedForShutdown 注释。
 func (q *leasedQueueImpl) GetWithLease(timeout time.Duration) (value any, leaseID string, err error) {
 	if timeout <= 0 {
 		timeout = q.config.leaseDuration
@@ -74,20 +77,17 @@ func (q *leasedQueueImpl) GetWithLease(timeout time.Duration) (value any, leaseI
 		return nil, "", ErrInvalidLeaseDuration
 	}
 
+	value, err = q.Queue.Get()
+	if err != nil {
+		return nil, "", err
+	}
+
 	seq := q.leaseID.Add(1)
 	var raw [16]byte
 	leaseID = string(strconv.AppendUint(raw[:0], seq, 36))
 	deadline := time.Now().Add(timeout)
 
-	// pop 与租约登记同在一个 q.lock 临界区：与 drainedForShutdown 串行化，
-	// 保证 drain 判定不会落入“元素已出队但租约未登记”的窗口。
 	q.lock.Lock()
-
-	value, err = q.Queue.Get()
-	if err != nil {
-		q.lock.Unlock()
-		return nil, "", err
-	}
 
 	if q.leases == nil {
 		// 关停已清理租约表：刚弹出的元素随关停丢弃，语义与 Shutdown 一致。
@@ -148,31 +148,32 @@ func (q *leasedQueueImpl) GetWithLeaseWithContext(ctx context.Context, timeout t
 
 // Ack 确认租约：移除租约记录并调用 Done 释放处理中追踪。租约不存在时返回 ErrLeaseNotFound。
 func (q *leasedQueueImpl) Ack(leaseID string) error {
-	value, ok := q.removeLease(leaseID)
+	item, ok := q.removeLease(leaseID)
 	if !ok {
 		return ErrLeaseNotFound
 	}
 
-	q.Queue.Done(value)
+	q.Queue.Done(item.value)
 	return nil
 }
 
 // Nack 否定确认：将元素重新入队并释放租约，触发 OnNack 回调。
-// 先入队成功后再移除租约，避免入队失败时元素丢失。
+// claim-first：先移除租约宣告所有权（与 Ack/reaper 的 removeLease 互斥，消除
+// “归还入队窗口内 reaper 抢占导致重复 Put/双重 Done”的竞态），claim 成功后入队；
+// 入队失败时租约按原 deadline 重新登记，元素不丢失。
 func (q *leasedQueueImpl) Nack(leaseID string, reason error) error {
-	value, ok := q.peekLease(leaseID)
+	item, ok := q.removeLease(leaseID)
 	if !ok {
 		return ErrLeaseNotFound
 	}
 
-	// 先入队，成功后再释放租约，避免入队失败时元素丢失。
-	if err := q.Queue.Put(value); err != nil {
+	if err := q.Queue.Put(item.value); err != nil {
+		q.restoreLease(leaseID, item)
 		return err
 	}
 
-	q.removeLease(leaseID)
-	q.Queue.Done(value)
-	q.config.callback.OnNack(value, reason)
+	q.Queue.Done(item.value)
+	q.config.callback.OnNack(item.value, reason)
 	return nil
 }
 
@@ -250,9 +251,15 @@ func (q *leasedQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 }
 
 // drainedForShutdown 判定租约队列 drain 完成：无在租项 ∧ 内层队列已 drained。
-// 持 q.lock 跨越内层判定：reaper 的“Put→removeLease”与 GetWithLease 的
-// “pop→登记租约”两段过渡均经 q.lock 串行化，避免判定窗口内元素既不在
-// leases 也不在内层队列视野内（TOCTOU）。
+// 持 q.lock 跨越内层判定。两段锁外过渡窗口均由内层 popLocked 在与 pop 同一
+// 临界区完成的簿记覆盖，判定不会因此提前为真：
+//   - GetWithLease/GetWithLeaseWithContext 的“已弹出未登记租约”：幂等模式值已
+//     搬入 processing、drainTracking 模式 inFlight 已 +1，isDrained 均返回 false；
+//   - reaper/Nack claim-first 的“已移除租约未重入队”：原 pop 的 processing 标记 /
+//     inFlight 计数要到入队成功后的 Done 才释放，isDrained 同样返回 false。
+//
+// 裸非幂等且未启用 tracking 的模式下，在途项本就不在判定视野内（内层队列的
+// 文档化契约）；窗口内元素随关停丢弃，与 leases=nil 清理时的丢弃语义一致。
 func (q *leasedQueueImpl) drainedForShutdown(inner *queueImpl) bool {
 
 	q.lock.Lock()
@@ -286,44 +293,41 @@ func (q *leasedQueueImpl) closeNow() {
 	q.lock.Unlock()
 }
 
-// peekLease 只读查看租约内容，不删除。
-func (q *leasedQueueImpl) peekLease(leaseID string) (value any, ok bool) {
-	if leaseID == "" {
-		return nil, false
-	}
-
+// restoreLease 按 item 原样（含其当前 deadline）重新登记租约、归还所有权：
+// claim 后入队失败路径与陈旧化复查路径（快照窗口内被续期）均经此恢复。
+// leases 已被 closeNow 清 nil（Nack 与关停并发的窗口）时随关停丢弃，
+// 语义与 GetWithLease 遇清理的丢弃一致；nil map 不可写入，此处判空为正确性所需。
+func (q *leasedQueueImpl) restoreLease(leaseID string, item leasedItem) {
 	q.lock.Lock()
-	item, ok := q.leases[leaseID]
-	q.lock.Unlock()
-
-	if !ok {
-		return nil, false
+	if q.leases != nil {
+		q.leases[leaseID] = item
 	}
-	return item.value, true
+	q.lock.Unlock()
 }
 
-// removeLease 移除指定租约并返回其元素值：空 ID 或未命中返回 ok=false。
-func (q *leasedQueueImpl) removeLease(leaseID string) (value any, ok bool) {
+// removeLease 移除指定租约并返回其完整记录（供失败/陈旧化路径原样恢复）：
+// 空 ID 或未命中返回 ok=false。
+func (q *leasedQueueImpl) removeLease(leaseID string) (item leasedItem, ok bool) {
 	if leaseID == "" {
-		return nil, false
+		return leasedItem{}, false
 	}
 
 	q.lock.Lock()
-	item, ok := q.leases[leaseID]
+	item, ok = q.leases[leaseID]
 	if ok {
 		delete(q.leases, leaseID)
 	}
 	q.lock.Unlock()
 
 	if !ok {
-		return nil, false
+		return leasedItem{}, false
 	}
-	return item.value, true
+	return item, true
 }
 
 // requeueExpiredLeases reaper 协程：按 scanInterval 周期扫描过期租约，
 // 将过期元素重新入队并释放租约，实现 at-least-once 交付保障。
-// 入队失败时元素保留在 leases 中，下次扫描再试。
+// 入队失败时租约按原 deadline 重新登记，下次扫描再试（见 requeueCollected）。
 func (q *leasedQueueImpl) requeueExpiredLeases() {
 	ticker := time.NewTicker(q.config.scanInterval)
 	defer func() {
@@ -341,24 +345,48 @@ func (q *leasedQueueImpl) requeueExpiredLeases() {
 		case <-ticker.C:
 			now := time.Now()
 			expired := q.collectExpired(now, expiredBuf[:0])
-			for _, e := range expired {
-				// 先入队，成功后再释放租约，避免入队失败时元素丢失。
-				// 入队失败的元素保留在 leases map 中，下次扫描时再试。
-				if err := q.Queue.Put(e.value); err != nil {
-					continue
-				}
-				q.removeLease(e.id)
-				q.Queue.Done(e.value)
-			}
+			q.requeueCollected(expired)
 			expiredBuf = expired
 		}
 	}
 }
 
-// expiredLease 过期租约的中间表示，由 collectExpired 收集供 requeueExpiredLeases 处理。
+// requeueCollected 处理 collectExpired 收集的过期租约。
+// claim-first：先 removeLease 宣告所有权（与 Ack/Nack 的 removeLease 互斥），
+// 未命中说明租约已在快照窗口内被 Ack/Nack 处置，跳过——消除“已 Ack 的值被
+// 陈旧快照 Put 复活 + Done 误减他项在途计数”的竞态。claim 成功后做陈旧化复查：
+// deadline 已变（快照窗口内被 ExtendLease 续期）则原样恢复并跳过，避免把已续期
+// 租约照陈旧快照错误重入队；否则入队，失败时重新登记待下轮重试，成功后才调
+// Done 释放在途追踪。
+func (q *leasedQueueImpl) requeueCollected(expired []expiredLease) {
+	for _, e := range expired {
+		item, ok := q.removeLease(e.id)
+		if !ok {
+			continue
+		}
+		// 陈旧化复查：claim 到的 deadline 若已不同于快照值，说明快照窗口内被
+		// ExtendLease 续期，租约仍有效，不得照陈旧快照重入队——按当前 item 原样
+		// 恢复（保留续期后的新 deadline）并跳过。
+		if !item.deadline.Equal(e.deadline) {
+			q.restoreLease(e.id, item)
+			continue
+		}
+		if err := q.Queue.Put(item.value); err != nil {
+			// 入队失败（如内层已关停）：按当前 item 重新登记，元素不丢失。
+			q.restoreLease(e.id, item)
+			continue
+		}
+		q.Queue.Done(item.value)
+	}
+}
+
+// expiredLease 过期租约的中间表示，由 collectExpired 收集供 requeueCollected 处理。
+// deadline 保存快照时的到期时间，作为 claim 后陈旧化复查的基准：与 removeLease 取回
+// 的 item.deadline 不一致即说明租约在快照窗口内被 ExtendLease 续期，放弃重入队。
+// 重新登记不以快照值为依据，一律以 removeLease 返回的 item 为准（其 deadline 即权威到期时间）。
 type expiredLease struct {
-	id    string
-	value any
+	id       string
+	deadline time.Time
 }
 
 // collectExpired 只收集过期的租约条目，不从 leases map 中移除。
@@ -367,7 +395,7 @@ func (q *leasedQueueImpl) collectExpired(now time.Time, buf []expiredLease) []ex
 	q.lock.Lock()
 	for id, item := range q.leases {
 		if !item.deadline.After(now) {
-			buf = append(buf, expiredLease{id: id, value: item.value})
+			buf = append(buf, expiredLease{id: id, deadline: item.deadline})
 		}
 	}
 	q.lock.Unlock()

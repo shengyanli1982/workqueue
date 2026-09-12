@@ -7,6 +7,7 @@ import (
 
 func BenchmarkQueue_Put(b *testing.B) {
 	q := NewQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -21,6 +22,7 @@ func BenchmarkQueue_Get(b *testing.B) {
 		_ = q.Put(i)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -30,6 +32,7 @@ func BenchmarkQueue_Get(b *testing.B) {
 
 func BenchmarkQueue_PutAndGet(b *testing.B) {
 	q := NewQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -41,6 +44,7 @@ func BenchmarkQueue_PutAndGet(b *testing.B) {
 func BenchmarkQueue_Idempotent_Put(b *testing.B) {
 	conf := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(conf)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -57,6 +61,7 @@ func BenchmarkQueue_Idempotent_Get(b *testing.B) {
 		_ = q.Put(i)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -67,6 +72,7 @@ func BenchmarkQueue_Idempotent_Get(b *testing.B) {
 func BenchmarkQueue_Idempotent_PutAndGet(b *testing.B) {
 	conf := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(conf)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -78,6 +84,7 @@ func BenchmarkQueue_Idempotent_PutAndGet(b *testing.B) {
 func BenchmarkQueue_Idempotent_PutGetDone(b *testing.B) {
 	conf := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(conf)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -92,6 +99,7 @@ func BenchmarkQueue_Idempotent_DuplicatePut(b *testing.B) {
 	q := NewQueue(conf)
 	_ = q.Put("same")
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = q.Put("same")
@@ -110,6 +118,7 @@ func BenchmarkQueue_Idempotent_Put_String(b *testing.B) {
 		keys[i] = strconv.Itoa(i)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -134,6 +143,7 @@ func BenchmarkQueue_Idempotent_Done(b *testing.B) {
 		values = append(values, v)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {

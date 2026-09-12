@@ -13,7 +13,11 @@ type retryQueueImpl struct {
 	DelayingQueue
 	config *RetryQueueConfig
 
-	lock     sync.RWMutex
+	// lock 保护 attempts 表。pprof 证据（P1-3）：RWMutex 的读写锁在短临界区
+	// 上产生高昂的原子操作开销（atomic.Int32.Add 占采样 19.2%），而本文件
+	// 全部临界区均为极短的 map 读写，独占 Mutex 反而更快；Mutex 同时使
+	// “读取+预占自增”与耗尽分支的 claim-once 各自在单一锁段内原子完成。
+	lock     sync.Mutex
 	attempts map[string]int
 
 	// deadLetterID 为转发死信生成 base-36 单调 ID，
@@ -45,19 +49,33 @@ func (q *retryQueueImpl) Retry(value any, reason error) error {
 		return err
 	}
 
-	// Phase 1: 预读当前 attempt，预算策略决策。
-	// 读锁开销极低，可快速得到 tentativeAttempt 用于计算 delay。
-	q.lock.RLock()
-	tentativeAttempt := q.attempts[key] + 1
-	q.lock.RUnlock()
+	// 单一锁段内完成“读取 + 预占自增”（单次 map 查找）。attempts 必须跨多次
+	// Retry 累积——它是策略决策与 NumRequeues 的唯一数据源；immediate 与延迟
+	// 路径在此无差别，重置仅发生在耗尽分支或 Forget。Put 失败时经
+	// rollbackAttempt 归还预占计数，消除计数漂移（#8a）。
+	q.lock.Lock()
+	attempt := q.attempts[key] + 1
+	q.attempts[key] = attempt
+	q.lock.Unlock()
 
-	delay, retry := q.config.policy.NextDelay(value, tentativeAttempt, reason)
+	// policy.NextDelay 是用户代码，必须在锁外调用。
+	delay, retry := q.config.policy.NextDelay(value, attempt, reason)
 	if !retry {
-		// 耗尽分支：自增取得耗尽计数后立即重置，同值此后可重启完整重试周期。
-		attempt := q.incrementAttempt(key)
-		q.resetAttempt(key)
-		q.config.callback.OnRetryExhausted(value, attempt, reason)
-		q.forwardToDeadLetter(value, attempt, reason)
+		// 耗尽分支 claim-once（#8b）：锁内仅首个成功删除计数条目的调用方
+		// 触发回调与死信转发，保证同值并发耗尽时副作用恰好一次；
+		// 未 claim 到的调用方仍返回 ErrRetryExhausted 但不重复副作用。
+		// 计数被删除后，同值此后可重启完整重试周期。
+		q.lock.Lock()
+		_, fire := q.attempts[key]
+		if fire {
+			delete(q.attempts, key)
+		}
+		q.lock.Unlock()
+
+		if fire {
+			q.config.callback.OnRetryExhausted(value, attempt, reason)
+			q.forwardToDeadLetter(value, attempt, reason)
+		}
 		return ErrRetryExhausted
 	}
 	if delay < 0 {
@@ -65,11 +83,6 @@ func (q *retryQueueImpl) Retry(value any, reason error) error {
 	}
 
 	immediate := delay < time.Millisecond
-
-	// Phase 2: 写锁完成 attempt 累积。attempts 必须跨多次 Retry 累积——
-	// 它是策略决策（Phase 1 的 tentativeAttempt）与 NumRequeues 的唯一数据源；
-	// immediate 与延迟路径在此无差别，重置仅发生在耗尽分支或 Forget。
-	attempt := q.incrementAttempt(key)
 
 	// PutWithDelay 以毫秒为粒度，子毫秒延迟会被截断为 0。
 	// 直接走 Put 可避免进入延迟搬运路径的额外轮询开销。
@@ -81,6 +94,10 @@ func (q *retryQueueImpl) Retry(value any, reason error) error {
 	}
 
 	if err != nil {
+		// Put 失败回滚（#8a）：归还本次预占的计数，避免漂移导致退避预算虚耗、
+		// 提前进入耗尽/死信。回滚不得破坏幂等队列“先 Put 后 Done”的挂起语义
+		//（queue.go Put：processing 命中打挂起标记），仅归还本调用预占的 +1。
+		q.rollbackAttempt(key)
 		return err
 	}
 
@@ -105,10 +122,11 @@ func (q *retryQueueImpl) forwardToDeadLetter(value any, attempt int, reason erro
 		lastError = reason.Error()
 	}
 
+	// 与 deadLetterQueueImpl.nextID 同款（P1-2）：FormatUint 直接产出 string，
+	// 避免 [N]byte + AppendUint 后再 string(buf) 的两步转换，堆分配同为 1 次。
 	seq := q.deadLetterID.Add(1)
-	var raw [16]byte
 	letter := &DeadLetter{
-		ID:          string(strconv.AppendUint(raw[:0], seq, 36)),
+		ID:          strconv.FormatUint(seq, 36),
 		Payload:     value,
 		SourceQueue: q.config.deadLetterSource,
 		Attempts:    attempt,
@@ -137,7 +155,7 @@ func (q *retryQueueImpl) Forget(value any) {
 }
 
 // NumRequeues 返回元素的当前重试次数：nil 值或 keyFunc 出错时返回 0。
-// 读锁访问 attempts 表，适合高频查询场景。
+// 加锁访问 attempts 表，临界区仅一次 map 读取。
 func (q *retryQueueImpl) NumRequeues(value any) int {
 	if value == nil {
 		return 0
@@ -148,9 +166,9 @@ func (q *retryQueueImpl) NumRequeues(value any) int {
 		return 0
 	}
 
-	q.lock.RLock()
+	q.lock.Lock()
 	attempt := q.attempts[key]
-	q.lock.RUnlock()
+	q.lock.Unlock()
 	return attempt
 }
 
@@ -162,12 +180,12 @@ func (q *retryQueueImpl) NumRequeues(value any) int {
 // fmt.Sprintf("%T:%#v", value, value) 形式的字符串。使用自定义 key 函数时，
 // 返回的 key 跟随其输出，做结果关联需按同一 key 函数换算。
 func (q *retryQueueImpl) RequeueCounts() map[string]int {
-	q.lock.RLock()
+	q.lock.Lock()
 	counts := make(map[string]int, len(q.attempts))
 	for key, attempt := range q.attempts {
 		counts[key] = attempt
 	}
-	q.lock.RUnlock()
+	q.lock.Unlock()
 	return counts
 }
 
@@ -211,27 +229,25 @@ func (q *retryQueueImpl) keyOf(value any) (string, error) {
 	return key, nil
 }
 
-// incrementAttempt 递增指定 key 的 attempt 计数并返回递增后的值。
-// 只累积不重置：重置仅由耗尽分支或 Forget 触发，保证零延迟重试策略下
-// attempts 也能正常累积并耗尽。
-func (q *retryQueueImpl) incrementAttempt(key string) int {
+// rollbackAttempt 回滚一次预占的 attempt 计数：锁内减 1，≤0 时删除条目。
+// 与 Retry 的 Put 失败路径配对，消除计数漂移（#8a）。
+// 只累积不重置的语义保持不变：重置仅由耗尽分支或 Forget 触发。
+// 已知近似——存在跨周期窗口：若他方耗尽分支 claim-once 删除计数后、第三方重启
+// 新周期预占，本次回滚可能减掉的是新周期的计数。漂移有界 ≤1，属可接受的近似；
+// 完整修复需为计数附加周期标签以区分新旧周期，属过度设计，故不采用。
+func (q *retryQueueImpl) rollbackAttempt(key string) {
 	q.lock.Lock()
-	q.attempts[key]++
-	attempt := q.attempts[key]
+	if next := q.attempts[key] - 1; next > 0 {
+		q.attempts[key] = next
+	} else {
+		delete(q.attempts, key)
+	}
 	q.lock.Unlock()
-	return attempt
 }
 
-// resetAttempt 重置指定 key 的 attempt 计数。
-// 使用 RLock 预判 key 是否存在，不存在时直接返回，避免获取写锁。
-// 这使得对从未重试（或已重置）的 value 调用 Forget 成为廉价操作。
+// resetAttempt 重置指定 key 的 attempt 计数（delete 对不存在 key 为 no-op，
+// 对从未重试或已重置的 value 调用 Forget 因此是廉价的单锁段操作）。
 func (q *retryQueueImpl) resetAttempt(key string) {
-	q.lock.RLock()
-	_, exists := q.attempts[key]
-	q.lock.RUnlock()
-	if !exists {
-		return
-	}
 	q.lock.Lock()
 	delete(q.attempts, key)
 	q.lock.Unlock()

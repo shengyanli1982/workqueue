@@ -65,11 +65,18 @@ func (q *ratelimitingQueueImpl) PutWithLimited(value any) error {
 		return ErrElementIsNil
 	}
 
-	delay := q.config.limiter.When(value).Milliseconds()
+	when := q.config.limiter.When(value)
 
 	// 有等待时间时转为延迟入队，否则立即入队。
+	// PutWithDelay 以毫秒为粒度：亚毫秒等待时长（高速率限流器 r>1000/s 时
+	// When() 的常态输出）经 Milliseconds() 会被截断为 0，若据此走 Put 直通
+	// 则限流语义完全失效（#15a），故向上取整至 1ms 以保持限流。
 	var err error
-	if delay > 0 {
+	if when > 0 {
+		delay := when.Milliseconds()
+		if delay == 0 {
+			delay = 1
+		}
 		err = q.PutWithDelay(value, delay)
 	} else {
 		err = q.Put(value)

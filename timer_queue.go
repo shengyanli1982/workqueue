@@ -154,6 +154,7 @@ func (q *timerQueueImpl) Cancel(value any) bool {
 }
 
 // HeapRange 持锁遍历堆中全部调度项，fn 返回 false 时提前终止。fn 为 nil 时直接返回。
+// fn 在队列锁内执行，禁止在 fn 中调用本队列任何方法（PutAt/PutAfter/Get/Cancel 等），否则死锁。
 func (q *timerQueueImpl) HeapRange(fn func(value any, at int64) bool) {
 	if fn == nil {
 		return

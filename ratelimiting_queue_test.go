@@ -339,3 +339,38 @@ func TestRateLimitingQueueImpl_Forget_UnsupportedLimiter(t *testing.T) {
 		q.Shutdown()
 	}
 }
+
+// fixedWhenLimiter 始终返回固定等待时长，用于构造亚毫秒限流场景（#15a）。
+type fixedWhenLimiter struct{ d time.Duration }
+
+func (l *fixedWhenLimiter) When(any) time.Duration { return l.d }
+
+// TestRateLimitingQueueImpl_SubMillisecondDelay 复现 #15a：高速率限流器
+// （r>1000/s）返回亚毫秒等待时长，When(value).Milliseconds() 将其截断为 0
+// → 走 Put 直通，限流语义完全失效。
+// 修复前：500µs 限流的值立即可 Get（RED）；
+// 修复后：向上取整至 1ms 延迟入队，到期前不可 Get，到期经 puller 搬运后可 Get。
+func TestRateLimitingQueueImpl_SubMillisecondDelay(t *testing.T) {
+	q := NewRateLimitingQueue(NewRateLimitingQueueConfig().
+		WithLimiter(&fixedWhenLimiter{d: 500 * time.Microsecond}))
+	defer q.Shutdown()
+
+	assert.NoError(t, q.PutWithLimited("sub-ms"))
+
+	_, err := q.Get()
+	assert.ErrorIs(t, err, ErrQueueIsEmpty,
+		"sub-millisecond limited value must not be immediately gettable (#15a)")
+
+	// 延迟到期（1ms 向上取整 + puller 心跳上限 ~300ms）后最终可消费。
+	var got any
+	assert.Eventually(t, func() bool {
+		v, getErr := q.Get()
+		if getErr != nil {
+			return false
+		}
+		got = v
+		q.Done(v)
+		return true
+	}, 2*time.Second, 10*time.Millisecond)
+	assert.Equal(t, "sub-ms", got)
+}

@@ -27,9 +27,13 @@ func runWithCPUProfile(b *testing.B, name string, fn func()) {
 	if err := pprof.StartCPUProfile(f); err != nil {
 		b.Fatalf("failed to start CPU profile: %v", err)
 	}
-	defer pprof.StopCPUProfile()
 
 	fn()
+
+	// CPU 采样收尾退出计时段：StopCPUProfile 需等待全部采样写盘后才返回，
+	// 若留在 defer 中会在计时段内执行放大 ns/op（与 runWithMemProfile 同款结构）。
+	b.StopTimer()
+	pprof.StopCPUProfile()
 }
 
 func runWithMemProfile(b *testing.B, name string, fn func()) {
@@ -44,8 +48,16 @@ func runWithMemProfile(b *testing.B, name string, fn func()) {
 	}
 	defer f.Close()
 
+	// 先回收残留堆（前方内存增长型 benchmark 遗留的垃圾），避免其 GC 放大
+	// 进入计时段；ResetTimer 将文件创建与清理 GC 排除在 ns/op 之外。
+	runtime.GC()
+	b.ResetTimer()
+
 	fn()
 
+	// 堆转储及其所需 GC 退出计时：ns/op 只反映 fn 的真实路径。否则在大堆上
+	// runtime.GC()+WriteHeapProfile 会把数值放大成秒级/op 的测量假象（baseline.md §6）。
+	b.StopTimer()
 	runtime.GC()
 	if err := pprof.WriteHeapProfile(f); err != nil {
 		b.Fatalf("failed to write heap profile: %v", err)

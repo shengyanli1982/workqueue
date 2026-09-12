@@ -67,6 +67,7 @@ type MetricsSnapshot struct {
 	ScheduleErrors int64
 
 	// Unfinished 为已 Get 未 Done 的在途数量（Gets - Dones）。
+	// 非幂等模式 Dones 恒为 0（OnDone 不触发），此处等于累计 Gets，不代表真实在途。
 	Unfinished int64
 }
 
@@ -93,7 +94,8 @@ func (r *MetricsRecorder) OnPut(any) { r.adds.Add(1) }
 // OnGet 累计一次消费事件。
 func (r *MetricsRecorder) OnGet(any) { r.gets.Add(1) }
 
-// OnDone 累计一次完成事件。
+// OnDone 累计一次完成事件。仅幂等模式（WithValueIdempotent）触发——基础队列的
+// Done 只在幂等模式回调 OnDone；非幂等模式下 Snapshot().Dones 恒为 0、Unfinished 等于累计 Gets。
 func (r *MetricsRecorder) OnDone(any) { r.dones.Add(1) }
 
 // OnDelay 为延迟入队事件，搬运入队时另行计入 Adds，此处空实现。

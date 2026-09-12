@@ -575,7 +575,7 @@ func TestDelayingQueueImpl_CancelDelay_Concurrent(t *testing.T) {
 
 // TestDelayingQueueImpl_ShutdownDiscardsUndueItems Q4a 关停丢弃契约：
 // Shutdown 丢弃堆中未搬运的延迟项——不可被 Get、HeapRange 不可见、
-// 内部 discardedDelayed 精确计数（本里程碑只计数不暴露，G4/G5 里程碑暴露）。
+// 内部 discardedDelayed 精确计数（对外经 DiscardedDelayed 暴露，见下一测试）。
 func TestDelayingQueueImpl_ShutdownDiscardsUndueItems(t *testing.T) {
 	q := NewDelayingQueue(nil)
 
@@ -602,6 +602,27 @@ func TestDelayingQueueImpl_ShutdownDiscardsUndueItems(t *testing.T) {
 	impl := q.(*delayingQueueImpl)
 	assert.Equal(t, int64(3), impl.discardedDelayed.Load(),
 		"discardedDelayed must count exactly the undue items dropped at Shutdown")
+}
+
+// TestDelayingQueueImpl_DiscardedDelayed #15b 可观测性：导出方法 DiscardedDelayed()
+// 读取关停时未到期被丢弃的延迟项计数。经可选接口类型断言（io.Closer 风格）访问，
+// 验证该方法确为导出面（外部包无需依赖内部类型即可读取）。
+func TestDelayingQueueImpl_DiscardedDelayed(t *testing.T) {
+	q := NewDelayingQueue(nil)
+
+	// 可选接口断言：DelayingQueue 接口未并入该方法，调用方经类型断言使用。
+	dq, ok := q.(interface{ DiscardedDelayed() int64 })
+	assert.True(t, ok, "delaying queue must expose DiscardedDelayed via optional interface")
+
+	// 关停前计数为 0。
+	assert.Zero(t, dq.DiscardedDelayed(), "fresh queue must report zero discarded")
+
+	// 放入未到期延迟项（1 小时）后立即 Shutdown：按 Q4a 契约被丢弃并计数。
+	assert.NoError(t, q.PutWithDelay("undue", 3600_000))
+	q.Shutdown()
+
+	assert.GreaterOrEqual(t, dq.DiscardedDelayed(), int64(1),
+		"DiscardedDelayed must count the undue item dropped at Shutdown")
 }
 
 // TestDelayingQueueImpl_BatchDelivery 验证单批 128 上限语义在 scheduler 重写后保留：

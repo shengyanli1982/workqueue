@@ -27,7 +27,7 @@ type delayingQueueImpl struct {
 	wake        chan struct{}
 	closed      chan struct{}
 	// discardedDelayed 累计 Shutdown 时按 Q4a 契约丢弃的未搬运延迟项数量。
-	// 本里程碑仅内部计数，由 G4/G5 里程碑对外暴露。
+	// 对外经 DiscardedDelayed() 只读暴露（原子计数，关停清理路径累加）。
 	discardedDelayed atomic.Int64
 	// draining 在 drain 开始时置位：拒绝新的 Put/PutWithDelay，
 	// 已被接受的在途项由 scheduler 继续搬运直至 drain 判定完成。
@@ -344,6 +344,8 @@ func (q *delayingQueueImpl) findNodeLocked(value any) *lst.Node {
 	return target
 }
 
+// HeapRange 持锁遍历堆中全部未到期延迟项，fn 返回 false 时提前终止。
+// fn 在队列锁内执行，禁止在 fn 中调用本队列任何方法（Put/PutWithDelay/Get/CancelDelay 等），否则死锁。
 func (q *delayingQueueImpl) HeapRange(fn func(value any, delay int64) bool) {
 	q.lock.Lock()
 	q.sorting.Range(func(n *lst.Node) bool {
@@ -358,6 +360,12 @@ func (q *delayingQueueImpl) Len() int {
 	count := int(q.sorting.Len())
 	q.lock.Unlock()
 	return count + q.Queue.Len()
+}
+
+// DiscardedDelayed 返回关停时按 Q4a 契约丢弃的未到期延迟项累计计数。
+// 含 Shutdown 与 ShutdownWithDrain 两条清理路径丢弃的堆中项；原子读取，可并发安全调用。
+func (q *delayingQueueImpl) DiscardedDelayed() int64 {
+	return q.discardedDelayed.Load()
 }
 
 // GetWithContext 阻塞直到消费到一个值、ctx 完成或队列关闭，永不返回

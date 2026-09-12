@@ -2,6 +2,7 @@ package workqueue
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/shengyanli1982/workqueue/v2/internal/container/set"
@@ -13,11 +14,43 @@ type NewSetFunc = func() Set
 // defaultNewSetFunc 为默认幂等集合构造器，创建初始容量为 64 的集合。
 var defaultNewSetFunc = func() Set { return set.NewWithCapacity(64) }
 
-// defaultRetryKeyFunc 为默认重试 key 生成函数，
-// 以 "类型:值" 格式（fmt.Sprintf("%T:%#v")）生成稳定的唯一键。
+// defaultRetryKeyFunc 为默认重试 key 生成函数，以 "类型:值" 格式生成稳定的唯一键。
+// string/int/int64/uint64/bool 走类型特化快路径（P1-1，输出与
+// fmt.Sprintf("%T:%#v", value, value) 逐字节一致，等价性由 config_test.go 钉住），
+// 其余类型回退 Sprintf；%#v 对 string 即 Go 引号语法（strconv.Quote 等价）。
 var defaultRetryKeyFunc = func(value any) string {
 	if value == nil {
 		return ""
+	}
+
+	switch v := value.(type) {
+	case string:
+		buf := make([]byte, 0, len(v)+16)
+		buf = append(buf, "string:"...)
+		buf = strconv.AppendQuote(buf, v)
+		return string(buf)
+	case int:
+		var buf [24]byte
+		b := append(buf[:0], "int:"...)
+		b = strconv.AppendInt(b, int64(v), 10)
+		return string(b)
+	case int64:
+		// %#v 对 int64 输出裸十进制（实证：fmt.Sprintf("%#v", int64(42)) == "42"）。
+		var buf [32]byte
+		b := append(buf[:0], "int64:"...)
+		b = strconv.AppendInt(b, v, 10)
+		return string(b)
+	case uint64:
+		// %#v 对 uint64 输出 0x 前缀小写十六进制（实证："0x2a"，0 → "0x0"）。
+		var buf [38]byte
+		b := append(buf[:0], "uint64:0x"...)
+		b = strconv.AppendUint(b, v, 16)
+		return string(b)
+	case bool:
+		if v {
+			return "bool:true"
+		}
+		return "bool:false"
 	}
 
 	return fmt.Sprintf("%T:%#v", value, value)
@@ -48,6 +81,8 @@ func (c *QueueConfig) WithCallback(cb QueueCallback) *QueueConfig {
 }
 
 // WithValueIdempotent 开启值幂等模式。
+// 值作为去重集合的 map key 必须可比较；不可比较值（slice/map/func 等）
+// 会在入队时触发 runtime panic（hash of unhashable type）。
 func (c *QueueConfig) WithValueIdempotent() *QueueConfig {
 	c.idempotent = true
 

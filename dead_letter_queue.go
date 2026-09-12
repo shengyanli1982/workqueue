@@ -126,7 +126,8 @@ func (q *deadLetterQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 	return err
 }
 
-// AckDead 确认死信处理完成。
+// AckDead 确认死信处理完成。letter 应来自 GetDead（在途）；底层 Done 对
+// 非在途 letter 为安全 no-op、不破坏队列状态，OnAckDead 照常触发。
 func (q *deadLetterQueueImpl) AckDead(letter *DeadLetter) error {
 	if letter == nil {
 		return ErrInvalidDeadLetter
@@ -140,6 +141,8 @@ func (q *deadLetterQueueImpl) AckDead(letter *DeadLetter) error {
 // RequeueDead 将死信重新放回目标队列：先 AckDead 确认原死信，再将 Payload
 // 投入 target。若 target.Put 失败，死信自动回退到本队列（PutDead）。
 // 成功后触发 OnRequeueDead 回调。
+// 契约：letter 必须来自 GetDead（在途）；对未经 GetDead 的在队 letter 调用属
+// 未定义行为（AckDead 无法确认非在途项，该 letter 可能滞留本队列造成重复）。
 func (q *deadLetterQueueImpl) RequeueDead(letter *DeadLetter, target Queue) error {
 	if letter == nil {
 		return ErrInvalidDeadLetter
@@ -161,6 +164,8 @@ func (q *deadLetterQueueImpl) RequeueDead(letter *DeadLetter, target Queue) erro
 	return nil
 }
 
+// RangeDead 持锁遍历在队全部死信，fn 返回 false 时提前终止。fn 为 nil 时直接返回。
+// fn 在队列锁内执行，禁止在 fn 中调用本队列任何方法（PutDead/GetDead/AckDead/RequeueDead 等），否则死锁。
 func (q *deadLetterQueueImpl) RangeDead(fn func(letter *DeadLetter) bool) {
 	if fn == nil {
 		return

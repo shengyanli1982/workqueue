@@ -230,6 +230,7 @@ func (q *queueImpl) InFlight() []any {
 }
 
 // Range 持锁遍历在队元素，fn 返回 false 时提前终止。fn 为 nil 时直接返回。
+// fn 在队列锁内执行，禁止在 fn 中调用本队列任何方法（Put/Get/Done/Range 等），否则死锁。
 func (q *queueImpl) Range(fn func(any) bool) {
 
 	if fn == nil {
@@ -269,26 +270,31 @@ func (q *queueImpl) Put(value any) error {
 	}
 
 	if q.config.idempotent {
+		// 取节点移到锁外（对齐下方非幂等分支）：pending/去重/closed 三条拒绝路径
+		// 取到节点后在锁外归还池，缩短临界区并避免持锁期间触发池分配。
+		last := q.elementpool.Get()
+		last.Value = value
 		q.lock.Lock()
 		if q.closed.Load() {
 			q.lock.Unlock()
+			q.elementpool.Put(last)
 			return ErrQueueIsClosed
 		}
 		if q.processing.Contains(value) {
 			// 元素处理中：打上挂起标记并接受本次 Put，真实重入队推迟到 Done 时完成。
 			// TryAdd 失败仅说明标记已存在（重复挂起 Put），自然幂等。
-			// 这是 D1/D2 的结构性修复点：包装队列（reaper/Retry）的“先 Put 后 Done”
-			// 顺序在新语义下自动正确，leased_queue.go / retry_queue.go 零改动。
+			// 这是 D1/D2 的结构性修复点：包装队列的“先 Put 后 Done”顺序在该挂起
+			// 语义下自动正确，无需为此改造。
 			// 挂起标记不产生立即可消费项，不唤醒等待者（由 Done 重入队时唤醒）。
 			q.state.TryAdd(value)
 			q.lock.Unlock()
+			q.elementpool.Put(last)
 		} else {
 			if !q.state.TryAdd(value) {
 				q.lock.Unlock()
+				q.elementpool.Put(last)
 				return ErrElementAlreadyExist
 			}
-			last := q.elementpool.Get()
-			last.Value = value
 			q.list.Push(last)
 			q.notifyWaitersLocked()
 			q.lock.Unlock()
@@ -419,6 +425,9 @@ func (q *queueImpl) GetWithContext(ctx context.Context) (value any, err error) {
 // Done 标记元素处理完成。非幂等模式仅递减 inFlight 计数；幂等模式将元素从
 // processing 移除，若处理期间有 Put 留下挂起标记则重新入队并唤醒阻塞消费者。
 // 非处理中元素的 Done 为安全 no-op，不误清在队项的去重标记。
+//
+// Done 必须与 Get 返回的值配对调用：drainTracking 模式忽略入参直接对 inFlight
+// 减一，错值或重复 Done 会误减在途计数；幂等模式错值 Done 为 no-op，真实在途元素滞留处理中。
 func (q *queueImpl) Done(value any) {
 
 	if q.IsClosed() {
