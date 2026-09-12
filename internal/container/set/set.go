@@ -49,14 +49,18 @@ type Set struct {
 	mAny    map[any]struct{}
 }
 
+// New 创建一个空的类型特化集合，底层 map 惰性创建，首次写入时才分配。
 func New() *Set {
 	return &Set{}
 }
 
+// NewWithCapacity 创建一个指定初始容量的类型特化集合，底层 map 在首次写入时按该容量创建。
 func NewWithCapacity(capacity int) *Set {
 	return &Set{initCap: capacity}
 }
 
+// Add 向集合中添加元素。首次写入时探测类型并走专用 map 路径；
+// 同型集合写入异型元素时不可逆退化到通用 map[any]。
 func (s *Set) Add(item any) {
 	switch s.kind {
 	case kindNone:
@@ -90,6 +94,7 @@ func (s *Set) Add(item any) {
 	}
 }
 
+// Remove 从集合中删除元素。异型元素的删除是空操作，不触发退化。
 func (s *Set) Remove(item any) {
 	switch s.kind {
 	case kindNone:
@@ -115,6 +120,7 @@ func (s *Set) Remove(item any) {
 	}
 }
 
+// Contains 判断元素是否存在于集合中。异型元素的查询返回 false。
 func (s *Set) Contains(item any) bool {
 	switch s.kind {
 	case kindNone:
@@ -162,6 +168,8 @@ func (s *Set) Contains(item any) bool {
 	}
 }
 
+// TryAdd 尝试添加元素到集合中，元素已存在时返回 false，成功添加时返回 true。
+// 同型集合写入异型元素时不可逆退化到通用 map[any]。
 func (s *Set) TryAdd(item any) bool {
 	switch s.kind {
 	case kindNone:
@@ -230,6 +238,7 @@ func (s *Set) TryAdd(item any) bool {
 	}
 }
 
+// TryRemove 尝试从集合中删除元素，元素不存在或类型不匹配时返回 false，成功删除时返回 true。
 func (s *Set) TryRemove(item any) bool {
 	switch s.kind {
 	case kindNone:
@@ -296,6 +305,7 @@ func (s *Set) TryRemove(item any) bool {
 	}
 }
 
+// Len 返回集合中的元素数量。
 func (s *Set) Len() int {
 	switch s.kind {
 	case kindNone:
@@ -313,6 +323,7 @@ func (s *Set) Len() int {
 	}
 }
 
+// List 将集合中所有元素收集到切片并返回。空集合返回空切片。
 func (s *Set) List() []any {
 	switch s.kind {
 	case kindNone:
@@ -360,6 +371,7 @@ func (s *Set) List() []any {
 	}
 }
 
+// Cleanup 清空集合中的所有底层 map 并将类型重置为 kindNone，集合回到空状态。
 func (s *Set) Cleanup() {
 	s.kind = kindNone
 	s.mStr = nil

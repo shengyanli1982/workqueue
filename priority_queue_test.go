@@ -268,3 +268,53 @@ func TestPriorityQueueImpl_LargeNumberOfItems(t *testing.T) {
 		previousPriority = currentPriority
 	}
 }
+
+// TestPriorityQueueImpl_RejectsIdempotentConfig 钉住构造期 fail-fast：
+// 幂等配置与优先级队列结构不兼容——PutWithPriority 走 sorting.Push 而非
+// 内层 queueImpl.Put，幂等簿记（state/processing）永不生效，且 Done 的
+// 重入队路径把元素推回 FIFO list 而非红黑树，优先级信息丢失。
+// 与其静默失效，不如构造时 panic。
+func TestPriorityQueueImpl_RejectsIdempotentConfig(t *testing.T) {
+	config := NewPriorityQueueConfig().WithCallback(&testPriorityQueueCallback{})
+	config.WithValueIdempotent()
+
+	assert.PanicsWithValue(t,
+		"workqueue: PriorityQueue does not support WithValueIdempotent: "+
+			"PutWithPriority bypasses the inner idempotent bookkeeping and "+
+			"Done re-enqueues into the FIFO list instead of the heap, so "+
+			"priority would be lost; use Queue, RetryQueue, LeasedQueue, "+
+			"DeadLetterQueue or TimerQueue for idempotent semantics",
+		func() { NewPriorityQueue(config) },
+	)
+}
+
+// TestPriorityQueueImpl_IdempotentSilentDedupRemoved 记录修复前的静默失效行为已被消除：
+// 修复前以幂等配置构造成功后，重复 Put 同值均返回 nil（去重完全无效），
+// 且 Done 的挂起重入队空转。修复后该组合在构造期即 panic，静默失效路径不可达。
+func TestPriorityQueueImpl_IdempotentSilentDedupRemoved(t *testing.T) {
+	newConfig := func() *PriorityQueueConfig {
+		config := NewPriorityQueueConfig()
+		config.WithValueIdempotent()
+		return config
+	}
+
+	// 修复前：构造成功，下列断言全部成立（去重静默失效）。
+	// 修复后：构造即 panic，不再存在“重复 Put 均返回 nil”的可观察行为。
+	assert.Panics(t, func() {
+		q := NewPriorityQueue(newConfig())
+		defer q.Shutdown()
+
+		assert.NoError(t, q.PutWithPriority("dup", PRIORITY_HIGH))
+		assert.NoError(t, q.PutWithPriority("dup", PRIORITY_LOW))
+		assert.Equal(t, 2, q.Len())
+	})
+
+	// Put 与 PutWithPriority 共用同一构造出的实例，组合不可达即两者均不可静默失效。
+	assert.Panics(t, func() {
+		q := NewPriorityQueue(newConfig())
+		defer q.Shutdown()
+
+		assert.NoError(t, q.Put("dup"))
+		assert.NoError(t, q.Put("dup"))
+	})
+}

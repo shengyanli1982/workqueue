@@ -716,3 +716,120 @@ func TestRetryQueue_RequeueCounts_SnapshotDetached(t *testing.T) {
 	close(stop)
 	<-trafficDone
 }
+
+// TestRetryQueue_PutFailure_NoAttemptDrift 复现 #8(a) 计数漂移：
+// 幂等模式下 Retry 的内层 Put 失败（ErrElementAlreadyExist）时，
+// 修复前 attempt 已自增但不回滚 → attempts 漂移 → 退避预算虚耗、提前进死信。
+// 场景构造：Put → Get（进 processing）→ 第一次 Retry（挂起标记 + Done 重入队，
+// attempts=1，元素回到 state）→ 第二次 Retry 时元素在队且不在处理中，
+// 内层 Put 必然返回 ErrElementAlreadyExist。
+// 修复后：Put 失败路径在锁内回滚计数，attempts 保持 1。
+func TestRetryQueue_PutFailure_NoAttemptDrift(t *testing.T) {
+	config := NewRetryQueueConfig().WithPolicy(&immediateRetryPolicy{maxRetries: 5})
+	config.WithValueIdempotent()
+	q := NewRetryQueue(config)
+	defer q.Shutdown()
+
+	assert.NoError(t, q.Put("task"))
+
+	value, err := q.Get()
+	assert.NoError(t, err)
+	assert.Equal(t, "task", value)
+
+	// 第一次 Retry：命中 processing 挂起路径，Put 成功，Done 重入队，attempts=1。
+	assert.NoError(t, q.Retry(value, errors.New("fail-1")))
+	assert.Equal(t, 1, q.NumRequeues("task"))
+
+	// 第二次 Retry：元素在队（state）且不在处理中 → 内层 Put 返回 ErrElementAlreadyExist。
+	err = q.Retry(value, errors.New("fail-2"))
+	assert.ErrorIs(t, err, ErrElementAlreadyExist)
+
+	// RED 断言：失败的 Retry 不得留下计数漂移（修复前为 2）。
+	assert.Equal(t, 1, q.NumRequeues("task"), "failed Put must roll back the claimed attempt (#8a drift)")
+
+	key := fmt.Sprintf("%T:%#v", "task", "task")
+	counts := q.RequeueCounts()
+	assert.Equal(t, 1, counts[key], "RequeueCounts must not leak the rolled-back attempt")
+}
+
+// barrierExhaustPolicy 是 #8(b) 并发双耗尽的确定性复现策略：
+// attempt ≤ 1 时立即放行（预置计数用）；attempt > 1 时拒绝重试，
+// 且阻塞到 expected 个调用方全部进入耗尽决策点后才统一放行——
+// 保证所有并发 Retry 都以“待耗尽”状态同时进入副作用分支。
+type barrierExhaustPolicy struct {
+	expected int
+	release  chan struct{}
+
+	mu    sync.Mutex
+	calls int
+}
+
+func (p *barrierExhaustPolicy) NextDelay(_ any, attempt int, _ error) (time.Duration, bool) {
+	if attempt <= 1 {
+		return 0, true
+	}
+
+	p.mu.Lock()
+	p.calls++
+	last := p.calls == p.expected
+	p.mu.Unlock()
+	if last {
+		close(p.release)
+	}
+	<-p.release
+
+	return 0, false
+}
+
+// TestRetryQueue_ConcurrentExhaustion_FiresExactlyOnce 复现 #8(b) 并发双耗尽：
+// 修复前耗尽分支的 increment+reset+回调+死信转发非原子，同值并发 Retry 全部
+// 进入耗尽分支 → OnRetryExhausted 重复触发、死信重复入队。
+// 修复后耗尽分支锁内 claim-once：恰好一个调用方触发回调与死信，
+// 其余仍返回 ErrRetryExhausted 但无副作用。
+func TestRetryQueue_ConcurrentExhaustion_FiresExactlyOnce(t *testing.T) {
+	const n = 8
+
+	dlq := NewDeadLetterQueue(nil)
+	defer dlq.Shutdown()
+
+	policy := &barrierExhaustPolicy{expected: n, release: make(chan struct{})}
+	callback := &testRetryQueueCallback{}
+	config := NewRetryQueueConfig().
+		WithPolicy(policy).
+		WithCallback(callback).
+		WithDeadLetterQueue(dlq, "retry-main")
+	q := NewRetryQueue(config)
+	defer q.Shutdown()
+
+	assert.NoError(t, q.Put("task"))
+	value, err := q.Get()
+	assert.NoError(t, err)
+
+	// 预置 attempts=1：第一次 Retry 走 attempt=1 → 策略放行（零延迟立即重入队）。
+	assert.NoError(t, q.Retry(value, errors.New("transient")))
+	assert.Equal(t, 1, q.NumRequeues("task"))
+
+	// 并发 n 个 Retry：全部在策略屏障处对齐（tentative attempt=2 > 1 → 耗尽分支），
+	// 同时释放 → 修复前 n 个调用方各自触发回调与死信。
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = q.Retry("task", errors.New("fatal"))
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 0; i < n; i++ {
+		assert.ErrorIs(t, errs[i], ErrRetryExhausted, "every concurrent exhausted Retry must return ErrRetryExhausted")
+	}
+
+	callback.mu.Lock()
+	assert.Len(t, callback.exhausted, 1, "OnRetryExhausted must fire exactly once under concurrent retries (#8b)")
+	callback.mu.Unlock()
+
+	assert.Equal(t, 1, dlq.Len(), "exactly one dead letter must be produced (#8b)")
+	assert.Equal(t, 0, q.NumRequeues("task"), "exhaustion must reset attempts exactly once")
+}

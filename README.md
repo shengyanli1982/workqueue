@@ -19,7 +19,7 @@ You can start with a simple FIFO queue, then evolve to delayed, prioritized, lea
 - **Built for hot paths**: object pooling (`sync.Pool`), short lock critical sections, and `O(log n)` scheduling structures.
 - **Clear reliability semantics**: explicit errors, shutdown guarantees, idempotent mode, retry policy, and lease expiration recovery.
 - **Cross-platform confidence**: CI runs `go test -v ./...` on Linux, macOS, and Windows.
-- **Evidence over slogans**: the repo includes `286` tests and `93` benchmarks (current tree count).
+- **Evidence over slogans**: the repo includes `321` tests and `118` benchmarks (current tree count).
 
 ## Queue Portfolio
 
@@ -27,12 +27,12 @@ You can start with a simple FIFO queue, then evolve to delayed, prioritized, lea
 | ---------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `Queue`                | Standard async processing  | FIFO with optional idempotent dedup (queued vs. in-processing tracked separately); blocking `GetWithContext`, graceful `ShutdownWithDrain`, `InFlight` inspection |
 | `DelayingQueue`        | Deferred execution         | Event-driven exact scheduling (heap-top timer, no polling jitter, zero wakeups when idle) and per-item `CancelDelay`       |
-| `PriorityQueue`        | SLA-based scheduling       | Priority-driven ordering                                                                                                   |
+| `PriorityQueue`        | SLA-based scheduling       | Priority-driven ordering (rejects `WithValueIdempotent` at construction)                                                   |
 | `RateLimitingQueue`    | Producer throttling        | Limiter-driven delay (built-in token bucket, per-item exponential backoff, `MaxOf` composition)                             |
 | `RetryQueue`           | Transient failure recovery | Retry with pluggable policy (exponential built-in); automatic dead-letter promotion on exhaustion (`WithDeadLetterQueue`)  |
 | `DeadLetterQueue`      | Failure isolation          | Dead-letter capture, ack, and requeue                                                                                       |
 | `LeasedQueue`          | At-least-once workers      | Lease ID, ack/nack/extend, expired lease requeue, plus `OnNack` reason callback and `LeaseInfos` inspection                 |
-| `BoundedBlockingQueue` | Backpressure control       | Capacity-limited blocking `Put/Get` with `context.Context`                                                                 |
+| `BoundedBlockingQueue` | Backpressure control       | Capacity-limited blocking `Put/Get` with `context.Context` (rejects `WithValueIdempotent` at construction)                 |
 | `TimerQueue`           | Scheduled tasks            | Exact-time enqueue (`PutAt`/`PutAfter`), cancellation, and in-place update on same-value reschedule                         |
 
 ## Quick Start
@@ -92,7 +92,7 @@ queue is empty now
 WorkQueue is optimized for sustained throughput and memory stability:
 
 - Queue/list nodes are recycled via `sync.Pool` to reduce allocation pressure.
-- In non-idempotent mode, node allocation is done outside the lock to shorten lock hold time.
+- In both idempotent and non-idempotent modes, node allocation is done outside the lock to shorten lock hold time.
 - Delayed and timed scheduling is backed by an internal red-black-tree structure.
 - Retry path avoids unnecessary delay-heap hops when delay is sub-millisecond.
 - Idempotent dedup sets are type-specialized (`string`/`int`/`int64`/`uint64` fast paths) to avoid interface boxing on the hot path; mixed-type writes fall back to a generic map.
@@ -156,7 +156,7 @@ Idempotent-mode `Get`/`Done` now carry in-flight tracking (the dual queued/in-pr
 - Opt-in: queues that never call it pay nothing on the default path.
 - `LeasedQueue` additionally provides `GetWithLeaseWithContext(ctx, timeout)` via type assertion.
 
-**Idempotent in-flight semantics.** In idempotent mode, a `Put` for an element that is in processing (`Get`-ed, not yet `Done`-ed) is accepted, and the element is re-enqueued at `Done` time — the controller resync pattern.
+**Idempotent in-flight semantics.** In idempotent mode, a `Put` for an element that is in processing (`Get`-ed, not yet `Done`-ed) is accepted, and the element is re-enqueued at `Done` time — the controller resync pattern. Idempotent mode is supported by the queues built on the base-queue bookkeeping (`Queue`, `RetryQueue`, `LeasedQueue`, `DeadLetterQueue`, `TimerQueue`, etc.); `BoundedBlockingQueue` and `PriorityQueue` reject `WithValueIdempotent` with a panic at construction, because their semaphore-token pairing / heap ordering are structurally incompatible with pending-marker and `Done`-requeue semantics.
 
 ```go
 ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -233,7 +233,7 @@ When the policy refuses further retries, the value is put into the dead-letter q
 ## Reliability by Design
 
 - **Shutdown safety**: every queue variant exposes `Shutdown()` (immediate close with guarded one-time behavior, semantics unchanged) and `ShutdownWithDrain(ctx)` (graceful close; see [Graceful Shutdown & Blocking Consumption](#graceful-shutdown--blocking-consumption)).
-- **In-flight safety**: in idempotent mode, queued and in-processing elements are tracked in separate sets, so a re-`Put` of an in-flight element is accepted and the element is safely re-enqueued at `Done` time.
+- **In-flight safety**: in idempotent mode, queued and in-processing elements are tracked in separate sets, so a re-`Put` of an in-flight element is accepted and the element is safely re-enqueued at `Done` time. (Supported by `Queue`/`RetryQueue`/`LeasedQueue`/`DeadLetterQueue`/`TimerQueue`, etc.; `BoundedBlockingQueue` and `PriorityQueue` reject the config at construction.)
 - **Typed failure contracts**: explicit errors such as `ErrQueueIsClosed`, `ErrQueueIsEmpty`, `ErrRetryExhausted`, `ErrLeaseNotFound`.
 - **Recovery primitives**: retry with policy, dead-letter workflows, lease-expiration requeue.
 - **Observability hooks**: callbacks for put/get/done, delay, priority, retry, dead-letter, rate-limited, and nack events; see [Observability](#observability) for the built-in recorder and inspection APIs.

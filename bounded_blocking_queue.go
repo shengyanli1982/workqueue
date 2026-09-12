@@ -7,6 +7,10 @@ import (
 	"sync/atomic"
 )
 
+// boundedBlockingQueueImpl 实现有界阻塞队列，基于双 channel 信号量机制：
+// slots channel 控制可用槽位（初始填满，Put 消费、Get/Done 归还），
+// items channel 控制已入队元素信号（Put 生产、Get 消费），
+// closed channel 用于广播关停事件唤醒所有阻塞 goroutine。
 type boundedBlockingQueueImpl struct {
 	Queue
 	config *BoundedBlockingQueueConfig
@@ -23,8 +27,22 @@ type boundedBlockingQueueImpl struct {
 }
 
 // NewBoundedBlockingQueue 创建有界阻塞队列。
+//
+// 配置开启 WithValueIdempotent 时 panic：幂等挂起标记不产生立即可消费项
+// （但 Put 已发出 items 信号），Done 重入队又无人补发信号，双 channel 信号
+// 与内层元素的 1:1 配对被破坏，Get 将永久阻塞（确定性挂死）。构造期
+// fail-fast 拒绝该组合；幂等语义请使用 Queue/RetryQueue/LeasedQueue/
+// DeadLetterQueue/TimerQueue 等实际支持的队列。
 func NewBoundedBlockingQueue(config *BoundedBlockingQueueConfig) BoundedBlockingQueue {
 	config = isBoundedBlockingQueueConfigEffective(config)
+
+	if config.idempotent {
+		panic("workqueue: BoundedBlockingQueue does not support WithValueIdempotent: " +
+			"idempotent pending-marker and Done-requeue break the 1:1 pairing " +
+			"between items tokens and inner elements, hanging Get forever; " +
+			"use Queue, RetryQueue, LeasedQueue, DeadLetterQueue or TimerQueue " +
+			"for idempotent semantics")
+	}
 
 	capacity := config.capacity
 	if capacity <= 0 {
@@ -47,10 +65,14 @@ func NewBoundedBlockingQueue(config *BoundedBlockingQueueConfig) BoundedBlocking
 	return q
 }
 
+// Cap 返回队列容量上限。
 func (q *boundedBlockingQueueImpl) Cap() int {
 	return q.config.capacity
 }
 
+// Put 阻塞式入队：从 slots channel 获取槽位后将元素投入内层队列，
+// 同时在 items channel 投放已入队信号。队列满时阻塞等待槽位释放，
+// 队列关闭或 drain 中返回 ErrQueueIsClosed。
 func (q *boundedBlockingQueueImpl) Put(value any) error {
 	if q.IsClosed() || q.draining.Load() {
 		return ErrQueueIsClosed
@@ -65,8 +87,11 @@ func (q *boundedBlockingQueueImpl) Put(value any) error {
 	case <-q.slots:
 	}
 
-	// 获取槽位后复查 draining：等待期间开始的 drain 不得再接收新元素。
-	if q.draining.Load() {
+	// 获取槽位后复查 draining 与内层关停：closeNow 先关 closed channel 再关
+	// 内层队列，select 双分支就绪时随机选择，等待期间发生的 drain/Shutdown
+	// 不得再接收新元素。残余窗口 [取得槽位, 内层 closed 置位] 属 Shutdown
+	// 允许丢弃已入队元素的语义，无跨 Put/closeNow 共享锁无法完全闭合。
+	if q.draining.Load() || q.IsClosed() {
 		q.releaseSlot()
 		return ErrQueueIsClosed
 	}
@@ -81,6 +106,9 @@ func (q *boundedBlockingQueueImpl) Put(value any) error {
 	return nil
 }
 
+// Get 阻塞式出队：从 items channel 获取已入队信号后从内层队列取出元素，
+// 同时归还槽位到 slots channel。队列空时阻塞等待新元素入队，
+// 队列关闭时返回 ErrQueueIsClosed。
 func (q *boundedBlockingQueueImpl) Get() (value any, err error) {
 	if q.IsClosed() {
 		return nil, ErrQueueIsClosed
@@ -118,8 +146,9 @@ func (q *boundedBlockingQueueImpl) PutWithContext(ctx context.Context, value any
 	case <-q.slots:
 	}
 
-	// 获取槽位后复查 draining：等待期间开始的 drain 不得再接收新元素。
-	if q.draining.Load() {
+	// 获取槽位后复查 draining 与内层关停：与 Put 的复查语义一致，
+	// 等待期间发生的 drain/Shutdown 不得再接收新元素。
+	if q.draining.Load() || q.IsClosed() {
 		q.releaseSlot()
 		return ErrQueueIsClosed
 	}
