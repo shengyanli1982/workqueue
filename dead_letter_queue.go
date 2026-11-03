@@ -7,13 +7,13 @@ import (
 	"time"
 )
 
-// deadLetterQueueImpl 通过组合模式内嵌基础 Queue 实现死信队列，
-// 使用原子计数器生成进程内单调递增 ID，draining 标记控制 drain 期间的写入拒绝。
+// deadLetterQueueImpl 死信队列实现，组合模式内嵌基础 Queue，
+// 原子计数器生成进程内单调递增 ID，draining 标记控制写入拒绝。
 type deadLetterQueueImpl struct {
 	Queue
 	config *DeadLetterQueueConfig
 	seed   atomic.Uint64
-	// draining 在 drain 开始时置位：拒绝新的 PutDead/Put。
+	// draining drain 开始时置位，拒绝新的 PutDead/Put。
 	draining atomic.Bool
 }
 
@@ -27,8 +27,7 @@ func NewDeadLetterQueue(config *DeadLetterQueueConfig) DeadLetterQueue {
 	}
 }
 
-// Put 适配 Queue 接口：将入参转换为 *DeadLetter 后委托 PutDead 入队，
-// 非死信类型返回 ErrInvalidDeadLetter。
+// Put 适配 Queue 接口：转换为 *DeadLetter 后委托 PutDead，非死信类型返回错误。
 func (q *deadLetterQueueImpl) Put(value any) error {
 	letter, ok := toDeadLetter(value)
 	if !ok {
@@ -38,13 +37,12 @@ func (q *deadLetterQueueImpl) Put(value any) error {
 	return q.PutDead(letter)
 }
 
-// Get 适配 Queue 接口：委托 GetDead 返回 *DeadLetter（满足 Queue.Get 签名）。
+// Get 适配 Queue 接口：委托 GetDead 返回 *DeadLetter。
 func (q *deadLetterQueueImpl) Get() (any, error) {
 	return q.GetDead()
 }
 
-// Done 适配 Queue 接口：将入参转换为 *DeadLetter 后委托 AckDead 确认完成，
-// 非死信类型静默忽略。
+// Done 适配 Queue 接口：转换为 *DeadLetter 后委托 AckDead，非死信类型静默忽略。
 func (q *deadLetterQueueImpl) Done(value any) {
 	letter, ok := toDeadLetter(value)
 	if !ok {
@@ -65,7 +63,6 @@ func (q *deadLetterQueueImpl) PutDead(letter *DeadLetter) error {
 		return ErrElementIsNil
 	}
 
-	// normalize 原地修改（填充 ID/FailedAt），返回同一指针。
 	_ = q.normalize(letter)
 	if err := q.Queue.Put(letter); err != nil {
 		return err
@@ -89,8 +86,7 @@ func (q *deadLetterQueueImpl) GetDead() (*DeadLetter, error) {
 	return letter, nil
 }
 
-// GetWithContext 阻塞直到消费到一个死信、ctx 完成或队列关闭，永不返回
-// ErrQueueIsEmpty。委托内层队列并将结果还原为 *DeadLetter（与 GetDead 一致）。
+// GetWithContext 阻塞直到消费到死信、ctx 完成或队列关闭，永不返回 ErrQueueIsEmpty。
 func (q *deadLetterQueueImpl) GetWithContext(ctx context.Context) (any, error) {
 	value, err := q.Queue.(BlockingGetQueue).GetWithContext(ctx)
 	if err != nil {
@@ -105,10 +101,8 @@ func (q *deadLetterQueueImpl) GetWithContext(ctx context.Context) (any, error) {
 	return letter, nil
 }
 
-// ShutdownWithDrain 优雅关停：置位 draining 拒绝新死信写入，主队列（死信存储区）
-// drained 即视为完成；超时或取消时强制关闭并返回 ctx.Err()。
-// 契约：死信侧为存储区，drain 仅按基础队列语义等待在队项清空与
-// Get/AckDead（Done）的 in-flight 追踪，不额外追踪死信的 Ack 状态。
+// ShutdownWithDrain 优雅关停：置位 draining 拒绝新写入，等待内层队列 drained；
+// 超时或取消时强制关闭并返回 ctx.Err()。
 func (q *deadLetterQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 
 	if q.IsClosed() {
@@ -126,8 +120,12 @@ func (q *deadLetterQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 	return err
 }
 
-// AckDead 确认死信处理完成。letter 应来自 GetDead（在途）；底层 Done 对
-// 非在途 letter 为安全 no-op、不破坏队列状态，OnAckDead 照常触发。
+// IsDraining 返回是否处于排空阶段。三态语义见 DrainingQueue 接口。
+func (q *deadLetterQueueImpl) IsDraining() bool {
+	return q.draining.Load()
+}
+
+// AckDead 确认死信处理完成，触发 OnAckDead。
 func (q *deadLetterQueueImpl) AckDead(letter *DeadLetter) error {
 	if letter == nil {
 		return ErrInvalidDeadLetter
@@ -138,11 +136,10 @@ func (q *deadLetterQueueImpl) AckDead(letter *DeadLetter) error {
 	return nil
 }
 
-// RequeueDead 将死信重新放回目标队列：先 AckDead 确认原死信，再将 Payload
-// 投入 target。若 target.Put 失败，死信自动回退到本队列（PutDead）。
-// 成功后触发 OnRequeueDead 回调。
-// 契约：letter 必须来自 GetDead（在途）；对未经 GetDead 的在队 letter 调用属
-// 未定义行为（AckDead 无法确认非在途项，该 letter 可能滞留本队列造成重复）。
+// RequeueDead 将死信重新放回目标队列：先 AckDead 再投入 target。
+// target.Put 失败时自动回退到本队列（PutDead），成功后触发 OnRequeueDead。
+// 契约：letter 必须来自 GetDead（在途）。
+// 已知窗口：target.Put 失败时的回退 PutDead 错误会被吞掉，调用方须自行补救。
 func (q *deadLetterQueueImpl) RequeueDead(letter *DeadLetter, target Queue) error {
 	if letter == nil {
 		return ErrInvalidDeadLetter
@@ -164,8 +161,8 @@ func (q *deadLetterQueueImpl) RequeueDead(letter *DeadLetter, target Queue) erro
 	return nil
 }
 
-// RangeDead 持锁遍历在队全部死信，fn 返回 false 时提前终止。fn 为 nil 时直接返回。
-// fn 在队列锁内执行，禁止在 fn 中调用本队列任何方法（PutDead/GetDead/AckDead/RequeueDead 等），否则死锁。
+// RangeDead 持锁遍历在队全部死信，fn 返回 false 时提前终止。
+// fn 在锁内执行，禁止调用本队列任何方法，否则死锁。
 func (q *deadLetterQueueImpl) RangeDead(fn func(letter *DeadLetter) bool) {
 	if fn == nil {
 		return
@@ -181,9 +178,6 @@ func (q *deadLetterQueueImpl) RangeDead(fn func(letter *DeadLetter) bool) {
 }
 
 // normalize 原地填充缺失字段（ID、FailedAt），不分配新对象。
-//
-// 注意：调用方直接使用传入的 letter 即可，无需关心返回值；
-// 保留返回签名以兼容未来需要拷贝的场景。
 func (q *deadLetterQueueImpl) normalize(letter *DeadLetter) *DeadLetter {
 	if letter.ID == "" {
 		letter.ID = q.nextID()
@@ -195,19 +189,11 @@ func (q *deadLetterQueueImpl) normalize(letter *DeadLetter) *DeadLetter {
 }
 
 // nextID 生成进程内单调递增的 base-36 ID。
-//
-// 使用 strconv.FormatUint 直接产出 string，避免
-// 手写 [N]byte + strconv.AppendUint 后再 string(buf) 的两步
-// 转换。FormatUint 内部仍使用栈上缓冲区并返回一个新分配的
-// string，堆分配次数与旧实现一致（1 次），但函数体更小，
-// 编译期成本（~35）远低于内联预算（80），可被调用方内联，
-// 从而消除一次间接调用开销。
 func (q *deadLetterQueueImpl) nextID() string {
 	return strconv.FormatUint(q.seed.Add(1), 36)
 }
 
-// toDeadLetter 将任意值安全转换为 *DeadLetter：
-// *DeadLetter 直接返回，DeadLetter 值类型取其地址副本，其他类型返回 (nil, false)。
+// toDeadLetter 安全转换为 *DeadLetter：指针直接返回，值类型取地址副本，其他返回 (nil, false)。
 func toDeadLetter(value any) (*DeadLetter, bool) {
 	switch v := value.(type) {
 	case *DeadLetter:
@@ -216,8 +202,8 @@ func toDeadLetter(value any) (*DeadLetter, bool) {
 		}
 		return v, true
 	case DeadLetter:
-		copy := v
-		return &copy, true
+		letterCopy := v
+		return &letterCopy, true
 	default:
 		return nil, false
 	}

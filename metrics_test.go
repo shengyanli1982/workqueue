@@ -128,10 +128,42 @@ func TestMetricsRecorder_RetryQueueIntegration(t *testing.T) {
 	s := rec.Snapshot()
 	assert.EqualValues(t, 2, s.Adds, "initial Put + delayed transport Put")
 	assert.EqualValues(t, 2, s.Gets)
-	assert.EqualValues(t, 0, s.Dones)
+	assert.EqualValues(t, 1, s.Dones, "first Get is Done'd inside Retry (non-idempotent Done triggers OnDone)")
 	assert.EqualValues(t, 1, s.Retries)
 	assert.EqualValues(t, 1, s.RetryExhausteds)
 	assert.EqualValues(t, 0, s.PullErrors)
 	assert.EqualValues(t, 0, s.ScheduleErrors)
-	assert.EqualValues(t, 2, s.Unfinished, "both Gets never Done")
+	assert.EqualValues(t, 1, s.Unfinished, "second Get never Done")
+}
+
+// TestMetricsRecorder_NonIdempotentQueueIntegration 验证回调契约对称修正后，
+// MetricsRecorder 挂非幂等队列时 Dones 正确计数。
+// 修复前：非幂等模式 OnDone 不触发，Dones 恒 0、Unfinished 恒等于累计 Gets（假数据，RED）；
+// 修复后：Done 调用即计数，Unfinished = Gets - Dones 反映 best-effort 在途（GREEN）。
+func TestMetricsRecorder_NonIdempotentQueueIntegration(t *testing.T) {
+	rec := NewMetricsRecorder()
+	q := NewQueue(NewQueueConfig().WithCallback(rec))
+	defer q.Shutdown()
+
+	assert.NoError(t, q.Put("task-a"))
+	assert.NoError(t, q.Put("task-b"))
+
+	v1, err := q.Get()
+	assert.NoError(t, err)
+	v2, err := q.Get()
+	assert.NoError(t, err)
+
+	q.Done(v1)
+
+	s := rec.Snapshot()
+	assert.EqualValues(t, 2, s.Adds)
+	assert.EqualValues(t, 2, s.Gets)
+	assert.EqualValues(t, 1, s.Dones, "non-idempotent Done must be counted")
+	assert.EqualValues(t, 1, s.Unfinished, "one Get still in flight")
+
+	q.Done(v2)
+
+	s = rec.Snapshot()
+	assert.EqualValues(t, 2, s.Dones)
+	assert.EqualValues(t, 0, s.Unfinished, "all Gets Done'd")
 }

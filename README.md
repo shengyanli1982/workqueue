@@ -23,17 +23,17 @@ You can start with a simple FIFO queue, then evolve to delayed, prioritized, lea
 
 ## Queue Portfolio
 
-| Queue                  | Best for                   | Key capability                                                                                                             |
-| ---------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Queue                  | Best for                   | Key capability                                                                                                                                                    |
+| ---------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Queue`                | Standard async processing  | FIFO with optional idempotent dedup (queued vs. in-processing tracked separately); blocking `GetWithContext`, graceful `ShutdownWithDrain`, `InFlight` inspection |
-| `DelayingQueue`        | Deferred execution         | Event-driven exact scheduling (heap-top timer, no polling jitter, zero wakeups when idle) and per-item `CancelDelay`       |
-| `PriorityQueue`        | SLA-based scheduling       | Priority-driven ordering (rejects `WithValueIdempotent` at construction)                                                   |
-| `RateLimitingQueue`    | Producer throttling        | Limiter-driven delay (built-in token bucket, per-item exponential backoff, `MaxOf` composition)                             |
-| `RetryQueue`           | Transient failure recovery | Retry with pluggable policy (exponential built-in); automatic dead-letter promotion on exhaustion (`WithDeadLetterQueue`)  |
-| `DeadLetterQueue`      | Failure isolation          | Dead-letter capture, ack, and requeue                                                                                       |
-| `LeasedQueue`          | At-least-once workers      | Lease ID, ack/nack/extend, expired lease requeue, plus `OnNack` reason callback and `LeaseInfos` inspection                 |
-| `BoundedBlockingQueue` | Backpressure control       | Capacity-limited blocking `Put/Get` with `context.Context` (rejects `WithValueIdempotent` at construction)                 |
-| `TimerQueue`           | Scheduled tasks            | Exact-time enqueue (`PutAt`/`PutAfter`), cancellation, and in-place update on same-value reschedule                         |
+| `DelayingQueue`        | Deferred execution         | Event-driven exact scheduling (heap-top timer, no polling jitter, zero wakeups when idle) and per-item `CancelDelay`                                              |
+| `PriorityQueue`        | SLA-based scheduling       | Priority-driven ordering (rejects `WithValueIdempotent` at construction)                                                                                          |
+| `RateLimitingQueue`    | Producer throttling        | Limiter-driven delay (built-in token bucket, per-item exponential backoff, `MaxOf` composition)                                                                   |
+| `RetryQueue`           | Transient failure recovery | Retry with pluggable policy (exponential built-in); automatic dead-letter promotion on exhaustion (`WithDeadLetterQueue`)                                         |
+| `DeadLetterQueue`      | Failure isolation          | Dead-letter capture, ack, and requeue                                                                                                                             |
+| `LeasedQueue`          | At-least-once workers      | Lease ID, ack/nack/extend, expired lease requeue, plus `OnNack` reason callback and `LeaseInfos` inspection                                                       |
+| `BoundedBlockingQueue` | Backpressure control       | Capacity-limited blocking `Put/Get` with `context.Context` (rejects `WithValueIdempotent` at construction)                                                        |
+| `TimerQueue`           | Scheduled tasks            | Exact-time enqueue (`PutAt`/`PutAfter`), cancellation, and in-place update on same-value reschedule                                                               |
 
 ## Quick Start
 
@@ -145,6 +145,7 @@ Idempotent-mode `Get`/`Done` now carry in-flight tracking (the dual queued/in-pr
 **Graceful shutdown.** All nine queue variants implement `ShutdownWithDrain(ctx context.Context) error`, exposed through the optional `DrainableQueue` interface (io.Closer-style type assertion):
 
 - Once draining starts, new `Put`s are rejected (`ErrQueueIsClosed`) while `Get`/`Done` keep working so consumers can finish.
+- Drain-phase visibility: `IsDraining()`, exposed through the optional `DrainingQueue` interface (io.Closer-style type assertion), reports `true` while `ShutdownWithDrain` is in progress (`IsClosed()` stays `false`), so a producer rejected with `ErrQueueIsClosed` can tell "draining" from "closed". After the drain completes both report `true`; after an immediate `Shutdown()`, `IsDraining()` stays `false`.
 - The call waits until queued items and in-flight items (`Get`-ed but not yet `Done`-ed) complete, then closes. On ctx timeout or cancel it force-closes and returns `ctx.Err()`.
 - Non-idempotent queues without drain tracking only wait for queued items to empty; in-flight elements are not visible there by design.
 - Delayed/timed items that have not fired are discarded at final close (counted in `discardedDelayed`); an item is never delivered earlier than promised.
@@ -201,11 +202,12 @@ depth := q.Len()    // depth stays pull-style: combine it with the counters your
 
 Inspection APIs (all return lock-internal copies, safe to iterate without touching queue internals):
 
-| API                                                  | Reports                                                                                                          |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `LeasedQueue.LeaseInfos()`                           | every live lease: lease ID, held value, deadline                                                                 |
-| `RetryQueue.RequeueCounts()`                         | retry counts keyed by `RetryKeyFunc`                                                                             |
-| `InFlight()` (optional `InFlightQueue` interface)    | in-processing elements in idempotent mode (`Get`-ed, not yet `Done`-ed); returns nil in non-idempotent mode      |
+| API                                                 | Reports                                                                                                                                                                       |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LeasedQueue.LeaseInfos()`                          | every live lease: lease ID, held value, deadline                                                                                                                              |
+| `RetryQueue.RequeueCounts()`                        | retry counts keyed by `RetryKeyFunc`                                                                                                                                          |
+| `InFlight()` (optional `InFlightQueue` interface)   | in-processing elements in idempotent mode (`Get`-ed, not yet `Done`-ed); returns nil in non-idempotent mode                                                                   |
+| `IsDraining()` (optional `DrainingQueue` interface) | drain-phase state: `true` while `ShutdownWithDrain` is in progress (`IsClosed()` still `false`); both `true` once drained and closed; `false` after an immediate `Shutdown()` |
 
 ## Retry & Rate-limiting Additions
 
@@ -214,6 +216,9 @@ Inspection APIs (all return lock-internal copies, safe to iterate without touchi
 - `NewBucketRateLimiterImpl(rate, burst)` — global token bucket.
 - `NewItemExponentialFailureRateLimiter(base, max)` — per-item exponential backoff: first wait is `base`, doubling on each failure, capped at `max`. Values must be comparable (they serve as map keys).
 - `NewMaxOfRateLimiter(limiters...)` — compose limiters, taking the longest wait.
+- `NewItemFastSlowRateLimiterImpl(fastDelay, slowDelay, maxFastAttempts)` — per-item fast/slow limiter: the first `maxFastAttempts` waits are `fastDelay`, every later wait is `slowDelay`; `Forget` puts an item back into its fast phase. Values must be comparable (they serve as map keys).
+- `NewWithMaxWaitRateLimiter(limiter, maxWait)` — wrap a limiter and cap every wait at `maxWait`; always implements `LimiterForgetter` (delegated when the inner limiter does, no-op otherwise).
+- `NewItemExponentialFailureRateLimiterWithJitter(base, max, ratio)` / `NewExponentialRetryPolicyWithJitter(base, max, maxRetries, ratio)` — exponential backoff with downward jitter applied after capping: delays spread uniformly over `[delay×(1-ratio), delay]`, never exceeding the cap; `ratio <= 0` disables jitter (identical to the plain constructors), `ratio > 1` is clamped to full jitter.
 - Limiters that keep per-item state can implement the optional `LimiterForgetter` interface; holders call `Forget` after an item is processed to remove its backoff state and keep internal tables from growing unbounded.
 
 **Dead-letter bridge.** `RetryQueueConfig.WithDeadLetterQueue(dlq, sourceName)` forwards items to a dead-letter queue automatically once the retry policy is exhausted:
@@ -251,16 +256,13 @@ Runnable demos:
 - [`examples/leased_queue`](./examples/leased_queue/demo.go)
 - [`examples/timer_queue`](./examples/timer_queue/demo.go)
 - [`examples/bounded_blocking_queue`](./examples/bounded_blocking_queue/demo.go)
+- [`examples/rate_limiters`](./examples/rate_limiters/demo.go)
 
 Run any demo directly:
 
 ```bash
 go run ./examples/<queue_dir>
 ```
-
-## Architecture
-
-![arch](./assets/architecture.png)
 
 ## API Reference
 

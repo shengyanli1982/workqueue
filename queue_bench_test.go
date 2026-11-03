@@ -41,6 +41,21 @@ func BenchmarkQueue_PutAndGet(b *testing.B) {
 	}
 }
 
+// BenchmarkQueue_PutGetDone 测量非幂等模式下 Put→Get→Done 完整热路径：
+// Done 触发 OnDone 回调（best-effort 完成信号），是回调契约对称修正的
+// 性能回归对照基准，与 BenchmarkQueue_Idempotent_PutGetDone 结构一致。
+func BenchmarkQueue_PutGetDone(b *testing.B) {
+	q := NewQueue(nil)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = q.Put(i)
+		v, _ := q.Get()
+		q.Done(v)
+	}
+}
+
 func BenchmarkQueue_Idempotent_Put(b *testing.B) {
 	conf := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(conf)

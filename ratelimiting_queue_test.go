@@ -153,7 +153,7 @@ func TestRateLimitingQueueImpl_Callback(t *testing.T) {
 	assert.True(t, delaysLen <= 2, "Callback delays length should be less than or equal to 2")
 	assert.Equal(t, []any{"test1", "test2", "test3", "test4"}, puts, "Callback puts should contain all put items")
 	assert.Equal(t, []any{"test1"}, gets, "Callback gets should be [test1]")
-	assert.Equal(t, []any(nil), dones, "Callback dones should be [test1]")
+	assert.Equal(t, []any{"test1"}, dones, "Callback dones should be [test1]")
 	assert.Empty(t, errors, "Callback errors should be empty")
 }
 

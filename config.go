@@ -14,10 +14,8 @@ type NewSetFunc = func() Set
 // defaultNewSetFunc 为默认幂等集合构造器，创建初始容量为 64 的集合。
 var defaultNewSetFunc = func() Set { return set.NewWithCapacity(64) }
 
-// defaultRetryKeyFunc 为默认重试 key 生成函数，以 "类型:值" 格式生成稳定的唯一键。
-// string/int/int64/uint64/bool 走类型特化快路径（P1-1，输出与
-// fmt.Sprintf("%T:%#v", value, value) 逐字节一致，等价性由 config_test.go 钉住），
-// 其余类型回退 Sprintf；%#v 对 string 即 Go 引号语法（strconv.Quote 等价）。
+// defaultRetryKeyFunc 默认重试 key 生成函数，以 "类型:值" 格式生成稳定唯一键。
+// 常见类型走特化快路径，其余回退 fmt.Sprintf。
 var defaultRetryKeyFunc = func(value any) string {
 	if value == nil {
 		return ""
@@ -35,13 +33,11 @@ var defaultRetryKeyFunc = func(value any) string {
 		b = strconv.AppendInt(b, int64(v), 10)
 		return string(b)
 	case int64:
-		// %#v 对 int64 输出裸十进制（实证：fmt.Sprintf("%#v", int64(42)) == "42"）。
 		var buf [32]byte
 		b := append(buf[:0], "int64:"...)
 		b = strconv.AppendInt(b, v, 10)
 		return string(b)
 	case uint64:
-		// %#v 对 uint64 输出 0x 前缀小写十六进制（实证："0x2a"，0 → "0x0"）。
 		var buf [38]byte
 		b := append(buf[:0], "uint64:0x"...)
 		b = strconv.AppendUint(b, v, 16)
@@ -61,9 +57,7 @@ type QueueConfig struct {
 	callback   QueueCallback
 	idempotent bool
 	setCreator NewSetFunc
-	// drainTracking 在非幂等模式下启用 in-flight 计数（Get +1 / Done -1），
-	// 使 ShutdownWithDrain 的 drain 判定能感知处理中的在途项。
-	drainTracking bool
+	drainTracking bool // 非幂等模式下启用 in-flight 计数，供 drain 判定使用
 }
 
 // NewQueueConfig 返回带默认值的基础队列配置。
@@ -96,10 +90,8 @@ func (c *QueueConfig) WithSetCreator(fn NewSetFunc) *QueueConfig {
 	return c
 }
 
-// WithDrainTracking 为非幂等模式启用 drain 判定的 in-flight 计数
-// （Get +1 / Done -1，负值钳制为 0）。未启用时 ShutdownWithDrain
-// 仅等在队项清空，处理中的在途项不可知。幂等模式自带 processing
-// 集合追踪，启用该选项不产生额外效果。
+// WithDrainTracking 为非幂等模式启用 in-flight 计数，使 ShutdownWithDrain
+// 能感知处理中在途项。幂等模式自带 processing 集合追踪，无需启用。
 func (c *QueueConfig) WithDrainTracking() *QueueConfig {
 	c.drainTracking = true
 
@@ -351,7 +343,7 @@ func NewRetryQueueConfig() *RetryQueueConfig {
 	}
 }
 
-// WithCallback 设置重试队列回调。
+// WithCallback 设置重试队列回调，同步覆写嵌套三层回调为同一实例。
 func (c *RetryQueueConfig) WithCallback(cb RetryQueueCallback) *RetryQueueConfig {
 	c.callback = cb
 	c.DelayingQueueConfig.callback = cb
@@ -371,19 +363,17 @@ func (c *RetryQueueConfig) WithKeyFunc(fn RetryKeyFunc) *RetryQueueConfig {
 	return c
 }
 
-// WithDeadLetterQueue 接通“重试耗尽 → 死信”自动桥：policy 拒绝重试时，在
-// OnRetryExhausted 回调之后自动 PutDead(&DeadLetter{Payload: value,
-// SourceQueue: sourceName, Attempts: 耗尽时计数, LastError: reason, ...})，
-// Retry 仍返回 ErrRetryExhausted。
-//
-// PutDead 失败（如死信队列已关停）时桥静默跳过：耗尽事件已由先触发的
-// OnRetryExhausted 报告，不再引入额外回调。未配置该选项时耗尽行为不变。
+// WithDeadLetterQueue 接通重试耗尽到死信的自动桥：policy 拒绝重试时，
+// OnRetryExhausted 之后自动 PutDead，Retry 仍返回 ErrRetryExhausted。
+// PutDead 失败时静默跳过，未配置时耗尽行为不变。
 func (c *RetryQueueConfig) WithDeadLetterQueue(dlq DeadLetterQueue, sourceName string) *RetryQueueConfig {
 	c.deadLetterQueue = dlq
 	c.deadLetterSource = sourceName
 	return c
 }
 
+// isRetryQueueConfigEffective 补全重试队列配置默认值。
+// 回调合并规则：顶层覆盖，三层回调恒指向同一 RetryQueueCallback。
 func isRetryQueueConfigEffective(c *RetryQueueConfig) *RetryQueueConfig {
 	if c != nil {
 		c.DelayingQueueConfig = *isDelayingQueueConfigEffective(&c.DelayingQueueConfig)
@@ -461,7 +451,7 @@ func NewRateLimitingQueueConfig() *RateLimitingQueueConfig {
 	}
 }
 
-// WithCallback 设置限流队列回调。
+// WithCallback 设置限流队列回调，同步覆写嵌套三层回调为同一实例。
 func (c *RateLimitingQueueConfig) WithCallback(cb RateLimitingQueueCallback) *RateLimitingQueueConfig {
 	c.callback = cb
 	c.DelayingQueueConfig.callback = cb
@@ -477,6 +467,8 @@ func (c *RateLimitingQueueConfig) WithLimiter(limiter Limiter) *RateLimitingQueu
 	return c
 }
 
+// isRateLimitingQueueConfigEffective 补全限流队列配置默认值。
+// 回调合并规则：逐层补位，各层独立判空补 Nop，嵌套层回调原样保留。
 func isRateLimitingQueueConfigEffective(c *RateLimitingQueueConfig) *RateLimitingQueueConfig {
 	if c != nil {
 		c.DelayingQueueConfig.QueueConfig = *isQueueConfigEffective(&c.DelayingQueueConfig.QueueConfig)

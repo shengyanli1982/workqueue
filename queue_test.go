@@ -314,7 +314,7 @@ func TestQueueImpl_Callback(t *testing.T) {
 
 	assert.Equal(t, []any{"test1", "test2", "test3"}, callback.puts, "Callback puts should be [test1, test2, test3]")
 	assert.Equal(t, []any{"test1"}, callback.gets, "Callback gets should be [test1]")
-	assert.Equal(t, []any(nil), callback.dones, "Callback dones should be [test1]")
+	assert.Equal(t, []any{"test1"}, callback.dones, "Callback dones should be [test1]")
 }
 
 func TestQueueImpl_Idempotent_Put(t *testing.T) {
@@ -481,7 +481,43 @@ func TestQueueImpl_DuplicateDone(t *testing.T) {
 	q.Done(v)
 	q.Done(v)
 
-	assert.Equal(t, 0, len(callback.dones), "Done callback should only be called once")
+	// 非幂等 Done 为 best-effort 完成信号：无簿记校验，调用即触发回调，
+	// 重复 Done 重复计数（与幂等模式的“恰好一次”语义区分）。
+	assert.Equal(t, 3, len(callback.dones), "non-idempotent Done is best-effort: every call triggers OnDone")
+}
+
+// TestQueueImpl_NonIdempotent_Done_TriggersOnDone 验证非幂等 Done 触发 OnDone 恰好一次。
+func TestQueueImpl_NonIdempotent_Done_TriggersOnDone(t *testing.T) {
+	callback := &testQueueCallback{}
+	config := NewQueueConfig().WithCallback(callback)
+	q := NewQueue(config)
+	defer q.Shutdown()
+
+	assert.NoError(t, q.Put("test1"))
+
+	v, err := q.Get()
+	assert.NoError(t, err)
+
+	q.Done(v)
+
+	assert.Equal(t, []any{"test1"}, callback.dones, "non-idempotent Done must trigger OnDone exactly once")
+}
+
+// TestQueueImpl_NonIdempotent_Done_AfterShutdown_NoCallback 关闭后 Done 不触发 OnDone。
+func TestQueueImpl_NonIdempotent_Done_AfterShutdown_NoCallback(t *testing.T) {
+	callback := &testQueueCallback{}
+	config := NewQueueConfig().WithCallback(callback)
+	q := NewQueue(config)
+
+	assert.NoError(t, q.Put("test1"))
+
+	v, err := q.Get()
+	assert.NoError(t, err)
+
+	q.Shutdown()
+	q.Done(v)
+
+	assert.Empty(t, callback.dones, "Done after Shutdown must not trigger OnDone")
 }
 
 func TestQueueImpl_Idempotent_DuplicateDone(t *testing.T) {
@@ -561,11 +597,11 @@ func TestQueueImpl_Idempotent_PutWhileProcessing(t *testing.T) {
 	assert.Equal(t, "job", value)
 	assert.Equal(t, 0, q.Len())
 
-	// 处理中再次 Put → 接受（挂起标记），但尚不入队。
+	// 处理中再次 Put：接受（挂起标记），尚不入队。
 	assert.NoError(t, q.Put("job"), "Put while processing must be accepted")
 	assert.Equal(t, 0, q.Len(), "pending element must not enter list before Done")
 
-	// Done 触发重新入队。
+	// Done 触发重入队。
 	q.Done("job")
 	assert.Equal(t, 1, q.Len(), "Done must requeue the pending element")
 
@@ -573,16 +609,15 @@ func TestQueueImpl_Idempotent_PutWhileProcessing(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "job", value)
 
-	// 生命周期正常结束后，同值可再次完整入队。
+	// 生命周期结束后同值可再次入队。
 	q.Done("job")
 	assert.Equal(t, 0, q.Len())
 	assert.NoError(t, q.Put("job"))
 	assert.Equal(t, 1, q.Len())
 }
 
-// TestQueueImpl_Idempotent_PendingPut_CallbackCounts 验证挂起 Put 与 Done 重入队的回调计数语义：
-// 成功 Put（含挂起 Put）每次触发 OnPut；Done 驱动的重新入队不重复触发 OnPut；
-// 处理完成（processing 移除成功）触发 OnDone，重入队场景同样触发。
+// TestQueueImpl_Idempotent_PendingPut_CallbackCounts 验证挂起 Put 触发 OnPut，
+// Done 重入队触发 OnDone 但不额外触发 OnPut。
 func TestQueueImpl_Idempotent_PendingPut_CallbackCounts(t *testing.T) {
 	callback := &testQueueCallback{}
 	config := NewQueueConfig().WithCallback(callback).WithValueIdempotent()
@@ -612,9 +647,7 @@ func TestQueueImpl_Idempotent_PendingPut_CallbackCounts(t *testing.T) {
 	assert.Equal(t, []any{"job", "job"}, callback.dones)
 }
 
-// TestQueueImpl_Idempotent_DoneOnQueuedElementIsNoOp 验证 R3 语义变更：
-// 旧语义下 Done 对 state 做 TryRemove，会把仍在队列中（未被 Get）元素的在队去重标记误清；
-// 新语义下 Done 对非处理中元素为安全 no-op，在队去重保持有效。
+// TestQueueImpl_Idempotent_DoneOnQueuedElementIsNoOp 验证 R3：Done 对在队元素为 no-op，去重保持。
 func TestQueueImpl_Idempotent_DoneOnQueuedElementIsNoOp(t *testing.T) {
 	config := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(config)
@@ -622,7 +655,7 @@ func TestQueueImpl_Idempotent_DoneOnQueuedElementIsNoOp(t *testing.T) {
 
 	assert.NoError(t, q.Put("job"))
 
-	// 元素仍在队列中（未被 Get），Done 必须无副作用。
+	// 元素仍在队（未被 Get），Done 无副作用。
 	q.Done("job")
 
 	assert.Equal(t, 1, q.Len(), "Done must not remove a queued element from list")
@@ -633,8 +666,7 @@ func TestQueueImpl_Idempotent_DoneOnQueuedElementIsNoOp(t *testing.T) {
 	assert.Equal(t, "job", value)
 }
 
-// TestQueueImpl_Idempotent_PendingPutOnce 验证挂起标记的幂等性：
-// 处理中同值多次 Put 均返回 nil，最终只重入队一份。
+// TestQueueImpl_Idempotent_PendingPutOnce 验证挂起标记幂等：多次 Put 只重入队一份。
 func TestQueueImpl_Idempotent_PendingPutOnce(t *testing.T) {
 	config := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(config)
@@ -653,9 +685,7 @@ func TestQueueImpl_Idempotent_PendingPutOnce(t *testing.T) {
 	assert.Equal(t, 1, q.Len(), "pending marker must collapse to a single requeue")
 }
 
-// TestQueueImpl_Idempotent_DoneAfterShutdown 验证 Closed+Done 边界：
-// Get 后挂起 Put 已在 state 留下标记，Shutdown 之后调用 Done 不得重新入队（元素丢弃），
-// 与 Shutdown 清空语义一致，且不 panic。
+// TestQueueImpl_Idempotent_DoneAfterShutdown Shutdown 后 Done 不得重入队，不 panic。
 func TestQueueImpl_Idempotent_DoneAfterShutdown(t *testing.T) {
 	config := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(config)
@@ -665,7 +695,7 @@ func TestQueueImpl_Idempotent_DoneAfterShutdown(t *testing.T) {
 	value, err := q.Get()
 	assert.NoError(t, err)
 
-	// 挂起标记：元素处理中且被再次 Put（此时 state 含 "job"）。
+	// 挂起标记：元素处理中且被再次 Put。
 	assert.NoError(t, q.Put(value))
 
 	q.Shutdown()
@@ -676,8 +706,7 @@ func TestQueueImpl_Idempotent_DoneAfterShutdown(t *testing.T) {
 	assert.True(t, q.IsClosed())
 }
 
-// TestQueueImpl_Idempotent_ProcessingInvariant 逐阶段验证双集合不变式：
-// state 含 v ⟺ v 在 list ∨ (v 处理中且被再次 Put)。
+// TestQueueImpl_Idempotent_ProcessingInvariant 逐阶段验证双集合不变式。
 func TestQueueImpl_Idempotent_ProcessingInvariant(t *testing.T) {
 	config := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(config)
@@ -685,29 +714,29 @@ func TestQueueImpl_Idempotent_ProcessingInvariant(t *testing.T) {
 
 	impl := q.(*queueImpl)
 
-	// 在队：state 含 v，processing 空。
+	// 在队。
 	assert.NoError(t, q.Put("job"))
 	assert.Equal(t, []any{"job"}, impl.state.List())
 	assert.Equal(t, 0, impl.processing.Len())
 
-	// Get 后：双集合搬运，state 空，processing 含 v。
+	// Get 后：state 空，processing 含 v。
 	v, err := q.Get()
 	assert.NoError(t, err)
 	assert.Equal(t, 0, impl.state.Len())
 	assert.Equal(t, 1, impl.processing.Len())
 
-	// 挂起 Put：v 回到 state（标记），仍在 processing。
+	// 挂起 Put：v 回到 state，仍在 processing。
 	assert.NoError(t, q.Put(v))
 	assert.Equal(t, []any{"job"}, impl.state.List())
 	assert.Equal(t, 1, impl.processing.Len())
 
-	// Done：重入队，v 留在 state，离开 processing。
+	// Done：重入队，v 留在 state。
 	q.Done(v)
 	assert.Equal(t, []any{"job"}, impl.state.List())
 	assert.Equal(t, 0, impl.processing.Len())
 	assert.Equal(t, 1, q.Len())
 
-	// 完整结束：双集合皆空。
+	// 完整结束。
 	v, err = q.Get()
 	assert.NoError(t, err)
 	q.Done(v)
@@ -716,8 +745,7 @@ func TestQueueImpl_Idempotent_ProcessingInvariant(t *testing.T) {
 	assert.Equal(t, 0, q.Len())
 }
 
-// TestQueueImpl_Idempotent_ShutdownClearsProcessing 验证 Shutdown 一并清理 processing 集合
-// （与 list/state 清理对齐），Get 后的处理中残留项不泄漏。
+// TestQueueImpl_Idempotent_ShutdownClearsProcessing Shutdown 一并清理 processing，无残留。
 func TestQueueImpl_Idempotent_ShutdownClearsProcessing(t *testing.T) {
 	config := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(config)
@@ -766,9 +794,7 @@ func TestQueueImpl_InFlight(t *testing.T) {
 	assert.Empty(t, iq.InFlight())
 }
 
-// TestQueueImpl_InFlight_NonIdempotentReturnsNil 验证非幂等模式不维护 per-value
-// 处理中集合，InFlight 恒返回 nil；queueImpl 仍满足 InFlightQueue，
-// 使调用方无需区分配置即可统一类型断言。
+// TestQueueImpl_InFlight_NonIdempotentReturnsNil 非幂等模式 InFlight 恒返回 nil。
 func TestQueueImpl_InFlight_NonIdempotentReturnsNil(t *testing.T) {
 	q := NewQueue(nil)
 	defer q.Shutdown()
@@ -783,7 +809,7 @@ func TestQueueImpl_InFlight_NonIdempotentReturnsNil(t *testing.T) {
 	assert.Nil(t, iq.InFlight(), "non-idempotent queue has no per-value in-flight tracking")
 }
 
-// TestQueueImpl_InFlight_CopyMutation 验证快照为副本：篡改返回值不影响内部状态。
+// TestQueueImpl_InFlight_CopyMutation 快照为副本，篡改不影响内部状态。
 func TestQueueImpl_InFlight_CopyMutation(t *testing.T) {
 	q := NewQueue(NewQueueConfig().WithValueIdempotent())
 	defer q.Shutdown()
@@ -799,8 +825,7 @@ func TestQueueImpl_InFlight_CopyMutation(t *testing.T) {
 	assert.Equal(t, []any{"task"}, iq.InFlight(), "mutating the snapshot must not affect internal state")
 }
 
-// TestQueueImpl_InFlight_SnapshotDetached 验证快照脱锁：取快照后并发
-// Put/Get/Done 不被阻塞、不死锁。
+// TestQueueImpl_InFlight_SnapshotDetached 快照脱锁，并发操作不被阻塞。
 func TestQueueImpl_InFlight_SnapshotDetached(t *testing.T) {
 	q := NewQueue(NewQueueConfig().WithValueIdempotent())
 	defer q.Shutdown()

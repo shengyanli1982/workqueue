@@ -100,6 +100,27 @@ func TestBoundedBlockingQueue_GetWithContext_ReleasesSlotOnGetError(t *testing.T
 	assert.NoError(t, q.PutWithContext(ctx, "ok"))
 }
 
+// TestBoundedBlockingQueue_Get_AlignsEmptyToClosed 钉住 P1-2 修复：阻塞 Get()
+// 入口与 GetWithContext 语义对齐（G3 契约：阻塞消费永不返回 ErrQueueIsEmpty）。
+// items 令牌已就绪而内层为空的关停竞态窗口下，透传的 ErrQueueIsEmpty 必须对齐为
+// ErrQueueIsClosed，且槽位照常释放。修复前 Get() 原样透传 ErrQueueIsEmpty（RED）。
+func TestBoundedBlockingQueue_Get_AlignsEmptyToClosed(t *testing.T) {
+	q := NewBoundedBlockingQueue(NewBoundedBlockingQueueConfig().WithCapacity(1)).(*boundedBlockingQueueImpl)
+	defer q.Shutdown()
+
+	// 模拟异常路径（与 GetWithContext 对齐测试同构造）：items 信号已就绪，但底层队列为空。
+	<-q.slots
+	q.items <- struct{}{}
+
+	_, err := q.Get()
+	assert.ErrorIs(t, err, ErrQueueIsClosed)
+
+	// 错误路径必须释放槽位：后续容量 1 的入队不阻塞。
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	assert.NoError(t, q.PutWithContext(ctx, "ok"))
+}
+
 // TestBoundedBlockingQueue_RejectsIdempotentConfig 钉住 P0 修复：幂等配置必须在
 // 构造时 fail-fast（panic）。修复前该组合确定性挂死（单线程可复现）：
 // Put(v)→Get()→Put(v) 打挂起标记（内层 list 仍空但 bounded 层已发 items 信号）

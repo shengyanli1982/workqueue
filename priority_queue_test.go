@@ -117,7 +117,7 @@ func TestPriorityQueueImpl_Callback(t *testing.T) {
 
 	assert.Nil(t, callback.puts, "Callback puts should be nil")
 	assert.Equal(t, []any{"test3"}, callback.gets, "Callback gets should be [test3]")
-	assert.Equal(t, []any(nil), callback.dones, "Callback dones should be [test3]")
+	assert.Equal(t, []any{"test3"}, callback.dones, "Callback dones should be [test3]")
 	assert.Equal(t, []any{"test1", "test2", "test3", "test4"}, callback.priorities, "Callback priorities should be [test1 test2 test3 test4]")
 }
 

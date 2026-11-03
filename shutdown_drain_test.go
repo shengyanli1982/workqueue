@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// drainableOf 断言队列实现了可选接口 DrainableQueue（io.Closer 风格契约）。
+// drainableOf 断言队列实现 DrainableQueue。
 func drainableOf(t *testing.T, q Queue) DrainableQueue {
 	t.Helper()
 
@@ -37,8 +37,7 @@ func consumeUntilClosed(q Queue, consumed *atomic.Int64) {
 	}
 }
 
-// TestQueueImpl_ShutdownWithDrain_Idempotent_ZeroLoss 覆盖 SIGTERM 场景：
-// 幂等模式下 200 在队 + 3 in-flight，消费者持续消费，drain 返回后零丢失。
+// TestQueueImpl_ShutdownWithDrain_Idempotent_ZeroLoss 幂等模式 drain 零丢失。
 func TestQueueImpl_ShutdownWithDrain_Idempotent_ZeroLoss(t *testing.T) {
 	q := NewQueue(NewQueueConfig().WithValueIdempotent())
 
@@ -95,8 +94,7 @@ func TestQueueImpl_ShutdownWithDrain_Idempotent_ZeroLoss(t *testing.T) {
 	}
 }
 
-// TestQueueImpl_ShutdownWithDrain_DrainTracking_ZeroLoss 覆盖非幂等模式启用
-// WithDrainTracking 后的同场景：inFlight 计数使 drain 可感知在途项，零丢失。
+// TestQueueImpl_ShutdownWithDrain_DrainTracking_ZeroLoss 非幂等 + drainTracking 零丢失。
 func TestQueueImpl_ShutdownWithDrain_DrainTracking_ZeroLoss(t *testing.T) {
 	q := NewQueue(NewQueueConfig().WithDrainTracking())
 
@@ -150,8 +148,7 @@ func TestQueueImpl_ShutdownWithDrain_DrainTracking_ZeroLoss(t *testing.T) {
 	}
 }
 
-// TestQueueImpl_ShutdownWithDrain_Timeout 覆盖 R5：无消费者时 drain 必悬挂到
-// ctx 超时，返回 context.DeadlineExceeded 并强制关闭队列。
+// TestQueueImpl_ShutdownWithDrain_Timeout R5：无消费者时 drain 超时强制关闭。
 func TestQueueImpl_ShutdownWithDrain_Timeout(t *testing.T) {
 	q := NewQueue(nil)
 	for i := 0; i < 5; i++ {
@@ -184,7 +181,7 @@ func TestQueueImpl_ShutdownWithDrain_Timeout(t *testing.T) {
 	}
 }
 
-// TestQueueImpl_ShutdownWithDrain_Canceled 覆盖主动取消：返回 context.Canceled。
+// TestQueueImpl_ShutdownWithDrain_Canceled 主动取消返回 context.Canceled。
 func TestQueueImpl_ShutdownWithDrain_Canceled(t *testing.T) {
 	q := NewQueue(nil)
 	if err := q.Put(1); err != nil {
@@ -215,8 +212,7 @@ func TestQueueImpl_ShutdownWithDrain_Canceled(t *testing.T) {
 	}
 }
 
-// TestQueueImpl_ShutdownWithDrain_DrainSemantics 覆盖 drain 期间的语义契约：
-// Put 拒绝返回 ErrQueueIsClosed 且 IsClosed 保持 false；Get/Done 正常进行。
+// TestQueueImpl_ShutdownWithDrain_DrainSemantics drain 期间 Put 被拒绝，Get/Done 正常。
 func TestQueueImpl_ShutdownWithDrain_DrainSemantics(t *testing.T) {
 	q := NewQueue(NewQueueConfig().WithValueIdempotent())
 	if err := q.Put(1); err != nil {
@@ -239,8 +235,7 @@ func TestQueueImpl_ShutdownWithDrain_DrainSemantics(t *testing.T) {
 		errCh <- dq.ShutdownWithDrain(ctx)
 	}()
 
-	// draining 在 drain 入口同步置位；等待 goroutine 调度完成后再开始探测，
-	// 避免探测 Put 在 drain 启动前成功入队污染列表。
+	// 等待 drain 启动后再探测。
 	time.Sleep(20 * time.Millisecond)
 
 	deadline := time.Now().Add(time.Second)
@@ -283,9 +278,7 @@ func TestQueueImpl_ShutdownWithDrain_DrainSemantics(t *testing.T) {
 	}
 }
 
-// TestQueueImpl_ShutdownWithDrain_NoTrackingInFlightUnknown 固化契约：
-// 非幂等且未启用 drain tracking 时，drain 仅等在队项清空；列表已空而
-// in-flight 未 Done 时 drain 照样完成（在途项不可知，不等待）。
+// TestQueueImpl_ShutdownWithDrain_NoTrackingInFlightUnknown 无 tracking 时 drain 仅等在队项清空。
 func TestQueueImpl_ShutdownWithDrain_NoTrackingInFlightUnknown(t *testing.T) {
 	q := NewQueue(nil)
 	if err := q.Put(1); err != nil {
@@ -307,8 +300,7 @@ func TestQueueImpl_ShutdownWithDrain_NoTrackingInFlightUnknown(t *testing.T) {
 	}
 }
 
-// TestQueueImpl_ShutdownWithDrain_ConcurrentShutdown 覆盖 Shutdown 与
-// ShutdownWithDrain 并发交错：共用同一 sync.Once，任一先生效均为干净的关闭。
+// TestQueueImpl_ShutdownWithDrain_ConcurrentShutdown Shutdown 与 drain 并发交错。
 func TestQueueImpl_ShutdownWithDrain_ConcurrentShutdown(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		q := NewQueue(NewQueueConfig().WithValueIdempotent())
@@ -339,8 +331,7 @@ func TestQueueImpl_ShutdownWithDrain_ConcurrentShutdown(t *testing.T) {
 	}
 }
 
-// TestQueueImpl_ShutdownWithDrain_AfterShutdown 覆盖先后顺序：
-// 已 Shutdown 后调用 drain 直接返回 nil。
+// TestQueueImpl_ShutdownWithDrain_AfterShutdown Shutdown 后 drain 直接返回 nil。
 func TestQueueImpl_ShutdownWithDrain_AfterShutdown(t *testing.T) {
 	q := NewQueue(nil)
 	if err := q.Put(1); err != nil {

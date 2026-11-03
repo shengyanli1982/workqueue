@@ -4,6 +4,7 @@ import "testing"
 
 func BenchmarkPriorityQueue_Put(b *testing.B) {
 	q := NewPriorityQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -13,6 +14,7 @@ func BenchmarkPriorityQueue_Put(b *testing.B) {
 
 func BenchmarkPriorityQueue_PutWithPriority(b *testing.B) {
 	q := NewPriorityQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -27,6 +29,7 @@ func BenchmarkPriorityQueue_Get(b *testing.B) {
 		_ = q.Put(i)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -36,6 +39,7 @@ func BenchmarkPriorityQueue_Get(b *testing.B) {
 
 func BenchmarkPriorityQueue_PutAndGet(b *testing.B) {
 	q := NewPriorityQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -46,6 +50,7 @@ func BenchmarkPriorityQueue_PutAndGet(b *testing.B) {
 
 func BenchmarkPriorityQueue_PutWithPriorityAndGet(b *testing.B) {
 	q := NewPriorityQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {

@@ -22,8 +22,7 @@ func blockingGetOf(t *testing.T, q any) BlockingGetQueue {
 	return bq
 }
 
-// awaitBlocking 在独立 goroutine 中执行 GetWithContext 并把结果送回，
-// 用 2s 兜底超时防止测试因唤醒丢失而悬挂。
+// awaitBlocking 在独立 goroutine 中执行 GetWithContext，2s 兜底超时。
 func awaitBlocking(t *testing.T, q BlockingGetQueue, ctx context.Context) (any, error) {
 	t.Helper()
 
@@ -47,8 +46,7 @@ func awaitBlocking(t *testing.T, q BlockingGetQueue, ctx context.Context) (any, 
 	}
 }
 
-// TestQueue_GetWithContext_BlocksUntilPut 验证空队列上 GetWithContext 阻塞，
-// 直到 Put 入队后立即唤醒（宽松阈值 5ms，设计目标 p99<200µs）。
+// TestQueue_GetWithContext_BlocksUntilPut 空队列 GetWithContext 阻塞，Put 后唤醒。
 func TestQueue_GetWithContext_BlocksUntilPut(t *testing.T) {
 	q := NewQueue(NewQueueConfig())
 	defer q.Shutdown()
@@ -114,8 +112,7 @@ func TestQueue_GetWithContext_PrePutReturnsImmediately(t *testing.T) {
 	}
 }
 
-// TestQueue_GetWithContext_ContextCanceled 验证 ctx 取消返回 ctx.Err()，
-// 且队列在取消后仍可继续使用。
+// TestQueue_GetWithContext_ContextCanceled ctx 取消返回 ctx.Err()，队列仍可用。
 func TestQueue_GetWithContext_ContextCanceled(t *testing.T) {
 	q := NewQueue(NewQueueConfig())
 	defer q.Shutdown()
@@ -145,7 +142,7 @@ func TestQueue_GetWithContext_ContextCanceled(t *testing.T) {
 		t.Fatal("GetWithContext did not return after ctx cancel")
 	}
 
-	// 取消后队列仍可服务新的阻塞消费。
+	// 取消后队列仍可用。
 	if err := q.Put("after-cancel"); err != nil {
 		t.Fatalf("put: %v", err)
 	}
@@ -169,8 +166,7 @@ func TestQueue_GetWithContext_ContextTimeout(t *testing.T) {
 	}
 }
 
-// TestQueue_GetWithContext_NeverReturnsEmpty 验证阻塞路径永不返回 ErrQueueIsEmpty：
-// 有值返回值，无值等到 ctx 完成。
+// TestQueue_GetWithContext_NeverReturnsEmpty 阻塞路径永不返回 ErrQueueIsEmpty。
 func TestQueue_GetWithContext_NeverReturnsEmpty(t *testing.T) {
 	q := NewQueue(NewQueueConfig())
 	defer q.Shutdown()
@@ -187,8 +183,7 @@ func TestQueue_GetWithContext_NeverReturnsEmpty(t *testing.T) {
 	}
 }
 
-// TestQueue_GetWithContext_ShutdownWakesWaiter 验证 Shutdown 立即唤醒等待者
-// 并返回 ErrQueueIsClosed。
+// TestQueue_GetWithContext_ShutdownWakesWaiter Shutdown 立即唤醒等待者。
 func TestQueue_GetWithContext_ShutdownWakesWaiter(t *testing.T) {
 	q := NewQueue(NewQueueConfig())
 	bq := blockingGetOf(t, q)
@@ -215,8 +210,7 @@ func TestQueue_GetWithContext_ShutdownWakesWaiter(t *testing.T) {
 	}
 }
 
-// TestQueue_GetWithContext_MultipleWaitersAllReleased 验证关闭时全部等待者被释放，
-// 且单值入队只唤醒一个等待者（其余继续等待）。
+// TestQueue_GetWithContext_MultipleWaitersAllReleased 关闭时全部等待者被释放，单值只唤醒一个。
 func TestQueue_GetWithContext_MultipleWaitersAllReleased(t *testing.T) {
 	t.Run("AllReleasedOnShutdown", func(t *testing.T) {
 		q := NewQueue(NewQueueConfig())
@@ -288,8 +282,7 @@ func TestQueue_GetWithContext_MultipleWaitersAllReleased(t *testing.T) {
 	})
 }
 
-// TestQueue_GetWithContext_DrainConsumesInQueueItems 验证 drain 期间
-// GetWithContext 正常消费在队项（助力 drain），drain 完成后返回 ErrQueueIsClosed。
+// TestQueue_GetWithContext_DrainConsumesInQueueItems drain 期间正常消费在队项。
 func TestQueue_GetWithContext_DrainConsumesInQueueItems(t *testing.T) {
 	q := NewQueue(NewQueueConfig())
 	bq := blockingGetOf(t, q)
@@ -329,8 +322,7 @@ func TestQueue_GetWithContext_DrainConsumesInQueueItems(t *testing.T) {
 	}
 }
 
-// TestQueue_GetWithContext_Idempotent_TransferAndRequeue 验证幂等模式下
-// pop 的 state/processing 搬运与普通 Get 一致，且 Done 驱动的重入队能唤醒等待者。
+// TestQueue_GetWithContext_Idempotent_TransferAndRequeue 幂等模式搬运语义与 Get 一致，Done 重入队唤醒等待者。
 func TestQueue_GetWithContext_Idempotent_TransferAndRequeue(t *testing.T) {
 	q := NewQueue(NewQueueConfig().WithValueIdempotent())
 	defer q.Shutdown()
@@ -348,7 +340,7 @@ func TestQueue_GetWithContext_Idempotent_TransferAndRequeue(t *testing.T) {
 		t.Fatalf("first get: v=%v err=%v", v, err)
 	}
 
-	// 处理中 Put：接受并入挂起标记，不重复入队。
+	// 处理中 Put：接受挂起标记。
 	if err := q.Put("job"); err != nil {
 		t.Fatalf("put while processing: %v", err)
 	}
@@ -356,7 +348,7 @@ func TestQueue_GetWithContext_Idempotent_TransferAndRequeue(t *testing.T) {
 		t.Fatalf("len = %d, want 0 (pending mark only)", q.Len())
 	}
 
-	// Done 驱动重入队：等待者应被唤醒拿到同一值。
+	// Done 驱动重入队，等待者被唤醒。
 	blocking := make(chan struct{})
 	ch := make(chan any, 1)
 	go func() {
@@ -386,8 +378,7 @@ func TestQueue_GetWithContext_Idempotent_TransferAndRequeue(t *testing.T) {
 	}
 }
 
-// TestQueue_GetWithContext_WakeupLatency 采样 Put→唤醒延迟分布：
-// 断言宽松阈值 p99<5ms 防 flaky，并记录实测 p99（设计目标 p99<200µs）。
+// TestQueue_GetWithContext_WakeupLatency 采样唤醒延迟分布，p99<5ms。
 func TestQueue_GetWithContext_WakeupLatency(t *testing.T) {
 	q := NewQueue(NewQueueConfig())
 	defer q.Shutdown()
@@ -434,8 +425,7 @@ func TestQueue_GetWithContext_WakeupLatency(t *testing.T) {
 	}
 }
 
-// TestQueue_GetWithContext_Stress_MultiProducerMultiConsumer 多生产者并发 Put +
-// 多消费者 GetWithContext 压力测试（-race 下运行），校验零丢失与无丢失唤醒。
+// TestQueue_GetWithContext_Stress_MultiProducerMultiConsumer 多生产者/消费者并发压力测试，校验零丢失。
 func TestQueue_GetWithContext_Stress_MultiProducerMultiConsumer(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -518,9 +508,7 @@ func TestQueue_GetWithContext_Stress_MultiProducerMultiConsumer(t *testing.T) {
 	}
 }
 
-// TestQueue_GetWithContext_Stress_PutInterleaveWaitRegistration 构造
-// “Put 与等待建立交错”的高频窗口：短 ctx 消费者与即时生产者并发对打，
-// 最终校验放入总数 = 消费数 + 剩余在队数（无丢失唤醒、无元素丢失）。
+// TestQueue_GetWithContext_Stress_PutInterleaveWaitRegistration 短 ctx 消费者与即时生产者并发对打，校验无丢失。
 func TestQueue_GetWithContext_Stress_PutInterleaveWaitRegistration(t *testing.T) {
 	q := NewQueue(NewQueueConfig())
 	defer q.Shutdown()

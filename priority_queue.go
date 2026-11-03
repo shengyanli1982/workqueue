@@ -24,17 +24,14 @@ type priorityQueueImpl struct {
 	config      *PriorityQueueConfig
 	sorting     *hp.RBTree
 	elementpool *lst.NodePool
-	// draining 在 drain 开始时置位：拒绝新的 Put/PutWithPriority。
+	// draining 排空标记，置位后拒绝新的入队。
 	draining atomic.Bool
 }
 
 // NewPriorityQueue 创建优先级队列。
 //
-// 配置开启 WithValueIdempotent 时 panic：PutWithPriority 在内层临界区内
-// 直接推红黑树，完全绕过幂等簿记（state/processing 去重静默失效），且
-// queueImpl.Done 的重入队推向 FIFO list 而非堆，优先级无法恢复——结构上
-// 不兼容。构造期 fail-fast 拒绝该组合；幂等语义请使用 Queue/RetryQueue/
-// LeasedQueue/DeadLetterQueue/TimerQueue 等实际支持的队列。
+// 不支持 WithValueIdempotent：PutWithPriority 绕过幂等簿记，且 Done 的重入队
+// 推向 FIFO list 而非堆导致优先级丢失。构造期 fail-fast；幂等语义请使用其他队列。
 func NewPriorityQueue(config *PriorityQueueConfig) PriorityQueue {
 
 	config = isPriorityQueueConfigEffective(config)
@@ -63,10 +60,8 @@ func (q *priorityQueueImpl) Shutdown() {
 	q.Queue.Shutdown()
 }
 
-// ShutdownWithDrain 优雅关停：置位 draining 拒绝新入队，等待内层队列 drained
-// 后关闭；超时或取消时强制关闭并返回 ctx.Err()。
-// 堆即内层队列的存储本身，堆中项全部可被 Get 直接消费，无独立搬运过程，
-// drain 判定与基础队列一致。
+// ShutdownWithDrain 优雅关停：拒绝新入队，等待内层队列 drained 后关闭。
+// 堆即内层存储，无独立搬运过程，drain 判定与基础队列一致。
 func (q *priorityQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 
 	if q.IsClosed() {
@@ -82,6 +77,12 @@ func (q *priorityQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 	q.Queue.Shutdown()
 
 	return err
+}
+
+// IsDraining 返回队列是否处于排空阶段。
+// 三态语义见 DrainingQueue 可选接口。
+func (q *priorityQueueImpl) IsDraining() bool {
+	return q.draining.Load()
 }
 
 // Put 以默认优先级（PRIORITY_NORMAL）入队，委托 PutWithPriority 实现。
@@ -111,7 +112,6 @@ func (q *priorityQueueImpl) PutWithPriority(value any, priority int64) error {
 		return ErrQueueIsClosed
 	}
 	q.sorting.Push(last)
-	// 堆即内层存储：成功入堆与广播唤醒同在内层临界区，
 	// 唤醒阻塞在 GetWithContext 上的消费者。
 	qi.notifyWaitersLocked()
 	qi.lock.Unlock()
@@ -122,8 +122,7 @@ func (q *priorityQueueImpl) PutWithPriority(value any, priority int64) error {
 }
 
 // GetWithContext 阻塞直到消费到一个值、ctx 完成或队列关闭，永不返回
-// ErrQueueIsEmpty。堆即内层队列的存储本身：pop 的双集合搬运、等待者注册
-// 与广播唤醒全部复用内层 queueImpl 机制，无独立唤醒结构。
+// ErrQueueIsEmpty。复用内层 queueImpl 的等待与唤醒机制。
 func (q *priorityQueueImpl) GetWithContext(ctx context.Context) (any, error) {
 	return q.Queue.(BlockingGetQueue).GetWithContext(ctx)
 }

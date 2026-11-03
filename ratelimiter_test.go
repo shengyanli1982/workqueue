@@ -1,14 +1,15 @@
 package workqueue
 
 import (
+	"math"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestItemExponentialFailureRateLimiter_BackoffSequence 验证 per-item 指数退避：
-// 同一 item 的退避序列为 base×2^(n-1) 并按 max 封顶；不同 item 计数互相独立。
+// TestItemExponentialFailureRateLimiter_BackoffSequence per-item 指数退避序列与封顶。
 func TestItemExponentialFailureRateLimiter_BackoffSequence(t *testing.T) {
 	limiter := NewItemExponentialFailureRateLimiter(time.Millisecond, 100*time.Millisecond)
 
@@ -27,13 +28,12 @@ func TestItemExponentialFailureRateLimiter_BackoffSequence(t *testing.T) {
 		assert.Equal(t, w, limiter.When("item-a"), "backoff sequence at call %d", i+1)
 	}
 
-	// 另一个 item 从 base 重新开始，证明计数是 per-item 的。
+	// 不同 item 计数独立。
 	assert.Equal(t, time.Millisecond, limiter.When("item-b"))
 	assert.Equal(t, 2*time.Millisecond, limiter.When("item-b"))
 }
 
-// TestItemExponentialFailureRateLimiter_Forget 验证 Forget 清理退避状态：
-// Forget 后同一 item 的退避从 base 重新开始，且内部失败表删除该条目（防内存泄漏）。
+// TestItemExponentialFailureRateLimiter_Forget Forget 清理退避状态，防内存泄漏。
 func TestItemExponentialFailureRateLimiter_Forget(t *testing.T) {
 	limiter := NewItemExponentialFailureRateLimiter(time.Millisecond, time.Second)
 
@@ -53,7 +53,7 @@ func TestItemExponentialFailureRateLimiter_Forget(t *testing.T) {
 	forgetter.Forget("k1")
 	assert.Len(t, failures, 1)
 
-	// k1 计数归零：退避从 base 重新开始；k2 不受影响。
+	// k1 归零；k2 不受影响。
 	assert.Equal(t, time.Millisecond, limiter.When("k1"))
 	assert.Equal(t, 2*time.Millisecond, limiter.When("k2"))
 
@@ -65,8 +65,7 @@ func TestItemExponentialFailureRateLimiter_Forget(t *testing.T) {
 	forgetter.Forget("never-seen")
 }
 
-// TestMaxOfRateLimiter_When 验证 MaxOf 组合取各限流器返回值的最大值，
-// 包括封顶项接管另一个仍在增长的项的交叉场景。
+// TestMaxOfRateLimiter_When MaxOf 取各限流器最大值。
 func TestMaxOfRateLimiter_When(t *testing.T) {
 	// a: 1,2,4,8,16,32,64,100,100…（封顶 100ms）
 	a := NewItemExponentialFailureRateLimiter(time.Millisecond, 100*time.Millisecond)
@@ -91,18 +90,17 @@ func TestMaxOfRateLimiter_When(t *testing.T) {
 	}
 }
 
-// TestMaxOfRateLimiter_EdgeCases 验证空组合与 nil 子项的健壮性。
+// TestMaxOfRateLimiter_EdgeCases 空组合与 nil 子项健壮性。
 func TestMaxOfRateLimiter_EdgeCases(t *testing.T) {
-	// 空组合：无等待。
+	// 空组合。
 	assert.Equal(t, time.Duration(0), NewMaxOfRateLimiter().When("x"))
 
-	// nil 子项被跳过，其余子项正常取大。
+	// nil 子项跳过。
 	limiter := NewMaxOfRateLimiter(nil, NewItemExponentialFailureRateLimiter(3*time.Millisecond, time.Second))
 	assert.Equal(t, 3*time.Millisecond, limiter.When("x"))
 }
 
-// TestMaxOfRateLimiter_Forget 验证 MaxOf 将 Forget 委托给每个实现 LimiterForgetter
-// 的子限流器；未实现的子项（如 Nop）被安全跳过。
+// TestMaxOfRateLimiter_Forget MaxOf 委托 Forget 给子限流器。
 func TestMaxOfRateLimiter_Forget(t *testing.T) {
 	a := NewItemExponentialFailureRateLimiter(time.Millisecond, time.Second)
 	b := NewItemExponentialFailureRateLimiter(50*time.Millisecond, time.Second)
@@ -118,12 +116,11 @@ func TestMaxOfRateLimiter_Forget(t *testing.T) {
 
 	forgetter.Forget("x")
 
-	// 两个子限流器均已重置：退避回到各自 base 的最大值。
+	// 子限流器已重置。
 	assert.Equal(t, 50*time.Millisecond, limiter.When("x"))
 }
 
-// TestItemExponentialFailureRateLimiter_Concurrent 验证并发下计数与封顶的正确性：
-// N 个 goroutine 并发 When 同一 item，退避值均为合法序列成员且最终封顶于 max。
+// TestItemExponentialFailureRateLimiter_Concurrent 并发下退避值合法。
 func TestItemExponentialFailureRateLimiter_Concurrent(t *testing.T) {
 	const goroutines = 32
 	base, max := time.Millisecond, 10*time.Millisecond
@@ -145,4 +142,281 @@ func TestItemExponentialFailureRateLimiter_Concurrent(t *testing.T) {
 	for g := 0; g < goroutines; g++ {
 		<-done
 	}
+}
+
+// TestItemFastSlowRateLimiter_Sequence per-item 快/慢双速率限流。
+func TestItemFastSlowRateLimiter_Sequence(t *testing.T) {
+	limiter := NewItemFastSlowRateLimiterImpl(time.Millisecond, 10*time.Millisecond, 3)
+
+	want := []time.Duration{
+		time.Millisecond,      // 第 1 次：计数 0 < 3，fast
+		time.Millisecond,      // 第 2 次：计数 1 < 3，fast
+		time.Millisecond,      // 第 3 次：计数 2 < 3，fast
+		10 * time.Millisecond, // 第 4 次：计数 3 达到上限，slow
+		10 * time.Millisecond, // 第 5 次：此后恒 slow
+	}
+	for i, w := range want {
+		assert.Equal(t, w, limiter.When("item-a"), "fast-slow sequence at call %d", i+1)
+	}
+
+	// 不同 item 计数独立。
+	assert.Equal(t, time.Millisecond, limiter.When("item-b"))
+	assert.Equal(t, time.Millisecond, limiter.When("item-b"))
+}
+
+// TestItemFastSlowRateLimiter_Forget Forget 清理计数，重回 fast 阶段。
+func TestItemFastSlowRateLimiter_Forget(t *testing.T) {
+	limiter := NewItemFastSlowRateLimiterImpl(time.Millisecond, 10*time.Millisecond, 2)
+
+	forgetter, ok := limiter.(LimiterForgetter)
+	if !ok {
+		t.Fatal("fast-slow limiter must support LimiterForgetter")
+	}
+
+	assert.Equal(t, time.Millisecond, limiter.When("k1"))    // k1: fast，计数 0
+	assert.Equal(t, time.Millisecond, limiter.When("k1"))    // k1: fast，计数 1
+	assert.Equal(t, 10*time.Millisecond, limiter.When("k1")) // k1: slow，计数 2 达到上限
+	assert.Equal(t, time.Millisecond, limiter.When("k2"))    // k2: fast，计数 0
+	assert.Equal(t, time.Millisecond, limiter.When("k2"))    // k2: fast，计数 1
+
+	failures := limiter.(*itemFastSlowRateLimiter).failures
+	assert.Len(t, failures, 2)
+
+	forgetter.Forget("k1")
+	assert.Len(t, failures, 1)
+
+	// k1 归零回 fast；k2 不受影响。
+	assert.Equal(t, time.Millisecond, limiter.When("k1"))
+	assert.Equal(t, 10*time.Millisecond, limiter.When("k2"))
+
+	forgetter.Forget("k1")
+	forgetter.Forget("k2")
+	assert.Empty(t, failures, "forgetting all items must leave no residual entries")
+
+	// Forget 未知 item 为安全的 no-op。
+	forgetter.Forget("never-seen")
+}
+
+// TestItemFastSlowRateLimiter_NonPositiveDelays 非正 delay 返回 0。
+func TestItemFastSlowRateLimiter_NonPositiveDelays(t *testing.T) {
+	// 两阶段均非正。
+	limiter := NewItemFastSlowRateLimiterImpl(-time.Second, 0, 2)
+	for i := 0; i < 4; i++ {
+		assert.Equal(t, time.Duration(0), limiter.When("x"), "call %d", i+1)
+	}
+
+	// fast 非正、slow 为正。
+	mixed := NewItemFastSlowRateLimiterImpl(0, 5*time.Millisecond, 1)
+	assert.Equal(t, time.Duration(0), mixed.When("y"))
+	assert.Equal(t, 5*time.Millisecond, mixed.When("y"))
+}
+
+// TestItemFastSlowRateLimiter_NonPositiveMaxFastAttempts maxFastAttempts 非正时无 fast 阶段。
+func TestItemFastSlowRateLimiter_NonPositiveMaxFastAttempts(t *testing.T) {
+	for _, attempts := range []int{0, -1} {
+		limiter := NewItemFastSlowRateLimiterImpl(time.Millisecond, 10*time.Millisecond, attempts)
+		for i := 0; i < 3; i++ {
+			assert.Equal(t, 10*time.Millisecond, limiter.When("x"), "maxFastAttempts=%d call %d", attempts, i+1)
+		}
+	}
+}
+
+// TestItemFastSlowRateLimiter_Concurrent 并发 When/Forget 安全。
+func TestItemFastSlowRateLimiter_Concurrent(t *testing.T) {
+	const goroutines = 16
+	fast, slow := time.Millisecond, 20*time.Millisecond
+	limiter := NewItemFastSlowRateLimiterImpl(fast, slow, 3)
+	forgetter := limiter.(LimiterForgetter)
+
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 100; i++ {
+				d := limiter.When("shared")
+				if d != fast && d != slow {
+					t.Errorf("When returned %v, want %v or %v", d, fast, slow)
+					return
+				}
+				if i%10 == 0 {
+					forgetter.Forget("shared")
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// TestWithMaxWaitRateLimiter_CapsExceededWait 超过 maxWait 被截断，内层状态照常推进。
+func TestWithMaxWaitRateLimiter_CapsExceededWait(t *testing.T) {
+	inner := NewItemExponentialFailureRateLimiter(time.Millisecond, time.Second) // 1,2,4,8,16ms…
+	limiter := NewWithMaxWaitRateLimiter(inner, 3*time.Millisecond)
+
+	want := []time.Duration{
+		time.Millisecond,     // 1ms < 3ms：原样返回
+		2 * time.Millisecond, // 2ms < 3ms：原样返回
+		3 * time.Millisecond, // 4ms > 3ms：封顶
+		3 * time.Millisecond, // 8ms > 3ms：封顶
+		3 * time.Millisecond, // 16ms > 3ms：封顶
+	}
+	for i, w := range want {
+		assert.Equal(t, w, limiter.When("x"), "max-wait at call %d", i+1)
+	}
+}
+
+// TestWithMaxWaitRateLimiter_ForgetDelegation Forget 委托重置 inner 退避。
+func TestWithMaxWaitRateLimiter_ForgetDelegation(t *testing.T) {
+	inner := NewItemExponentialFailureRateLimiter(time.Millisecond, time.Second)
+	limiter := NewWithMaxWaitRateLimiter(inner, time.Second)
+
+	assert.Equal(t, time.Millisecond, limiter.When("x"))
+	assert.Equal(t, 2*time.Millisecond, limiter.When("x"))
+
+	forgetter, ok := limiter.(LimiterForgetter)
+	if !ok {
+		t.Fatal("max-wait limiter must always support LimiterForgetter")
+	}
+	forgetter.Forget("x")
+
+	// inner 已重置。
+	assert.Equal(t, time.Millisecond, limiter.When("x"))
+}
+
+// TestWithMaxWaitRateLimiter_ForgetWithoutInnerForgetter inner 无 Forget 时包装器 Forget 为 no-op。
+func TestWithMaxWaitRateLimiter_ForgetWithoutInnerForgetter(t *testing.T) {
+	limiter := NewWithMaxWaitRateLimiter(NewNopRateLimiterImpl(), time.Second)
+
+	forgetter, ok := limiter.(LimiterForgetter)
+	if !ok {
+		t.Fatal("max-wait limiter must always support LimiterForgetter")
+	}
+	forgetter.Forget("x") // 不得 panic
+	assert.Equal(t, time.Duration(0), limiter.When("x"))
+}
+
+// TestWithMaxWaitRateLimiter_NonPositiveMaxWait maxWait 非正时 When 返回 0。
+func TestWithMaxWaitRateLimiter_NonPositiveMaxWait(t *testing.T) {
+	inner := NewItemExponentialFailureRateLimiter(time.Millisecond, time.Second)
+
+	for _, maxWait := range []time.Duration{0, -time.Second} {
+		limiter := NewWithMaxWaitRateLimiter(inner, maxWait)
+		assert.Equal(t, time.Duration(0), limiter.When("x"), "maxWait=%v", maxWait)
+	}
+}
+
+// TestWithMaxWaitRateLimiter_NilInner inner 为 nil 时 When 返回 0，Forget 为 no-op。
+func TestWithMaxWaitRateLimiter_NilInner(t *testing.T) {
+	limiter := NewWithMaxWaitRateLimiter(nil, time.Second)
+	assert.Equal(t, time.Duration(0), limiter.When("x"))
+
+	forgetter, ok := limiter.(LimiterForgetter)
+	if !ok {
+		t.Fatal("max-wait limiter must always support LimiterForgetter")
+	}
+	forgetter.Forget("x") // 不得 panic
+}
+
+// TestItemExponentialFailureRateLimiterWithJitter_ZeroRatioMatchesPlain 零 ratio 与普通退避一致。
+func TestItemExponentialFailureRateLimiterWithJitter_ZeroRatioMatchesPlain(t *testing.T) {
+	base, maxDelay := time.Millisecond, 100*time.Millisecond
+
+	for _, ratio := range []float64{0, -0.5} {
+		plain := NewItemExponentialFailureRateLimiter(base, maxDelay)
+		withJitter := NewItemExponentialFailureRateLimiterWithJitter(base, maxDelay, ratio)
+		for i := 0; i < 12; i++ {
+			assert.Equal(t, plain.When("x"), withJitter.When("x"), "ratio=%v call %d", ratio, i+1)
+		}
+	}
+}
+
+// TestItemExponentialFailureRateLimiterWithJitter_Range jitter 落在 [d×(1-ratio), d]。
+func TestItemExponentialFailureRateLimiterWithJitter_Range(t *testing.T) {
+	base, maxDelay, ratio := 10*time.Millisecond, time.Second, 0.5
+	limiter := NewItemExponentialFailureRateLimiterWithJitter(base, maxDelay, ratio)
+	forgetter := limiter.(LimiterForgetter)
+
+	lower := time.Duration(float64(base) * (1 - ratio))
+	minSeen := maxDelay
+	const samples = 100
+	for i := 0; i < samples; i++ {
+		// 重置计数，采样 exp=0 层级。
+		forgetter.Forget("x")
+		d := limiter.When("x")
+		assert.GreaterOrEqual(t, d, lower, "sample %d", i)
+		assert.LessOrEqual(t, d, base, "sample %d", i)
+		if d < minSeen {
+			minSeen = d
+		}
+	}
+	assert.Less(t, minSeen, base, "jitter must be observable within %d samples", samples)
+}
+
+// TestItemExponentialFailureRateLimiterWithJitter_CapBeforeJitter 封顶先行，jitter 不超 maxDelay。
+func TestItemExponentialFailureRateLimiterWithJitter_CapBeforeJitter(t *testing.T) {
+	base, maxDelay, ratio := time.Millisecond, 10*time.Millisecond, 0.9
+	limiter := NewItemExponentialFailureRateLimiterWithJitter(base, maxDelay, ratio)
+
+	lower := time.Duration(float64(base) * (1 - ratio))
+	// 确定值封顶为 10ms，jitter 后不超封顶值。
+	for i := 0; i < 20; i++ {
+		d := limiter.When("big-exp")
+		assert.GreaterOrEqual(t, d, lower, "call %d", i+1)
+		assert.LessOrEqual(t, d, maxDelay, "call %d", i+1)
+	}
+}
+
+// TestItemExponentialFailureRateLimiterWithJitter_RatioClampedToFullJitter ratio>1 按 full jitter 处理。
+func TestItemExponentialFailureRateLimiterWithJitter_RatioClampedToFullJitter(t *testing.T) {
+	base, maxDelay := 10*time.Millisecond, time.Second
+	limiter := NewItemExponentialFailureRateLimiterWithJitter(base, maxDelay, 2.5)
+	forgetter := limiter.(LimiterForgetter)
+
+	minSeen := maxDelay
+	const samples = 100
+	for i := 0; i < samples; i++ {
+		forgetter.Forget("x")
+		d := limiter.When("x") // 确定值 base=10ms，full jitter 后落在 [0, 10ms]
+		assert.GreaterOrEqual(t, d, time.Duration(0), "sample %d: clamped ratio must never go negative", i)
+		assert.LessOrEqual(t, d, base, "sample %d", i)
+		if d < minSeen {
+			minSeen = d
+		}
+	}
+	assert.Less(t, minSeen, base/2, "full jitter must spread well below the deterministic value")
+}
+
+// TestItemExponentialFailureRateLimiterWithJitter_Concurrent 并发 When/Forget 安全。
+func TestItemExponentialFailureRateLimiterWithJitter_Concurrent(t *testing.T) {
+	base, maxDelay, ratio := time.Millisecond, 10*time.Millisecond, 0.5
+	limiter := NewItemExponentialFailureRateLimiterWithJitter(base, maxDelay, ratio)
+	forgetter := limiter.(LimiterForgetter)
+	lower := time.Duration(float64(base) * (1 - ratio))
+
+	var wg sync.WaitGroup
+	for g := 0; g < 16; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 100; i++ {
+				d := limiter.When("shared")
+				if d < lower || d > maxDelay {
+					t.Errorf("jittered delay %v outside [%v, %v]", d, lower, maxDelay)
+					return
+				}
+				if i%10 == 0 {
+					forgetter.Forget("shared")
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// TestApplyJitter_NaNRatio 钉住 P2-1：NaN ratio 原样返回 delay。
+func TestApplyJitter_NaNRatio(t *testing.T) {
+	assert.Equal(t, 100*time.Millisecond, applyJitter(100*time.Millisecond, math.NaN()))
+
+	limiter := NewItemExponentialFailureRateLimiterWithJitter(time.Second, 10*time.Second, math.NaN())
+	assert.Equal(t, time.Second, limiter.When("nan-item"))
 }
