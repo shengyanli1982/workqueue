@@ -99,7 +99,7 @@ func TestRetryQueue_EmptyRetryKey(t *testing.T) {
 	assert.ErrorIs(t, err, ErrRetryKeyEmpty)
 }
 
-// immediateRetryPolicy 始终返回零延迟，使 Retry 走立即路径（delay < 1ms → 直接 Put）。
+// immediateRetryPolicy 始终返回零延迟，使 Retry 走立即路径。
 type immediateRetryPolicy struct {
 	maxRetries int
 }
@@ -125,11 +125,7 @@ func (p *fixedDelayRetryPolicy) NextDelay(_ any, attempt int, _ error) (time.Dur
 }
 
 // TestRetryQueue_Idempotent_RetryImmediate 复现 D2 [P0] 立即路径：
-// 幂等模式下 Get 走元素后元素仍留在 state，Retry 的 “先 Put 后 Done” 顺序使
-// Put 撞 ErrElementAlreadyExist 直接返回，Done 永不执行，元素不在 list、永留 state，
-// 永久丢失且无回调通知。
-// 修复前：Retry 返回 ErrElementAlreadyExist，元素无法再次 Get；
-// 修复后：Put 命中 processing 挂起返回 nil，Done 触发重入队，Retry 返回 nil 且元素可再次 Get。
+// 幂等模式下 Retry 应返回 nil，元素重新入队可再次 Get。
 func TestRetryQueue_Idempotent_RetryImmediate(t *testing.T) {
 	config := NewRetryQueueConfig().WithPolicy(&immediateRetryPolicy{maxRetries: 3})
 	config.WithValueIdempotent()
@@ -150,9 +146,7 @@ func TestRetryQueue_Idempotent_RetryImmediate(t *testing.T) {
 	assert.Equal(t, "pay-callback", requeued)
 }
 
-// TestRetryQueue_Idempotent_RetryDelayed 验证 D2 延迟路径在新语义下的完整链路：
-// PutWithDelay 不碰内层 state，Done 时 state 不含该值故不误重入队；
-// 到期后 puller 转运正常入队，元素可再次 Get。
+// TestRetryQueue_Idempotent_RetryDelayed 验证 D2 延迟路径：到期后 puller 转运，元素可再次 Get。
 func TestRetryQueue_Idempotent_RetryDelayed(t *testing.T) {
 	config := NewRetryQueueConfig().WithPolicy(&fixedDelayRetryPolicy{delay: 30 * time.Millisecond, maxRetries: 3})
 	config.WithValueIdempotent()
@@ -168,16 +162,14 @@ func TestRetryQueue_Idempotent_RetryDelayed(t *testing.T) {
 	err = q.Retry(value, errors.New("process failed"))
 	assert.NoError(t, err)
 
-	// puller 以 300ms 心跳扫描，转运延迟至多约 330ms。
+	// puller 心跳扫描，转运延迟至多约 330ms。
 	requeued, err := waitQueueGet(t, q, 2*time.Second)
 	assert.NoError(t, err, "delayed-retried element must be transported by puller and gettable again")
 	assert.Equal(t, "pay-callback-delay", requeued)
 }
 
-// TestRetryQueue_Idempotent_RetryDelayed_DedupWithUserPut 验证到期前用户重新 Put 的去重语义：
-// 若同值在延迟到期前已被用户 Put 回队列（占据 state），puller 到期转运延迟项时
-// 撞 ErrElementAlreadyExist 而丢弃 —— 这是正确去重（元素已在队），不是丢元素：
-// 队列中最终恰好一份，不产生重复副本。
+// TestRetryQueue_Idempotent_RetryDelayed_DedupWithUserPut 验证延迟到期前用户 Put 的去重：
+// puller 转运时撞 ErrElementAlreadyExist 丢弃，队列中恰好一份。
 func TestRetryQueue_Idempotent_RetryDelayed_DedupWithUserPut(t *testing.T) {
 	config := NewRetryQueueConfig().WithPolicy(&fixedDelayRetryPolicy{delay: 100 * time.Millisecond, maxRetries: 3})
 	config.WithValueIdempotent()
@@ -190,7 +182,6 @@ func TestRetryQueue_Idempotent_RetryDelayed_DedupWithUserPut(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "dedup-case", value)
 
-	// 延迟路径：进入延迟堆，不碰内层 state。
 	assert.NoError(t, q.Retry(value, errors.New("process failed")))
 
 	// 到期前用户重新 Put 同值。
@@ -200,7 +191,7 @@ func TestRetryQueue_Idempotent_RetryDelayed_DedupWithUserPut(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "dedup-case", requeued)
 
-	// 等待 puller 越过到期点（100ms 延迟 + 300ms 心跳上限），确认延迟项被去重丢弃、无第二份副本。
+	// 等待 puller 越过到期点，确认延迟项被去重丢弃。
 	time.Sleep(600 * time.Millisecond)
 	_, err = q.Get()
 	assert.ErrorIs(t, err, ErrQueueIsEmpty, "discarded duplicate must not produce a second copy")
@@ -242,8 +233,7 @@ func (c *testRetryQueueCallback) OnForget(value any) {
 	c.mu.Unlock()
 }
 
-// TestRetryQueue_DeadLetterBridge_Exhausted 验证 G9：配置死信队列后，
-// 重试耗尽时自动 PutDead，letter 各字段完整且正确。
+// TestRetryQueue_DeadLetterBridge_Exhausted 验证 G9：重试耗尽时自动转入死信队列。
 func TestRetryQueue_DeadLetterBridge_Exhausted(t *testing.T) {
 	dlq := NewDeadLetterQueue(nil)
 	defer dlq.Shutdown()
@@ -282,8 +272,7 @@ func TestRetryQueue_DeadLetterBridge_Exhausted(t *testing.T) {
 	assert.Nil(t, letter.Meta)
 }
 
-// TestRetryQueue_DeadLetterBridge_IDMonotonic 验证同值多次耗尽产生的死信
-// ID 为 base36 编码且严格单调递增（重试队列侧原子序号）。
+// TestRetryQueue_DeadLetterBridge_IDMonotonic 验证死信 ID 严格单调递增。
 func TestRetryQueue_DeadLetterBridge_IDMonotonic(t *testing.T) {
 	dlq := NewDeadLetterQueue(nil)
 	defer dlq.Shutdown()
@@ -323,8 +312,7 @@ func TestRetryQueue_DeadLetterBridge_IDMonotonic(t *testing.T) {
 	}
 }
 
-// dlqInspectingCallback 在 OnRetryExhausted 时刻记录死信队列长度，
-// 用于断言 PutDead 相对回调的发生顺序。
+// dlqInspectingCallback 在 OnRetryExhausted 时刻记录死信队列长度。
 type dlqInspectingCallback struct {
 	dlq          Queue
 	lenAtExhaust int
@@ -344,9 +332,8 @@ func (c *dlqInspectingCallback) OnRetryExhausted(any, int, error) {
 	c.lenAtExhaust = c.dlq.Len()
 }
 
-// TestRetryQueue_DeadLetterBridge_AfterExhaustedCallback 验证 G9 时序契约：
-// PutDead 发生在 OnRetryExhausted 回调之后——回调触发时刻死信队列尚为空，
-// Retry 返回后 letter 才入队。
+// TestRetryQueue_DeadLetterBridge_AfterExhaustedCallback 验证 G9 时序：
+// PutDead 发生在 OnRetryExhausted 回调之后。
 func TestRetryQueue_DeadLetterBridge_AfterExhaustedCallback(t *testing.T) {
 	dlq := NewDeadLetterQueue(nil)
 	defer dlq.Shutdown()
@@ -381,9 +368,8 @@ func TestRetryQueue_DeadLetterBridge_AfterExhaustedCallback(t *testing.T) {
 	assert.Equal(t, 1, dlq.Len(), "letter must be in DLQ after Retry returns")
 }
 
-// TestRetryQueue_DeadLetterBridge_PutDeadFailure 验证 PutDead 失败语义：
-// 死信队列已关停（PutDead 返回 ErrQueueIsClosed）时，桥不崩溃、不改变
-// Retry 返回值（仍为 ErrRetryExhausted），耗尽事件仍由 OnRetryExhausted 报告。
+// TestRetryQueue_DeadLetterBridge_PutDeadFailure 验证 PutDead 失败时桥不崩溃，
+// Retry 仍返回 ErrRetryExhausted，耗尽事件仍由回调报告。
 func TestRetryQueue_DeadLetterBridge_PutDeadFailure(t *testing.T) {
 	dlq := NewDeadLetterQueue(nil)
 	dlq.Shutdown() // 使后续 PutDead 失败
@@ -419,9 +405,8 @@ func TestRetryQueue_DeadLetterBridge_PutDeadFailure(t *testing.T) {
 	assert.Equal(t, 0, dlq.Len(), "no letter can land in a closed DLQ")
 }
 
-// TestRetryQueue_RetryExhausted_WithoutDLQ 是 G9 的未配置回归：未通过
-// WithDeadLetterQueue 接线时，耗尽路径语义保持不变（返回 ErrRetryExhausted、
-// attempts 归零），队列在耗尽后继续可用。
+// TestRetryQueue_RetryExhausted_WithoutDLQ 未配置死信时耗尽路径回归：
+// 返回 ErrRetryExhausted、attempts 归零，队列继续可用。
 func TestRetryQueue_RetryExhausted_WithoutDLQ(t *testing.T) {
 	config := NewRetryQueueConfig().WithPolicy(NewExponentialRetryPolicy(0, 0, 1))
 	q := NewRetryQueue(config)
@@ -445,7 +430,7 @@ func TestRetryQueue_RetryExhausted_WithoutDLQ(t *testing.T) {
 	assert.ErrorIs(t, err, ErrRetryExhausted)
 	assert.Equal(t, 0, q.NumRequeues("task"))
 
-	// 耗尽重置计数后，同值可重新走完整重试周期。
+	// 耗尽后同值可重新走完整重试周期。
 	assert.NoError(t, q.Put("task"))
 	value, err = q.Get()
 	assert.NoError(t, err)
@@ -453,9 +438,7 @@ func TestRetryQueue_RetryExhausted_WithoutDLQ(t *testing.T) {
 	assert.Equal(t, 1, q.NumRequeues("task"))
 }
 
-// zeroDelayPolicy 是 D5 复现专用零延迟策略：attempt 不超过 2 时返回零延迟
-// 并要求继续重试，超过后拒绝重试（走耗尽分支）。零延迟使 Retry 必然命中
-// immediate 路径（delay < 1ms → 直接 Put）。
+// zeroDelayPolicy D5 专用零延迟策略：attempt ≤ 2 时放行，超过后拒绝。
 type zeroDelayPolicy struct{}
 
 func (p *zeroDelayPolicy) NextDelay(_ any, attempt int, _ error) (time.Duration, bool) {
@@ -466,9 +449,7 @@ func (p *zeroDelayPolicy) NextDelay(_ any, attempt int, _ error) (time.Duration,
 }
 
 // TestRetryQueue_ZeroDelayPolicy_AttemptsAccumulate 复现 D5：零延迟策略下
-// immediate 路径若在 increment 后立即 delete，attempts 永不累积——
-// NumRequeues 恒为 0 且 Retry 永不耗尽。修复后 attempts 逐次累积 1/2，
-// 第 3 次 Retry 因策略拒绝而耗尽并重置计数。
+// attempts 应逐次累积，第 3 次耗尽并重置计数。
 func TestRetryQueue_ZeroDelayPolicy_AttemptsAccumulate(t *testing.T) {
 	config := NewRetryQueueConfig().WithPolicy(&zeroDelayPolicy{})
 	q := NewRetryQueue(config)
@@ -524,9 +505,8 @@ func TestRetryQueue_ZeroDelayPolicy_ExhaustsInsteadOfRetryingForever(t *testing.
 	assert.True(t, exhausted, "zero-delay policy must exhaust; infinite retry detected")
 }
 
-// TestRetryQueue_ZeroDelayPolicy_DeadLetterBridge 验证 D5 修复后 G9 死信桥对
-// 零延迟策略同样生效：耗尽时 letter 自动进入死信队列，Attempts 为累积值 3。
-// 修复前 attempts 不累积导致耗尽永不发生，死信桥对零延迟策略永不触发。
+// TestRetryQueue_ZeroDelayPolicy_DeadLetterBridge 验证 D5 + G9：零延迟策略耗尽时
+// 死信桥正常触发，Attempts 为累积值。
 func TestRetryQueue_ZeroDelayPolicy_DeadLetterBridge(t *testing.T) {
 	dlq := NewDeadLetterQueue(nil)
 	defer dlq.Shutdown()
@@ -595,8 +575,7 @@ func TestRetryQueue_Callback(t *testing.T) {
 	assert.Equal(t, []any{"task"}, callback.forgets)
 }
 
-// TestRetryQueue_RequeueCounts 验证 G5：RequeueCounts 暴露 attempts 的快照副本，
-// 默认 key 语义 = 默认 RetryKeyFunc 产出（fmt.Sprintf("%T:%#v", value, value)）。
+// TestRetryQueue_RequeueCounts 验证 G5：RequeueCounts 返回 attempts 快照副本。
 func TestRetryQueue_RequeueCounts(t *testing.T) {
 	config := NewRetryQueueConfig().WithPolicy(NewExponentialRetryPolicy(0, 0, 3))
 	q := NewRetryQueue(config)
@@ -622,8 +601,7 @@ func TestRetryQueue_RequeueCounts(t *testing.T) {
 	assert.Equal(t, 2, counts[keyB])
 }
 
-// TestRetryQueue_RequeueCounts_CustomKeyFunc 验证自定义 key 函数时，
-// 返回的 map key 跟随 RetryKeyFunc 的输出。
+// TestRetryQueue_RequeueCounts_CustomKeyFunc 验证自定义 key 函数时 map key 跟随输出。
 func TestRetryQueue_RequeueCounts_CustomKeyFunc(t *testing.T) {
 	config := NewRetryQueueConfig().
 		WithPolicy(NewExponentialRetryPolicy(0, 0, 3)).
@@ -642,8 +620,7 @@ func TestRetryQueue_RequeueCounts_CustomKeyFunc(t *testing.T) {
 	assert.Equal(t, 1, counts["custom-task"])
 }
 
-// TestRetryQueue_RequeueCounts_EmptyAndCopyMutation 验证空队列返回非 nil 可写副本，
-// 且篡改副本不影响内部 attempts。
+// TestRetryQueue_RequeueCounts_EmptyAndCopyMutation 验证空队列返回非 nil 副本，篡改不影响内部状态。
 func TestRetryQueue_RequeueCounts_EmptyAndCopyMutation(t *testing.T) {
 	config := NewRetryQueueConfig().WithPolicy(NewExponentialRetryPolicy(0, 0, 3))
 	q := NewRetryQueue(config)
@@ -671,8 +648,7 @@ func TestRetryQueue_RequeueCounts_EmptyAndCopyMutation(t *testing.T) {
 	assert.Equal(t, 1, fresh[key], "mutating the snapshot must not affect internal attempts")
 }
 
-// TestRetryQueue_RequeueCounts_SnapshotDetached 验证快照脱锁：取快照后并发
-// Retry/Forget 不被阻塞、不死锁。
+// TestRetryQueue_RequeueCounts_SnapshotDetached 验证快照脱锁，并发操作不被阻塞。
 func TestRetryQueue_RequeueCounts_SnapshotDetached(t *testing.T) {
 	config := NewRetryQueueConfig().WithPolicy(NewExponentialRetryPolicy(0, 0, -1))
 	q := NewRetryQueue(config)
@@ -717,13 +693,8 @@ func TestRetryQueue_RequeueCounts_SnapshotDetached(t *testing.T) {
 	<-trafficDone
 }
 
-// TestRetryQueue_PutFailure_NoAttemptDrift 复现 #8(a) 计数漂移：
-// 幂等模式下 Retry 的内层 Put 失败（ErrElementAlreadyExist）时，
-// 修复前 attempt 已自增但不回滚 → attempts 漂移 → 退避预算虚耗、提前进死信。
-// 场景构造：Put → Get（进 processing）→ 第一次 Retry（挂起标记 + Done 重入队，
-// attempts=1，元素回到 state）→ 第二次 Retry 时元素在队且不在处理中，
-// 内层 Put 必然返回 ErrElementAlreadyExist。
-// 修复后：Put 失败路径在锁内回滚计数，attempts 保持 1。
+// TestRetryQueue_PutFailure_NoAttemptDrift 复现 #8(a)：幂等模式下 Retry 内层 Put 失败时
+// attempts 不得漂移。
 func TestRetryQueue_PutFailure_NoAttemptDrift(t *testing.T) {
 	config := NewRetryQueueConfig().WithPolicy(&immediateRetryPolicy{maxRetries: 5})
 	config.WithValueIdempotent()
@@ -736,15 +707,15 @@ func TestRetryQueue_PutFailure_NoAttemptDrift(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "task", value)
 
-	// 第一次 Retry：命中 processing 挂起路径，Put 成功，Done 重入队，attempts=1。
+	// 第一次 Retry：命中 processing 挂起路径，attempts=1。
 	assert.NoError(t, q.Retry(value, errors.New("fail-1")))
 	assert.Equal(t, 1, q.NumRequeues("task"))
 
-	// 第二次 Retry：元素在队（state）且不在处理中 → 内层 Put 返回 ErrElementAlreadyExist。
+	// 第二次 Retry：元素在队 → 内层 Put 返回 ErrElementAlreadyExist。
 	err = q.Retry(value, errors.New("fail-2"))
 	assert.ErrorIs(t, err, ErrElementAlreadyExist)
 
-	// RED 断言：失败的 Retry 不得留下计数漂移（修复前为 2）。
+	// 失败的 Retry 不得留下计数漂移。
 	assert.Equal(t, 1, q.NumRequeues("task"), "failed Put must roll back the claimed attempt (#8a drift)")
 
 	key := fmt.Sprintf("%T:%#v", "task", "task")
@@ -781,11 +752,8 @@ func (p *barrierExhaustPolicy) NextDelay(_ any, attempt int, _ error) (time.Dura
 	return 0, false
 }
 
-// TestRetryQueue_ConcurrentExhaustion_FiresExactlyOnce 复现 #8(b) 并发双耗尽：
-// 修复前耗尽分支的 increment+reset+回调+死信转发非原子，同值并发 Retry 全部
-// 进入耗尽分支 → OnRetryExhausted 重复触发、死信重复入队。
-// 修复后耗尽分支锁内 claim-once：恰好一个调用方触发回调与死信，
-// 其余仍返回 ErrRetryExhausted 但无副作用。
+// TestRetryQueue_ConcurrentExhaustion_FiresExactlyOnce 复现 #8(b)：并发耗尽时
+// OnRetryExhausted 和死信恰好触发一次，无重复副作用。
 func TestRetryQueue_ConcurrentExhaustion_FiresExactlyOnce(t *testing.T) {
 	const n = 8
 
@@ -805,12 +773,11 @@ func TestRetryQueue_ConcurrentExhaustion_FiresExactlyOnce(t *testing.T) {
 	value, err := q.Get()
 	assert.NoError(t, err)
 
-	// 预置 attempts=1：第一次 Retry 走 attempt=1 → 策略放行（零延迟立即重入队）。
+	// 预置 attempts=1。
 	assert.NoError(t, q.Retry(value, errors.New("transient")))
 	assert.Equal(t, 1, q.NumRequeues("task"))
 
-	// 并发 n 个 Retry：全部在策略屏障处对齐（tentative attempt=2 > 1 → 耗尽分支），
-	// 同时释放 → 修复前 n 个调用方各自触发回调与死信。
+	// 并发 n 个 Retry 同时进入耗尽分支。
 	errs := make([]error, n)
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {

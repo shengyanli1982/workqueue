@@ -4,9 +4,8 @@ import (
 	"context"
 )
 
-// ratelimitingQueueImpl 通过组合模式内嵌 DelayingQueue 实现限流入队：
-// Limiter 返回的等待时长大于零时委托 PutWithDelay 延迟入队，
-// 否则直接入队。自身不持有存储，全部状态由内层延迟队列管理。
+// ratelimitingQueueImpl 通过组合 DelayingQueue 实现限流入队：
+// Limiter 返回的等待时长大于零时委托 PutWithDelay，否则直接入队。
 type ratelimitingQueueImpl struct {
 	DelayingQueue
 	config *RateLimitingQueueConfig
@@ -33,16 +32,19 @@ func (q *ratelimitingQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 	return q.DelayingQueue.(DrainableQueue).ShutdownWithDrain(ctx)
 }
 
-// GetWithContext 委托内层 DelayingQueue：限流延迟到期项由 scheduler 搬运，
-// 等待内层即正确语义（阻塞直到有值 / ctx 完成 / 队列关闭，永不返回
-// ErrQueueIsEmpty）。
+// IsDraining 返回队列是否处于排空阶段，以内层 DelayingQueue 标记为准。
+// 三态语义见 DrainingQueue 可选接口。
+func (q *ratelimitingQueueImpl) IsDraining() bool {
+	return q.DelayingQueue.(DrainingQueue).IsDraining()
+}
+
+// GetWithContext 委托内层 DelayingQueue，阻塞直到有值、ctx 完成或队列关闭。
 func (q *ratelimitingQueueImpl) GetWithContext(ctx context.Context) (any, error) {
 	return q.DelayingQueue.(BlockingGetQueue).GetWithContext(ctx)
 }
 
-// Forget 与限流器联动清理：limiter 实现 LimiterForgetter 时委托其清理该 item
-// 的退避状态（防 per-item 表无限增长），否则为 no-op。
-// RateLimitingQueue 接口保持不动，调用方经 `q.(LimiterForgetter)` 类型断言使用。
+// Forget 与限流器联动清理：limiter 实现 LimiterForgetter 时委托清理退避状态。
+// 调用方经 q.(LimiterForgetter) 类型断言使用。
 func (q *ratelimitingQueueImpl) Forget(value any) {
 	if value == nil {
 		return
@@ -54,8 +56,11 @@ func (q *ratelimitingQueueImpl) Forget(value any) {
 }
 
 // PutWithLimited 执行限流入队：通过 Limiter 计算等待时长，
-// 大于零时转为延迟入队（PutWithDelay），否则直接入队（Put）。
-// 入队成功后触发 OnLimited 回调。
+// 大于零时转为延迟入队，否则直接入队。入队成功后触发 OnLimited 回调。
+//
+// Limiter 状态契约：When 已推进限流器内部状态，后续入队失败不回退 limiter。
+// drain 拒绝发生在 When 之后，限流预算已消耗；关停与 nil 值拒绝在 When 之前，
+// 不消耗预算。
 func (q *ratelimitingQueueImpl) PutWithLimited(value any) error {
 
 	if q.IsClosed() || value == nil {
@@ -67,10 +72,8 @@ func (q *ratelimitingQueueImpl) PutWithLimited(value any) error {
 
 	when := q.config.limiter.When(value)
 
-	// 有等待时间时转为延迟入队，否则立即入队。
-	// PutWithDelay 以毫秒为粒度：亚毫秒等待时长（高速率限流器 r>1000/s 时
-	// When() 的常态输出）经 Milliseconds() 会被截断为 0，若据此走 Put 直通
-	// 则限流语义完全失效（#15a），故向上取整至 1ms 以保持限流。
+	// PutWithDelay 以毫秒为粒度：亚毫秒等待截断为 0 时限流失效，
+	// 向上取整至 1ms 以保持限流语义。
 	var err error
 	if when > 0 {
 		delay := when.Milliseconds()

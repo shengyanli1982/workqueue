@@ -6,38 +6,19 @@ var setValue = struct{}{}
 type setKind uint8
 
 const (
-	// kindNone 空集合：类型未定，全部底层 map 均为 nil（零预分配）。
-	kindNone setKind = iota
-
-	// kindString 元素全为 string，走 mStr。
-	kindString
-
-	// kindInt 元素全为 int，走 mInt。
-	kindInt
-
-	// kindInt64 元素全为 int64，走 mInt64。
-	kindInt64
-
-	// kindUint64 元素全为 uint64，走 mUint64。
-	kindUint64
-
-	// kindAny 通用路径：元素为其他类型，或混合类型退化后的终态，走 mAny。
-	kindAny
+	kindNone setKind = iota // 空集合，所有 map 为 nil
+	kindString              // 元素全为 string
+	kindInt                 // 元素全为 int
+	kindInt64               // 元素全为 int64
+	kindUint64              // 元素全为 uint64
+	kindAny                 // 通用路径：混合类型退化后的终态
 )
 
-// Set 是一个基于 map 的轻量集合实现。
+// Set 是基于 map 的类型特化集合。首次写入时探测元素类型，string/int/int64/uint64
+// 走专用标量 map，其他类型落入通用 map[any]struct{}。
 //
-// 为避免 map[any] 在热路径上的接口装箱与动态哈希分发开销，Set 在首次写入
-// 时探测元素类型并做类型特化：string / int / int64 / uint64 直接存入对应
-// 标量 map（map[string]struct{} 等），其他类型落入通用 map[any]struct{}。
-//
-// 退化规则（不可逆）：同型集合在写入（Add/TryAdd）到异型元素时整体迁移回
-// 通用 map[any]，以严格保持与 map[any] 相同的元素同一性语义——不同静态
-// 类型即使值相同（如 1、int64(1)、uint64(1)）也永不合并。异型元素的读
-// （Contains）与删除（Remove/TryRemove）是空操作，不触发退化。
-//
-// 存储惰性创建：New/NewWithCapacity 不预分配任何 map，首写时按探测到的
-// 类型建表；空集合的所有读操作零成本返回空结果。
+// 退化规则（不可逆）：写入异型元素时整体迁移到 map[any]，不同静态类型即使值相同也不合并。
+// 异型读/删除是空操作，不触发退化。存储惰性创建，首写时按类型建表。
 type Set struct {
 	kind    setKind
 	initCap int
@@ -49,18 +30,17 @@ type Set struct {
 	mAny    map[any]struct{}
 }
 
-// New 创建一个空的类型特化集合，底层 map 惰性创建，首次写入时才分配。
+// New 创建空的类型特化集合，底层 map 惰性创建。
 func New() *Set {
 	return &Set{}
 }
 
-// NewWithCapacity 创建一个指定初始容量的类型特化集合，底层 map 在首次写入时按该容量创建。
+// NewWithCapacity 创建指定初始容量的类型特化集合。
 func NewWithCapacity(capacity int) *Set {
 	return &Set{initCap: capacity}
 }
 
-// Add 向集合中添加元素。首次写入时探测类型并走专用 map 路径；
-// 同型集合写入异型元素时不可逆退化到通用 map[any]。
+// Add 添加元素。写入异型元素时不可逆退化到 map[any]。
 func (s *Set) Add(item any) {
 	switch s.kind {
 	case kindNone:
@@ -94,7 +74,7 @@ func (s *Set) Add(item any) {
 	}
 }
 
-// Remove 从集合中删除元素。异型元素的删除是空操作，不触发退化。
+// Remove 删除元素。异型元素的删除是空操作。
 func (s *Set) Remove(item any) {
 	switch s.kind {
 	case kindNone:
@@ -120,7 +100,7 @@ func (s *Set) Remove(item any) {
 	}
 }
 
-// Contains 判断元素是否存在于集合中。异型元素的查询返回 false。
+// Contains 判断元素是否存在。异型元素返回 false。
 func (s *Set) Contains(item any) bool {
 	switch s.kind {
 	case kindNone:
@@ -168,8 +148,7 @@ func (s *Set) Contains(item any) bool {
 	}
 }
 
-// TryAdd 尝试添加元素到集合中，元素已存在时返回 false，成功添加时返回 true。
-// 同型集合写入异型元素时不可逆退化到通用 map[any]。
+// TryAdd 尝试添加元素，已存在返回 false。写入异型元素时退化到 map[any]。
 func (s *Set) TryAdd(item any) bool {
 	switch s.kind {
 	case kindNone:
@@ -238,7 +217,7 @@ func (s *Set) TryAdd(item any) bool {
 	}
 }
 
-// TryRemove 尝试从集合中删除元素，元素不存在或类型不匹配时返回 false，成功删除时返回 true。
+// TryRemove 尝试删除元素，不存在或类型不匹配返回 false。
 func (s *Set) TryRemove(item any) bool {
 	switch s.kind {
 	case kindNone:
@@ -323,7 +302,7 @@ func (s *Set) Len() int {
 	}
 }
 
-// List 将集合中所有元素收集到切片并返回。空集合返回空切片。
+// List 将所有元素收集到切片并返回。
 func (s *Set) List() []any {
 	switch s.kind {
 	case kindNone:
@@ -371,7 +350,7 @@ func (s *Set) List() []any {
 	}
 }
 
-// Cleanup 清空集合中的所有底层 map 并将类型重置为 kindNone，集合回到空状态。
+// Cleanup 清空所有底层 map，类型重置为 kindNone。
 func (s *Set) Cleanup() {
 	s.kind = kindNone
 	s.mStr = nil
@@ -381,8 +360,7 @@ func (s *Set) Cleanup() {
 	s.mAny = nil
 }
 
-// insertFirst 处理空集合的首次写入：探测元素类型，创建对应专用 map 并插入。
-// 非特化类型（含 nil）直接落入通用 map[any]。
+// insertFirst 处理空集合首次写入：探测类型并创建对应 map。
 //
 //go:noinline
 func (s *Set) insertFirst(item any) {
@@ -410,8 +388,7 @@ func (s *Set) insertFirst(item any) {
 	}
 }
 
-// demoteToAny 在异型元素写入时把特化集合整体迁移到通用 map[any]（不可逆），
-// 并释放专用 map。仅在 kind 为特化类型时执行迁移。
+// demoteToAny 将特化集合整体迁移到 map[any]（不可逆），释放专用 map。
 //
 //go:noinline
 func (s *Set) demoteToAny() {
@@ -443,8 +420,7 @@ func (s *Set) demoteToAny() {
 
 		s.mUint64 = nil
 	default:
-		// kindAny/kindNone 无需迁移；kindNone 不应到达此处（调用方先走 insertFirst）。
-		return
+		return // kindAny/kindNone 无需迁移
 	}
 
 	s.mAny = m

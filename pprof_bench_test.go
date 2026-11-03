@@ -12,7 +12,11 @@ import (
 	"time"
 )
 
+// runWithCPUProfile 在 fn 执行窗口内采集 CPU profile，写入 pprof_output/。
+// 禁止与 -cpuprofile flag 同用。计时口径：setup 与收尾均在计时段外。
 func runWithCPUProfile(b *testing.B, name string, fn func()) {
+	b.StopTimer()
+
 	filename := filepath.Join("pprof_output", fmt.Sprintf("cpu_%s_%s.prof", b.Name(), name))
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		b.Fatalf("failed to create pprof output dir: %v", err)
@@ -28,10 +32,12 @@ func runWithCPUProfile(b *testing.B, name string, fn func()) {
 		b.Fatalf("failed to start CPU profile: %v", err)
 	}
 
+	b.ResetTimer()
+	b.StartTimer()
+
 	fn()
 
-	// CPU 采样收尾退出计时段：StopCPUProfile 需等待全部采样写盘后才返回，
-	// 若留在 defer 中会在计时段内执行放大 ns/op（与 runWithMemProfile 同款结构）。
+	// CPU 采样收尾。
 	b.StopTimer()
 	pprof.StopCPUProfile()
 }
@@ -48,15 +54,13 @@ func runWithMemProfile(b *testing.B, name string, fn func()) {
 	}
 	defer f.Close()
 
-	// 先回收残留堆（前方内存增长型 benchmark 遗留的垃圾），避免其 GC 放大
-	// 进入计时段；ResetTimer 将文件创建与清理 GC 排除在 ns/op 之外。
+	// 先回收残留堆，排除在 ns/op 之外。
 	runtime.GC()
 	b.ResetTimer()
 
 	fn()
 
-	// 堆转储及其所需 GC 退出计时：ns/op 只反映 fn 的真实路径。否则在大堆上
-	// runtime.GC()+WriteHeapProfile 会把数值放大成秒级/op 的测量假象（baseline.md §6）。
+	// 堆转储退出计时。
 	b.StopTimer()
 	runtime.GC()
 	if err := pprof.WriteHeapProfile(f); err != nil {
@@ -86,6 +90,7 @@ func runWithTrace(b *testing.B, name string, fn func()) {
 
 func BenchmarkQueue_Put_Pprof(b *testing.B) {
 	q := NewQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put", func() {
@@ -101,6 +106,7 @@ func BenchmarkQueue_Get_Pprof(b *testing.B) {
 		_ = q.Put(i)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "get", func() {
@@ -112,6 +118,7 @@ func BenchmarkQueue_Get_Pprof(b *testing.B) {
 
 func BenchmarkQueue_PutAndGet_Pprof(b *testing.B) {
 	q := NewQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put_get", func() {
@@ -125,6 +132,7 @@ func BenchmarkQueue_PutAndGet_Pprof(b *testing.B) {
 func BenchmarkQueue_Idempotent_Put_Pprof(b *testing.B) {
 	conf := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(conf)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "idempotent_put", func() {
@@ -142,6 +150,7 @@ func BenchmarkQueue_Idempotent_Get_Pprof(b *testing.B) {
 		_ = q.Put(i)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "idempotent_get", func() {
@@ -154,6 +163,7 @@ func BenchmarkQueue_Idempotent_Get_Pprof(b *testing.B) {
 func BenchmarkQueue_Idempotent_PutGetDone_Pprof(b *testing.B) {
 	conf := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(conf)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "idempotent_put_get_done", func() {
@@ -170,6 +180,7 @@ func BenchmarkQueue_Idempotent_DuplicatePut_Pprof(b *testing.B) {
 	q := NewQueue(conf)
 	_ = q.Put("same")
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "idempotent_duplicate_put", func() {
@@ -182,6 +193,8 @@ func BenchmarkQueue_Idempotent_DuplicatePut_Pprof(b *testing.B) {
 func BenchmarkQueue_Mem_Pprof(b *testing.B) {
 	q := NewQueue(nil)
 
+	b.ReportAllocs()
+
 	runWithMemProfile(b, "put", func() {
 		for i := 0; i < b.N; i++ {
 			_ = q.Put(i)
@@ -193,6 +206,8 @@ func BenchmarkQueue_Idempotent_Mem_Pprof(b *testing.B) {
 	conf := NewQueueConfig().WithValueIdempotent()
 	q := NewQueue(conf)
 
+	b.ReportAllocs()
+
 	runWithMemProfile(b, "idempotent_put", func() {
 		for i := 0; i < b.N; i++ {
 			_ = q.Put(i)
@@ -202,6 +217,7 @@ func BenchmarkQueue_Idempotent_Mem_Pprof(b *testing.B) {
 
 func BenchmarkDelayingQueue_Put_Pprof(b *testing.B) {
 	q := NewDelayingQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put", func() {
@@ -213,6 +229,7 @@ func BenchmarkDelayingQueue_Put_Pprof(b *testing.B) {
 
 func BenchmarkDelayingQueue_PutWithDelay_Pprof(b *testing.B) {
 	q := NewDelayingQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	defaultDelay := int64(100)
@@ -231,6 +248,7 @@ func BenchmarkDelayingQueue_Get_Pprof(b *testing.B) {
 		_ = q.Put(i)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "get", func() {
@@ -242,6 +260,7 @@ func BenchmarkDelayingQueue_Get_Pprof(b *testing.B) {
 
 func BenchmarkDelayingQueue_PutAndGet_Pprof(b *testing.B) {
 	q := NewDelayingQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put_get", func() {
@@ -254,6 +273,7 @@ func BenchmarkDelayingQueue_PutAndGet_Pprof(b *testing.B) {
 
 func BenchmarkPriorityQueue_Put_Pprof(b *testing.B) {
 	q := NewPriorityQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put", func() {
@@ -265,6 +285,7 @@ func BenchmarkPriorityQueue_Put_Pprof(b *testing.B) {
 
 func BenchmarkPriorityQueue_PutWithPriority_Pprof(b *testing.B) {
 	q := NewPriorityQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put_with_priority", func() {
@@ -281,6 +302,7 @@ func BenchmarkPriorityQueue_Get_Pprof(b *testing.B) {
 		_ = q.Put(i)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "get", func() {
@@ -292,6 +314,7 @@ func BenchmarkPriorityQueue_Get_Pprof(b *testing.B) {
 
 func BenchmarkPriorityQueue_PutAndGet_Pprof(b *testing.B) {
 	q := NewPriorityQueue(nil)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put_get", func() {
@@ -302,9 +325,11 @@ func BenchmarkPriorityQueue_PutAndGet_Pprof(b *testing.B) {
 	})
 }
 
+// BenchmarkRateLimitingQueue_PutWithLimited_Pprof 限流队列令牌充足热路径 CPU profile。
 func BenchmarkRateLimitingQueue_PutWithLimited_Pprof(b *testing.B) {
-	config := NewRateLimitingQueueConfig().WithLimiter(NewBucketRateLimiterImpl(10, 10))
+	config := NewRateLimitingQueueConfig().WithLimiter(benchRateLimiter())
 	q := NewRateLimitingQueue(config)
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put_with_limited", func() {
@@ -323,6 +348,7 @@ func BenchmarkRetryQueue_RetryPath_Pprof(b *testing.B) {
 
 	benchErr := errors.New("bench")
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "retry_path", func() {
@@ -351,6 +377,7 @@ func BenchmarkDeadLetterQueue_PutGetAck_Pprof(b *testing.B) {
 	q := NewDeadLetterQueue(nil)
 	b.Cleanup(q.Shutdown)
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put_get_ack", func() {
@@ -382,6 +409,7 @@ func BenchmarkLeasedQueue_GetAck_Pprof(b *testing.B) {
 	q := NewLeasedQueue(cfg)
 	b.Cleanup(q.Shutdown)
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "get_ack", func() {
@@ -405,6 +433,7 @@ func BenchmarkBoundedBlockingQueue_PutGet_Pprof(b *testing.B) {
 	q := NewBoundedBlockingQueue(cfg)
 	b.Cleanup(q.Shutdown)
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put_get", func() {
@@ -425,6 +454,7 @@ func BenchmarkTimerQueue_PutAtGet_Pprof(b *testing.B) {
 	q := NewTimerQueue(nil)
 	b.Cleanup(q.Shutdown)
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "put_at_get", func() {
@@ -442,6 +472,7 @@ func BenchmarkTimerQueue_Cancel_Pprof(b *testing.B) {
 	q := NewTimerQueue(nil)
 	b.Cleanup(q.Shutdown)
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	runWithCPUProfile(b, "cancel", func() {

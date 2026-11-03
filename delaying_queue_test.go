@@ -210,7 +210,7 @@ func TestDelayingQueueImpl_Callback(t *testing.T) {
 	assert.Equal(t, []any{"test1", "test2", "test3"}, delays, "Callback delays should be [test1, test2, test3]")
 	assert.Equal(t, []any{"test1", "test2", "test3", "test4"}, puts, "Callback puts should be [test1, test2, test3, test4]")
 	assert.Equal(t, []any{"test1"}, gets, "Callback gets should be [test1]")
-	assert.Equal(t, []any(nil), dones, "Callback dones should be nil")
+	assert.Equal(t, []any{"test1"}, dones, "Callback dones should be [test1]")
 	assert.Equal(t, []any(nil), errors, "Callback errors should be []")
 }
 
@@ -315,25 +315,23 @@ func TestDelayingQueueImpl_ConcurrentShutdown(t *testing.T) {
 	assert.ErrorIs(t, err, ErrQueueIsClosed, "Put after shutdown should return ErrQueueIsClosed")
 }
 
-// TestDelayingQueueImpl_ShutdownLatency 验证 puller goroutine 在 heartbeat ticker 阻塞期间
-// Shutdown 能够立即唤醒 puller 而无须等待最多 300ms。
+// TestDelayingQueueImpl_ShutdownLatency 验证 Shutdown 能立即唤醒 puller，无须等待心跳。
 func TestDelayingQueueImpl_ShutdownLatency(t *testing.T) {
 	q := NewDelayingQueue(nil)
 
-	// 等待 puller 进入 heartbeat.C 阻塞状态（队列为空，无 expired 元素）。
+	// 等待 puller 进入心跳阻塞状态。
 	time.Sleep(20 * time.Millisecond)
 
 	start := time.Now()
 	q.Shutdown()
 	elapsed := time.Since(start)
 
-	// Shutdown 应在远低于 300ms 内完成；以 100ms 作为安全阈值。
+	// Shutdown 应在远低于心跳周期内完成。
 	assert.Less(t, elapsed, 100*time.Millisecond,
 		"Shutdown should complete quickly without waiting for the 300ms heartbeat ticker")
 }
 
-// TestDelayingQueueImpl_PutWithDelay_RejectsAfterShutdown 回归测试：
-// Shutdown 完成后 PutWithDelay 必须返回 ErrQueueIsClosed，且堆中无任何残留节点。
+// TestDelayingQueueImpl_PutWithDelay_RejectsAfterShutdown Shutdown 后 PutWithDelay 返回 ErrQueueIsClosed，堆无残留。
 func TestDelayingQueueImpl_PutWithDelay_RejectsAfterShutdown(t *testing.T) {
 	q := NewDelayingQueue(nil)
 
@@ -352,19 +350,12 @@ func TestDelayingQueueImpl_PutWithDelay_RejectsAfterShutdown(t *testing.T) {
 }
 
 // TestDelayingQueueImpl_PutWithDelay_ShutdownRace_NoLeakedNodes 并发压力测试（D3）：
-// PutWithDelay × Shutdown 竞态下验证零丢项可观测契约：
-//  1. 每次 PutWithDelay 调用要么成功入堆（返回 nil），要么显式拒绝（ErrQueueIsClosed），
-//     不允许出现"返回成功但节点进入已清空的堆"的静默丢失；
-//  2. Shutdown 完成后堆中不得残留任何幽灵节点（锁外检查通过后持锁 Push 的竞态产物）。
-//
-// 修复前：锁外 IsClosed 检查与持锁 Push 之间无复查， producer 可能在 Shutdown
-// 清空堆之后把节点 Push 进死堆——HeapRange 可观测到泄漏节点（RED）。
-// 修复后：锁内复查 closed，命中即归还节点并返回 ErrQueueIsClosed，泄漏恒为零（GREEN）。
+// PutWithDelay × Shutdown 竞态下验证零丢项、堆无幽灵节点。
 func TestDelayingQueueImpl_PutWithDelay_ShutdownRace_NoLeakedNodes(t *testing.T) {
 	const (
 		rounds      = 1024
 		producers   = 16
-		longDelayMs = int64(3600_000) // 1 小时：确保到期项不会被 puller 搬走，堆状态可用于事后检验
+		longDelayMs = int64(3600_000) // 1 小时：确保堆状态可用于事后检验
 	)
 
 	for round := 0; round < rounds; round++ {
@@ -380,7 +371,7 @@ func TestDelayingQueueImpl_PutWithDelay_ShutdownRace_NoLeakedNodes(t *testing.T)
 			}(i)
 		}
 
-		// 与 producers 并发触发 Shutdown，制造"锁外检查通过 → Shutdown 清空 → 持锁 Push"竞态窗口。
+		// 与 producers 并发触发 Shutdown，制造竞态窗口。
 		q.Shutdown()
 		wg.Wait()
 
@@ -403,17 +394,15 @@ func TestDelayingQueueImpl_PutWithDelay_ShutdownRace_NoLeakedNodes(t *testing.T)
 	}
 }
 
-// TestDelayingQueueImpl_DelayPrecision 验证 G10 精确 timer 的延迟偏差显著小于旧 300ms 轮询上限。
-// 宽松断言防 flaky：20ms 延迟项在 200ms 内必达，且实际投递超出声明延迟的偏差 < 100ms。
-// 修复前：搬运依赖 300ms 心跳轮询，到期后平均还要等待 ~150ms，偏差断言失败（RED）；
-// 修复后：堆顶精确 timer 到期即搬运，偏差为毫秒级（GREEN）。
+// TestDelayingQueueImpl_DelayPrecision 验证 G10 精确 timer 延迟偏差：
+// 20ms 延迟项在 200ms 内必达，偏差 < 100ms。
 func TestDelayingQueueImpl_DelayPrecision(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
 
 	const declared = int64(20)
 
-	// 先让搬运协程进入等待状态，避免与队列启动时刻重叠。
+	// 等待搬运协程进入空闲状态。
 	time.Sleep(50 * time.Millisecond)
 
 	start := time.Now()
@@ -429,16 +418,13 @@ func TestDelayingQueueImpl_DelayPrecision(t *testing.T) {
 	q.Done(value)
 }
 
-// TestDelayingQueueImpl_InstantWake 验证 G10 事件驱动的核心可观测收益：
-// 空闲（空堆）队列被 PutWithDelay 经 notifyWake 即时唤醒并搬运，
-// 不依赖 300ms 兜底 ticker 到期。
-// 修复前：puller 停在 heartbeat.C 上，零延迟项要等到下一个 300ms tick 才被搬运（RED）；
-// 修复后：PutWithDelay 唤醒 scheduler 立即搬运（GREEN）。
+// TestDelayingQueueImpl_InstantWake 验证 G10 事件驱动：
+// 空闲队列被 PutWithDelay 经 notifyWake 即时唤醒搬运。
 func TestDelayingQueueImpl_InstantWake(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
 
-	// 确保搬运协程已停在空堆等待（无活动 timer，仅 wake/ticker/closed）。
+	// 确保搬运协程已进入空堆等待。
 	time.Sleep(100 * time.Millisecond)
 
 	start := time.Now()
@@ -451,7 +437,7 @@ func TestDelayingQueueImpl_InstantWake(t *testing.T) {
 	q.Done(value)
 }
 
-// TestDelayingQueueImpl_CancelDelay 命中：堆内未到期项被移除，重复取消返回 false。
+// TestDelayingQueueImpl_CancelDelay 堆内未到期项被移除，重复取消返回 false。
 func TestDelayingQueueImpl_CancelDelay(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
@@ -477,7 +463,7 @@ func TestDelayingQueueImpl_CancelDelay_NotFound(t *testing.T) {
 	assert.Equal(t, 1, q.Len(), "unrelated in-heap item must survive")
 }
 
-// TestDelayingQueueImpl_CancelDelay_NoDelivery 取消后跨越到期窗口不发生投递。
+// TestDelayingQueueImpl_CancelDelay_NoDelivery 取消后不发生投递。
 func TestDelayingQueueImpl_CancelDelay_NoDelivery(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
@@ -485,7 +471,7 @@ func TestDelayingQueueImpl_CancelDelay_NoDelivery(t *testing.T) {
 	assert.NoError(t, q.PutWithDelay("cancel-me", 50))
 	assert.True(t, q.CancelDelay("cancel-me"))
 
-	// 等待跨越到期窗口：精确 timer 下若未取消，毫秒级即被搬运。
+	// 等待跨越到期窗口。
 	time.Sleep(300 * time.Millisecond)
 
 	_, err := q.Get()
@@ -493,7 +479,7 @@ func TestDelayingQueueImpl_CancelDelay_NoDelivery(t *testing.T) {
 	assert.Equal(t, 0, q.Len())
 }
 
-// TestDelayingQueueImpl_CancelDelay_AfterDelivery 已搬运进内层的项不可再取消（边界语义明确）。
+// TestDelayingQueueImpl_CancelDelay_AfterDelivery 已搬运的项不可再取消。
 func TestDelayingQueueImpl_CancelDelay_AfterDelivery(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
@@ -509,7 +495,7 @@ func TestDelayingQueueImpl_CancelDelay_AfterDelivery(t *testing.T) {
 	q.Done(value)
 }
 
-// TestDelayingQueueImpl_CancelDelay_AfterShutdown 关停清空堆后取消一律返回 false。
+// TestDelayingQueueImpl_CancelDelay_AfterShutdown 关停后取消返回 false。
 func TestDelayingQueueImpl_CancelDelay_AfterShutdown(t *testing.T) {
 	q := NewDelayingQueue(nil)
 
@@ -520,8 +506,7 @@ func TestDelayingQueueImpl_CancelDelay_AfterShutdown(t *testing.T) {
 		"cancel must return false after Shutdown discarded the heap")
 }
 
-// TestDelayingQueueImpl_CancelDelay_NonComparableValue 不可比较值走 reflect.DeepEqual 匹配，
-// 与 TimerQueue.Cancel 的 value 匹配语义对齐。
+// TestDelayingQueueImpl_CancelDelay_NonComparableValue 不可比较值走 reflect.DeepEqual 匹配。
 func TestDelayingQueueImpl_CancelDelay_NonComparableValue(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
@@ -531,8 +516,7 @@ func TestDelayingQueueImpl_CancelDelay_NonComparableValue(t *testing.T) {
 	assert.Equal(t, 0, q.Len())
 }
 
-// TestDelayingQueueImpl_CancelDelay_Concurrent 高并发 PutWithDelay/CancelDelay/Shutdown
-// 竞态安全压力测试（配合 -race 运行）：无竞态、关停后堆零残留。
+// TestDelayingQueueImpl_CancelDelay_Concurrent 高并发竞态压力测试，验证关停后堆零残留。
 func TestDelayingQueueImpl_CancelDelay_Concurrent(t *testing.T) {
 	const (
 		rounds  = 64
@@ -574,8 +558,7 @@ func TestDelayingQueueImpl_CancelDelay_Concurrent(t *testing.T) {
 }
 
 // TestDelayingQueueImpl_ShutdownDiscardsUndueItems Q4a 关停丢弃契约：
-// Shutdown 丢弃堆中未搬运的延迟项——不可被 Get、HeapRange 不可见、
-// 内部 discardedDelayed 精确计数（对外经 DiscardedDelayed 暴露，见下一测试）。
+// Shutdown 丢弃未到期延迟项，不可被 Get、HeapRange 不可见。
 func TestDelayingQueueImpl_ShutdownDiscardsUndueItems(t *testing.T) {
 	q := NewDelayingQueue(nil)
 
@@ -585,11 +568,10 @@ func TestDelayingQueueImpl_ShutdownDiscardsUndueItems(t *testing.T) {
 
 	q.Shutdown()
 
-	// 未到期项不可被 Get（内层已关闭且堆已清空）。
 	_, err := q.Get()
 	assert.ErrorIs(t, err, ErrQueueIsClosed, "undue items must not be retrievable after Shutdown")
 
-	// 堆清空，DelayingQueue.Len 归零。
+	// 堆清空，Len 归零。
 	assert.Equal(t, 0, q.Len())
 	leaked := 0
 	q.HeapRange(func(value any, delay int64) bool {
@@ -598,26 +580,24 @@ func TestDelayingQueueImpl_ShutdownDiscardsUndueItems(t *testing.T) {
 	})
 	assert.Zero(t, leaked)
 
-	// discardedDelayed 计数丢弃的未搬运延迟项数量。
+	// discardedDelayed 计数丢弃的延迟项。
 	impl := q.(*delayingQueueImpl)
 	assert.Equal(t, int64(3), impl.discardedDelayed.Load(),
 		"discardedDelayed must count exactly the undue items dropped at Shutdown")
 }
 
-// TestDelayingQueueImpl_DiscardedDelayed #15b 可观测性：导出方法 DiscardedDelayed()
-// 读取关停时未到期被丢弃的延迟项计数。经可选接口类型断言（io.Closer 风格）访问，
-// 验证该方法确为导出面（外部包无需依赖内部类型即可读取）。
+// TestDelayingQueueImpl_DiscardedDelayed #15b：DiscardedDelayed() 读取关停时丢弃的延迟项计数。
 func TestDelayingQueueImpl_DiscardedDelayed(t *testing.T) {
 	q := NewDelayingQueue(nil)
 
-	// 可选接口断言：DelayingQueue 接口未并入该方法，调用方经类型断言使用。
+	// 可选接口断言。
 	dq, ok := q.(interface{ DiscardedDelayed() int64 })
 	assert.True(t, ok, "delaying queue must expose DiscardedDelayed via optional interface")
 
-	// 关停前计数为 0。
+	// 关停前为 0。
 	assert.Zero(t, dq.DiscardedDelayed(), "fresh queue must report zero discarded")
 
-	// 放入未到期延迟项（1 小时）后立即 Shutdown：按 Q4a 契约被丢弃并计数。
+	// 放入未到期项后 Shutdown，按 Q4a 契约丢弃并计数。
 	assert.NoError(t, q.PutWithDelay("undue", 3600_000))
 	q.Shutdown()
 
@@ -625,8 +605,7 @@ func TestDelayingQueueImpl_DiscardedDelayed(t *testing.T) {
 		"DiscardedDelayed must count the undue item dropped at Shutdown")
 }
 
-// TestDelayingQueueImpl_BatchDelivery 验证单批 128 上限语义在 scheduler 重写后保留：
-// 同一到期时刻超过 128 个元素时分多批全部搬运，不丢不重。
+// TestDelayingQueueImpl_BatchDelivery 验证超 128 项同到期时分批搬运，不丢不重。
 func TestDelayingQueueImpl_BatchDelivery(t *testing.T) {
 	q := NewDelayingQueue(nil)
 	defer q.Shutdown()
@@ -650,4 +629,91 @@ func TestDelayingQueueImpl_BatchDelivery(t *testing.T) {
 
 	assert.Equal(t, total, len(seen),
 		"300 items due at the same instant must all be delivered across multiple 128-item batches")
+}
+
+// TestDelayingQueueImpl_Scheduler_SilentExitOnClosedInner 钉住 P2-2：
+// scheduler 搬运时内层已关停应静默退出，不触发 OnPullError。
+func TestDelayingQueueImpl_Scheduler_SilentExitOnClosedInner(t *testing.T) {
+	callback := &testDelayingQueueCallback{}
+	config := NewDelayingQueueConfig().WithCallback(callback)
+	q := NewDelayingQueue(config).(*delayingQueueImpl)
+	defer q.Shutdown()
+
+	q.Queue.Shutdown()
+
+	node := q.elementpool.Get()
+	node.Value = "victim"
+	node.Priority = toDelay(0)
+	q.lock.Lock()
+	q.sorting.Push(node)
+	q.lock.Unlock()
+	q.notifyWake()
+
+	exited := make(chan struct{})
+	go func() {
+		q.wg.Wait()
+		close(exited)
+	}()
+
+	select {
+	case <-exited:
+	case <-time.After(2 * time.Second):
+		t.Fatal("scheduler must exit silently after inner Put fails with ErrQueueIsClosed")
+	}
+
+	callback.Lock()
+	pullErrors := len(callback.errors)
+	callback.Unlock()
+	assert.Zero(t, pullErrors, "shutdown-window transport failure must not fire OnPullError")
+}
+
+// TestDelayingQueueImpl_Scheduler_EarlyExitFinalizesBatchResidue 钉住 P2-1：
+// scheduler 早退时必须收尾批次剩余节点（递减 inTransit、归还节点池、计入 discardedDelayed）。
+func TestDelayingQueueImpl_Scheduler_EarlyExitFinalizesBatchResidue(t *testing.T) {
+	callback := &testDelayingQueueCallback{}
+	config := NewDelayingQueueConfig().WithCallback(callback)
+	q := NewDelayingQueue(config).(*delayingQueueImpl)
+	defer q.Shutdown()
+
+	q.Queue.Shutdown()
+
+	const batch = 4
+	q.lock.Lock()
+	for i := 0; i < batch; i++ {
+		node := q.elementpool.Get()
+		node.Value = i
+		node.Priority = toDelay(0)
+		q.sorting.Push(node)
+	}
+	q.lock.Unlock()
+	q.notifyWake()
+
+	exited := make(chan struct{})
+	go func() {
+		q.wg.Wait()
+		close(exited)
+	}()
+
+	select {
+	case <-exited:
+	case <-time.After(2 * time.Second):
+		t.Fatal("scheduler must exit after inner Put fails with ErrQueueIsClosed")
+	}
+
+	assert.Zero(t, q.inTransit.Load(),
+		"batch residue must be finalized (inTransit decremented) on ErrQueueIsClosed early exit")
+	assert.Equal(t, int64(batch), q.discardedDelayed.Load(),
+		"residue nodes must be counted in discardedDelayed (aligned with closeNow cleanup semantics)")
+
+	callback.Lock()
+	pullErrors := len(callback.errors)
+	callback.Unlock()
+	assert.Zero(t, pullErrors, "shutdown-window transport failure must not fire OnPullError")
+
+	leaked := 0
+	q.HeapRange(func(any, int64) bool {
+		leaked++
+		return true
+	})
+	assert.Zero(t, leaked, "heap must be empty after the whole batch was popped")
 }

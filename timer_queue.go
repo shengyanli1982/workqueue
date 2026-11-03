@@ -12,9 +12,8 @@ import (
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 )
 
-// timerQueueImpl 定时队列实现：通过红黑树按绝对时间戳排序，scheduler 协程逐个搬运
-// 到期元素到内层队列。与 delaying_queue 的批量搬运不同，timer_queue 每次仅弹出堆顶
-// 单个到期节点，适用于精确定时调度场景。
+// timerQueueImpl 定时队列：红黑树按绝对时间排序，scheduler 逐个搬运到期元素。
+// 与 delaying_queue 的批量搬运不同，此处每次仅弹出堆顶单个节点，适用于精确调度。
 type timerQueueImpl struct {
 	Queue
 	config      *TimerQueueConfig
@@ -25,11 +24,11 @@ type timerQueueImpl struct {
 	wg          sync.WaitGroup
 	wake        chan struct{}
 	closed      chan struct{}
-	// draining 在 drain 开始时置位：拒绝新的 Put/PutAt/PutAfter，
-	// 已被接受的在途项由 scheduler 继续搬运直至 drain 判定完成。
+	// draining drain 开始时置位，拒绝新的 Put/PutAt/PutAfter，
+	// 在途项由 scheduler 继续搬运直至 drain 完成。
 	draining atomic.Bool
-	// inTransit 记录“已出堆但尚未入内层队列”的搬运中节点数，
-	// 与堆顶到期检查共同构成 drain 判定，避免搬运窗口内误判 drained。
+	// inTransit 记录"已出堆未入内层队列"的搬运中节点数，
+	// 与堆顶到期检查共同构成 drain 判定。
 	inTransit atomic.Int64
 }
 
@@ -52,7 +51,7 @@ func NewTimerQueue(config *TimerQueueConfig) TimerQueue {
 	return q
 }
 
-// PutAt 按绝对时间点调度入队：到期后由 scheduler 搬入内层队列。
+// PutAt 按绝对时间点调度：到期后搬入内层队列。
 // 同值重复调度会替换旧节点，保证堆内同值至多一个。
 func (q *timerQueueImpl) PutAt(value any, at time.Time) error {
 	if q.IsClosed() || q.draining.Load() {
@@ -64,7 +63,7 @@ func (q *timerQueueImpl) PutAt(value any, at time.Time) error {
 	return q.putAtInternal(value, at.UnixMilli(), time.Now().UnixMilli())
 }
 
-// PutAfter 按相对延迟调度入队：将 Duration 转为绝对时间戳后委托 putAtInternal。
+// PutAfter 按相对延迟调度：转为绝对时间戳后委托 putAtInternal。
 func (q *timerQueueImpl) PutAfter(value any, after time.Duration) error {
 	if q.IsClosed() || q.draining.Load() {
 		return ErrQueueIsClosed
@@ -78,7 +77,6 @@ func (q *timerQueueImpl) PutAfter(value any, after time.Duration) error {
 
 func (q *timerQueueImpl) putAtInternal(value any, atMillis, nowMillis int64) error {
 	if atMillis <= nowMillis {
-		// 立即投递同样替换堆内同值待投递节点，保证同值至多一份调度。
 		q.lock.Lock()
 		old := q.findNodeLocked(value)
 		if old != nil {
@@ -98,16 +96,13 @@ func (q *timerQueueImpl) putAtInternal(value any, atMillis, nowMillis int64) err
 	node.Priority = atMillis
 
 	q.lock.Lock()
-	// 锁内复查 closed：防止锁外检查通过后 Shutdown 清空堆，导致节点被 Push 进死堆
-	// 静默丢失（D3 同族，与 delaying_queue.go PutWithDelay 的锁内复查对齐）。
-	// IsClosed 为 atomic load，持锁调用无重入风险。
-	if q.IsClosed() {
+	// 锁内复查 closed/draining：防止 Shutdown 清空堆后节点静默丢失。
+	if q.IsClosed() || q.draining.Load() {
 		q.lock.Unlock()
 		q.elementpool.Put(node)
 		return ErrQueueIsClosed
 	}
-	// 插入前查重：同值重复调度命中旧节点时移除之并按新时间重排，
-	// 确保堆内同值至多一个节点，否则 Cancel 只能取消其一，其余到期照常投递。
+	// 插入前查重：同值命中旧节点时移除，确保堆内同值至多一个。
 	old := q.findNodeLocked(value)
 	if old != nil {
 		q.sorting.Remove(old)
@@ -118,7 +113,6 @@ func (q *timerQueueImpl) putAtInternal(value any, atMillis, nowMillis int64) err
 	q.lock.Unlock()
 
 	if old != nil {
-		// 锁外归还旧节点，缩短临界区。
 		q.elementpool.Put(old)
 	}
 
@@ -129,8 +123,8 @@ func (q *timerQueueImpl) putAtInternal(value any, atMillis, nowMillis int64) err
 	return nil
 }
 
-// Cancel 取消堆中尚未搬运的单个调度项：优先检查堆顶（O(1)），未命中则线性查找。
-// 命中返回 true 并唤醒 scheduler 重算 timer；未命中（未入堆、已搬运或已取消）返回 false。
+// Cancel 取消堆中未搬运的调度项：优先检查堆顶，未命中则线性查找。
+// 命中返回 true 并唤醒 scheduler；未命中返回 false。
 func (q *timerQueueImpl) Cancel(value any) bool {
 	q.lock.Lock()
 	var target *lst.Node
@@ -153,8 +147,8 @@ func (q *timerQueueImpl) Cancel(value any) bool {
 	return true
 }
 
-// HeapRange 持锁遍历堆中全部调度项，fn 返回 false 时提前终止。fn 为 nil 时直接返回。
-// fn 在队列锁内执行，禁止在 fn 中调用本队列任何方法（PutAt/PutAfter/Get/Cancel 等），否则死锁。
+// HeapRange 持锁遍历堆中全部调度项，fn 返回 false 时提前终止。
+// fn 在锁内执行，禁止调用本队列任何方法，否则死锁。
 func (q *timerQueueImpl) HeapRange(fn func(value any, at int64) bool) {
 	if fn == nil {
 		return
@@ -174,9 +168,8 @@ func (q *timerQueueImpl) Shutdown() {
 }
 
 // ShutdownWithDrain 优雅关停：置位 draining 拒绝新入队，等待内层队列 drained
-// ∧ 堆中无到期未搬运项 ∧ 无搬运中节点后关闭；超时或取消时强制关闭并返回 ctx.Err()。
-// 堆中未到期调度项在最终关闭时丢弃（契约同 DelayingQueue 的 Q4a；
-// TimerQueue 未设丢弃计数器，丢弃数量可从关停前 HeapRange 快照自行留存）。
+// ∧ 堆中无到期未搬运项 ∧ 无搬运中节点；超时或取消时强制关闭并返回 ctx.Err()。
+// 未到期调度项在最终关闭时丢弃。
 func (q *timerQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 
 	if q.IsClosed() {
@@ -191,17 +184,15 @@ func (q *timerQueueImpl) ShutdownWithDrain(ctx context.Context) error {
 		return q.drainedForShutdown(inner)
 	})
 
-	// 与 Shutdown 一致的关闭顺序：先关内层队列，再停 scheduler 并清理堆。
+	// 与 Shutdown 一致的关闭顺序。
 	q.Queue.Shutdown()
 	q.once.Do(q.closeNow)
 
 	return err
 }
 
-// drainedForShutdown 判定定时队列 drain 完成：堆中无到期未搬运项 ∧ 无搬运中
-// 节点 ∧ 内层队列已 drained。持 q.lock 跨越内层判定：scheduler 的
-// “pop(+inTransit)→Put”过渡经 q.lock 串行化，避免判定窗口内元素既不在堆
-// 也不在内层队列视野内（TOCTOU）。未到期项不阻塞 drain。
+// drainedForShutdown 判定 drain 完成：堆中无到期未搬运项 ∧ 无搬运中节点
+// ∧ 内层队列已 drained。持锁跨越内层判定，避免 TOCTOU。
 func (q *timerQueueImpl) drainedForShutdown(inner *queueImpl) bool {
 
 	q.lock.Lock()
@@ -218,9 +209,13 @@ func (q *timerQueueImpl) drainedForShutdown(inner *queueImpl) bool {
 	return inner.isDrained()
 }
 
+// IsDraining 返回是否处于排空阶段。三态语义见 DrainingQueue 接口。
+func (q *timerQueueImpl) IsDraining() bool {
+	return q.draining.Load()
+}
+
 // Put 覆写嵌入 Queue：drain 期间拒绝新入队。
 func (q *timerQueueImpl) Put(value any) error {
-
 	if q.draining.Load() {
 		return ErrQueueIsClosed
 	}
@@ -235,25 +230,20 @@ func (q *timerQueueImpl) closeNow() {
 	q.wg.Wait()
 
 	q.lock.Lock()
-
-	// 先收集所有节点，避免遍历中归还池会 Reset 指针破坏红黑树遍历。
 	nodes := make([]*lst.Node, 0, q.sorting.Len())
 	q.sorting.Range(func(node *lst.Node) bool {
 		nodes = append(nodes, node)
 		return true
 	})
-
 	q.sorting.Cleanup()
-
 	q.lock.Unlock()
 
-	// 锁外统一归还池，缩短临界区。
 	for _, node := range nodes {
 		q.elementpool.Put(node)
 	}
 }
 
-// Len 返回定时队列总元素数：堆中待到期项 + 已搬入内层队列的在队项之和。
+// Len 返回总元素数：堆中待到期项 + 内层队列在队项之和。
 func (q *timerQueueImpl) Len() int {
 	q.lock.Lock()
 	count := int(q.sorting.Len())
@@ -261,16 +251,13 @@ func (q *timerQueueImpl) Len() int {
 	return count + q.Queue.Len()
 }
 
-// GetWithContext 阻塞直到消费到一个值、ctx 完成或队列关闭，永不返回
-// ErrQueueIsEmpty。委托内层队列：调度项到期后由 scheduler 搬入内层
-// （内层 Put 触发广播唤醒），等待内层即正确语义。
+// GetWithContext 阻塞直到消费到值、ctx 完成或队列关闭，永不返回 ErrQueueIsEmpty。
 func (q *timerQueueImpl) GetWithContext(ctx context.Context) (any, error) {
 	return q.Queue.(BlockingGetQueue).GetWithContext(ctx)
 }
 
-// scheduler 定时调度协程：每次从堆顶弹出单个到期节点搬入内层队列，
-// 与 delaying_queue 的批量搬运（nextBatch）不同，此处逐个处理以保证精确调度。
-// 空堆时仅等待 wake/closed，不设 timer；非空时按堆顶到期时间设置精确 timer。
+// scheduler 定时调度协程：逐个弹出到期节点搬入内层队列，
+// 空堆时仅等待 wake/closed，非空时按堆顶设置精确 timer。
 func (q *timerQueueImpl) scheduler() {
 	defer q.wg.Done()
 
@@ -290,7 +277,7 @@ func (q *timerQueueImpl) scheduler() {
 		}
 	}()
 
-	cb := q.config.callback // 局部变量捕获回调引用，避免数据竞争
+	cb := q.config.callback
 
 	for {
 		wait, due, ok := q.nextWait()
@@ -318,8 +305,8 @@ func (q *timerQueueImpl) scheduler() {
 	}
 }
 
-// nextWait 检查堆顶：已到期则弹出节点并增加 inTransit 计数，未到期则返回等待时长。
-// ok=false 表示队列已关闭，调度协程应退出。堆空时 wait=0、due=nil。
+// nextWait 检查堆顶：已到期则弹出节点并增加 inTransit，未到期则返回等待时长。
+// ok=false 表示队列已关闭；堆空时 wait=0、due=nil。
 func (q *timerQueueImpl) nextWait() (time.Duration, *lst.Node, bool) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
@@ -344,8 +331,8 @@ func (q *timerQueueImpl) nextWait() (time.Duration, *lst.Node, bool) {
 	return time.Duration(front.Priority-now) * time.Millisecond, nil, true
 }
 
-// wait 阻塞等待下一搬运时机：d<=0（堆空）时仅等待 wake/closed，不设 timer；
-// d>0 时按堆顶到期时间 Reset timer，三路 select 等待 closed/wake/timer.C。
+// wait 阻塞等待下一搬运时机：d<=0（堆空）时仅等待 wake/closed；
+// d>0 时按堆顶时间 Reset timer，三路 select。
 func (q *timerQueueImpl) wait(timer *time.Timer, d time.Duration) bool {
 	if d <= 0 {
 		select {
@@ -374,7 +361,7 @@ func (q *timerQueueImpl) wait(timer *time.Timer, d time.Duration) bool {
 	}
 }
 
-// notifyWake 非阻塞发送唤醒信号：wake 为容量 1 的缓冲 channel，多个并发唤醒自然折叠。
+// notifyWake 非阻塞发送唤醒信号，容量 1 的缓冲 channel 自然折叠并发唤醒。
 func (q *timerQueueImpl) notifyWake() {
 	select {
 	case q.wake <- struct{}{}:
@@ -382,7 +369,7 @@ func (q *timerQueueImpl) notifyWake() {
 	}
 }
 
-// findNodeLocked 持锁线性查找堆内首个与 value 匹配的节点，调用方须已持有 q.lock。
+// findNodeLocked 持锁线性查找匹配节点，调用方须已持有 q.lock。
 func (q *timerQueueImpl) findNodeLocked(value any) *lst.Node {
 	var target *lst.Node
 	q.sorting.Range(func(node *lst.Node) bool {
@@ -395,8 +382,8 @@ func (q *timerQueueImpl) findNodeLocked(value any) *lst.Node {
 	return target
 }
 
-// matchTimerValue 类型安全的值匹配：对常见基本类型做显式类型断言比较，
-// 避免 reflect.DeepEqual 的性能开销；仅 fallback 到 reflect 处理自定义类型。
+// matchTimerValue 类型安全的值匹配：基本类型做显式断言避免 reflect 开销，
+// 仅 fallback 到 reflect.DeepEqual 处理自定义类型。
 func matchTimerValue(candidate, target any) bool {
 	switch tv := target.(type) {
 	case int:

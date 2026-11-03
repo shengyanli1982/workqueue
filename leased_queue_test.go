@@ -105,8 +105,7 @@ type nackRecord struct {
 	reason error
 }
 
-// recordingLeasedQueueCallback 记录全部回调事件，用于验证
-// LeasedQueueCallback 的 OnNack 以及经内嵌 QueueCallback 路径的基础事件。
+// recordingLeasedQueueCallback 记录全部回调事件，用于验证 OnNack 及内嵌路径基础事件。
 type recordingLeasedQueueCallback struct {
 	mu    sync.Mutex
 	puts  []any
@@ -148,9 +147,7 @@ func (c *recordingLeasedQueueCallback) snapshot() (puts []any, gets []any, dones
 		append([]nackRecord(nil), c.nacks...)
 }
 
-// TestLeasedQueue_Nack_OnNackCallback 验证 Nack 的 reason 参数真实传递到 OnNack 回调（D4a）。
-// 修复前：Nack(leaseID, _ error) 直接丢弃 reason，且 LeasedQueueCallback 不存在（编译失败 RED）；
-// 修复后：OnNack 恰好触发一次，收到正确的 value 与 reason。
+// TestLeasedQueue_Nack_OnNackCallback 验证 Nack 的 reason 真实传递到 OnNack 回调（D4a）。
 func TestLeasedQueue_Nack_OnNackCallback(t *testing.T) {
 	cb := &recordingLeasedQueueCallback{}
 	config := NewLeasedQueueConfig().
@@ -172,15 +169,14 @@ func TestLeasedQueue_Nack_OnNackCallback(t *testing.T) {
 		assert.Equal(t, "job-nack", nacks[0].value)
 		assert.Same(t, nackReason, nacks[0].reason, "OnNack must receive the exact reason error")
 	}
-	// 基础回调经内嵌 QueueConfig 路径保持正常：初始 Put + Nack 重入队 = 2 次 OnPut。
+	// 基础回调经内嵌路径正常：初始 Put + Nack 重入队 = 2 次 OnPut。
 	assert.Equal(t, []any{"job-nack", "job-nack"}, puts)
 	assert.Equal(t, []any{"job-nack"}, gets)
-	// 非幂等模式下 Done 为 no-op，不触发 OnDone（既有语义，见 queueImpl.Done）。
-	assert.Empty(t, dones)
+	// 非幂等模式 Done 为 best-effort 完成信号：Nack 内部先 Put 重入队再 Done 释放租约。
+	assert.Equal(t, []any{"job-nack"}, dones)
 }
 
-// TestLeasedQueue_Callback_BaseEventsViaEmbeddedPath 验证 WithCallback shadow 布线后
-// Ack 路径的基础事件正常（幂等模式下 OnDone 经内嵌路径触发）且不误触发 OnNack。
+// TestLeasedQueue_Callback_BaseEventsViaEmbeddedPath 验证 Ack 路径基础事件正常且不误触发 OnNack。
 func TestLeasedQueue_Callback_BaseEventsViaEmbeddedPath(t *testing.T) {
 	cb := &recordingLeasedQueueCallback{}
 	config := NewLeasedQueueConfig().
@@ -203,8 +199,7 @@ func TestLeasedQueue_Callback_BaseEventsViaEmbeddedPath(t *testing.T) {
 	assert.Empty(t, nacks, "Ack must not trigger OnNack")
 }
 
-// TestLeasedQueue_Nack_NopCallbackDefault 验证未配置回调（nil config / 默认 Nop）时
-// Nack 正常工作且不 panic。
+// TestLeasedQueue_Nack_NopCallbackDefault 验证未配置回调时 Nack 正常且不 panic。
 func TestLeasedQueue_Nack_NopCallbackDefault(t *testing.T) {
 	q := NewLeasedQueue(nil)
 	defer q.Shutdown()
@@ -220,12 +215,7 @@ func TestLeasedQueue_Nack_NopCallbackDefault(t *testing.T) {
 }
 
 // TestLeasedQueue_Idempotent_RequeueAfterLeaseExpiry 复现 D1 [P0] 租约过期路径：
-// 幂等模式下 GetWithLease 取走元素后，元素离开 list 但仍留在幂等 state 集合中。
-// 租约过期时 reaper 的 Put 撞 ErrElementAlreadyExist → continue 跳过 removeLease，
-// 每个扫描周期空转一次，元素永不回队。
-// 修复前：等待窗口内元素无法再次 Get（waitQueueGet 超时）；
-// 修复后：reaper 的 Put 命中 processing 挂起返回 nil，Put→removeLease→Done 顺序下
-// Done 触发重入队，元素可再次 Get。
+// 幂等模式下租约过期后元素应重新入队可再次 Get。
 func TestLeasedQueue_Idempotent_RequeueAfterLeaseExpiry(t *testing.T) {
 	config := NewLeasedQueueConfig().
 		WithLeaseDuration(20 * time.Millisecond).
@@ -246,10 +236,7 @@ func TestLeasedQueue_Idempotent_RequeueAfterLeaseExpiry(t *testing.T) {
 }
 
 // TestLeasedQueue_Idempotent_NackRequeue 复现 D1 [P0] 主动 Nack 路径：
-// 幂等模式下 Nack 先 Put 后释放租约，Put 撞 ErrElementAlreadyExist 直接返回错误，
-// 租约不释放，元素随后落入过期循环永久卡死。
-// 修复前：Nack 返回 ErrElementAlreadyExist；
-// 修复后：Nack 返回 nil，元素重新入队可再次 Get。
+// 幂等模式下 Nack 应返回 nil，元素重新入队可再次 Get。
 func TestLeasedQueue_Idempotent_NackRequeue(t *testing.T) {
 	config := NewLeasedQueueConfig().
 		WithLeaseDuration(100 * time.Millisecond).
@@ -271,8 +258,7 @@ func TestLeasedQueue_Idempotent_NackRequeue(t *testing.T) {
 	assert.Equal(t, "lease-nack", requeued)
 }
 
-// TestLeasedQueue_Idempotent_Ack_NoRequeue 验证幂等模式下 Ack 的正常生命周期出口：
-// Ack 后元素不得重新入队（新语义下 processing.TryRemove 成功且 state 无挂起标记 → 生命周期完成）。
+// TestLeasedQueue_Idempotent_Ack_NoRequeue 验证幂等模式下 Ack 后元素不再重入队。
 func TestLeasedQueue_Idempotent_Ack_NoRequeue(t *testing.T) {
 	config := NewLeasedQueueConfig().
 		WithLeaseDuration(20 * time.Millisecond).
@@ -289,7 +275,7 @@ func TestLeasedQueue_Idempotent_Ack_NoRequeue(t *testing.T) {
 
 	assert.NoError(t, q.Ack(leaseID))
 
-	// 跨过 reaper 扫描窗口，确认没有被误重入队。
+	// 跨过 reaper 扫描窗口，确认无误重入队。
 	time.Sleep(40 * time.Millisecond)
 	_, err = q.Get()
 	assert.ErrorIs(t, err, ErrQueueIsEmpty, "Ack must not requeue the element")
@@ -313,8 +299,7 @@ func waitQueueGet(t *testing.T, q Queue, timeout time.Duration) (any, error) {
 	return nil, ErrQueueIsEmpty
 }
 
-// TestLeasedQueue_LeaseInfos 验证 G5：LeaseInfos 暴露全部在租租约的只读快照，
-// LeaseID/Value/Deadline 三类盲区数据均正确可见。
+// TestLeasedQueue_LeaseInfos 验证 G5：LeaseInfos 暴露在租租约的只读快照。
 func TestLeasedQueue_LeaseInfos(t *testing.T) {
 	config := NewLeasedQueueConfig().
 		WithLeaseDuration(time.Minute).
@@ -351,14 +336,14 @@ func TestLeasedQueue_LeaseInfos(t *testing.T) {
 	assert.True(t, infoB.Deadline.After(before.Add(30*time.Second)), "deadline must honor the default 1m duration")
 	assert.True(t, infoB.Deadline.Before(before.Add(2*time.Minute)))
 
-	// Ack 释放租约后立即从快照消失。
+	// Ack 后租约从快照消失。
 	assert.NoError(t, q.Ack(leaseA))
 	infos = q.LeaseInfos()
 	assert.Len(t, infos, 1)
 	assert.Equal(t, leaseB, infos[0].LeaseID)
 }
 
-// TestLeasedQueue_LeaseInfos_Empty 验证无在租租约时返回空且非 nil 的切片。
+// TestLeasedQueue_LeaseInfos_Empty 验证无在租租约时返回空非 nil 切片。
 func TestLeasedQueue_LeaseInfos_Empty(t *testing.T) {
 	config := NewLeasedQueueConfig().WithScanInterval(time.Hour)
 	q := NewLeasedQueue(config)
@@ -369,7 +354,7 @@ func TestLeasedQueue_LeaseInfos_Empty(t *testing.T) {
 	assert.Empty(t, infos)
 }
 
-// TestLeasedQueue_LeaseInfos_CopyMutation 验证快照为副本：篡改返回值不影响内部租约表。
+// TestLeasedQueue_LeaseInfos_CopyMutation 验证快照为副本，篡改不影响内部状态。
 func TestLeasedQueue_LeaseInfos_CopyMutation(t *testing.T) {
 	config := NewLeasedQueueConfig().
 		WithLeaseDuration(time.Minute).
@@ -394,8 +379,7 @@ func TestLeasedQueue_LeaseInfos_CopyMutation(t *testing.T) {
 	assert.False(t, fresh[0].Deadline.IsZero())
 }
 
-// TestLeasedQueue_LeaseInfos_SnapshotDetached 验证快照脱锁：取快照后并发
-// Put/GetWithLease/Ack 不被阻塞、不死锁。
+// TestLeasedQueue_LeaseInfos_SnapshotDetached 验证快照脱锁，并发操作不被阻塞。
 func TestLeasedQueue_LeaseInfos_SnapshotDetached(t *testing.T) {
 	config := NewLeasedQueueConfig().
 		WithLeaseDuration(time.Minute).
@@ -442,12 +426,7 @@ func TestLeasedQueue_LeaseInfos_SnapshotDetached(t *testing.T) {
 }
 
 // TestLeasedQueue_Reaper_AckRace_NoResurrectNoStolenDone 复现 P1 #2 竞态链：
-// reaper 经 collectExpired 持锁快照后释放锁，窗口内消费者 Ack 完整执行
-// （removeLease+Done，返回 nil 即承诺终态），随后 reaper 用陈旧快照恢复执行。
-// 交错为确定性手动驱动（假“未来时间”快照 + 直接调用 requeueCollected），不依赖真实时序。
-// 修复前：陈旧快照的 Put 复活已 Ack 的 v1，Done 误减 v2 的在途计数（inFlight 被清零，
-// ShutdownWithDrain 可能提前完成）；
-// 修复后：claim-first 的 removeLease 未命中即跳过，v1 不复活、v2 计数保持。
+// reaper 陈旧快照不得复活已 Ack 的元素或窃取在途计数。手动驱动交错，不依赖时序。
 func TestLeasedQueue_Reaper_AckRace_NoResurrectNoStolenDone(t *testing.T) {
 	config := NewLeasedQueueConfig().
 		WithLeaseDuration(time.Minute).
@@ -474,20 +453,18 @@ func TestLeasedQueue_Reaper_AckRace_NoResurrectNoStolenDone(t *testing.T) {
 	inner := q.Queue.(*queueImpl)
 	assert.Equal(t, int64(1), inner.inFlight.Load())
 
-	// reaper 恢复执行，处理陈旧快照。
+	// reaper 处理陈旧快照。
 	q.requeueCollected(expired)
 
 	assert.Equal(t, 0, q.Len(), "acked value must not be resurrected by a stale reaper snapshot")
-	assert.Equal(t, int64(1), inner.inFlight.Load(), "stale snapshot must not Done (steal) v2's in-flight count")
+	assert.Equal(t, int64(1), inner.inFlight.Load(), "stale snapshot must not steal v2's in-flight count")
 	infos := q.LeaseInfos()
 	assert.Len(t, infos, 1)
 	assert.Equal(t, lease2, infos[0].LeaseID)
 }
 
-// TestLeasedQueue_Reaper_StaleSnapshotAfterNack_NoDuplicate 复现陈旧快照与 Nack
-// 的交错：Nack 在快照窗口内完整执行（元素已归还入队、租约已释放），reaper 恢复
-// 执行时不得对同一元素二次 Put（非幂等模式下会产生重复元素）。
-// 修复前：陈旧快照 Put 成功 → 队列出现两份 v1；修复后：claim 未命中跳过 → 仅一份。
+// TestLeasedQueue_Reaper_StaleSnapshotAfterNack_NoDuplicate 复现陈旧快照与 Nack 交错：
+// reaper 不得对已 Nack 归还的元素二次 Put 产生重复。
 func TestLeasedQueue_Reaper_StaleSnapshotAfterNack_NoDuplicate(t *testing.T) {
 	config := NewLeasedQueueConfig().
 		WithLeaseDuration(time.Minute).
@@ -502,7 +479,7 @@ func TestLeasedQueue_Reaper_StaleSnapshotAfterNack_NoDuplicate(t *testing.T) {
 	expired := q.collectExpired(time.Now().Add(2*time.Minute), nil)
 	assert.Len(t, expired, 1)
 
-	// 快照窗口内 Nack 完整执行：元素重新入队，租约释放。
+	// 快照窗口内 Nack 完整执行。
 	assert.NoError(t, q.Nack(lease1, errors.New("retry")))
 	assert.Equal(t, 1, q.Len())
 
@@ -513,13 +490,8 @@ func TestLeasedQueue_Reaper_StaleSnapshotAfterNack_NoDuplicate(t *testing.T) {
 	assert.Empty(t, q.LeaseInfos())
 }
 
-// TestLeasedQueue_Reaper_ExtendLeaseRace_NoStaleRequeue 复现陈旧快照与 ExtendLease
-// 的交错：reaper 经 collectExpired 持锁快照后释放锁，窗口内消费者 ExtendLease 续期
-// （新 deadline 在未来），reaper 恢复执行时不得用陈旧快照重入队这条已续期的租约。
-// 交错为确定性手动驱动（假“未来时间”快照 + 直接调用 requeueCollected），不依赖真实时序。
-// 修复前：claim 成功且 Put 照陈旧快照执行 → 已续期的 v1 被错误重入队、租约丢失；
-// 修复后：陈旧化复查发现 deadline 已变 → 按当前 item 原样恢复并跳过，v1 不复活、
-// 租约以续期后的新 deadline 保留。
+// TestLeasedQueue_Reaper_ExtendLeaseRace_NoStaleRequeue 复现陈旧快照与 ExtendLease 交错：
+// reaper 不得用陈旧快照重入队已续期的租约。手动驱动交错，不依赖时序。
 func TestLeasedQueue_Reaper_ExtendLeaseRace_NoStaleRequeue(t *testing.T) {
 	config := NewLeasedQueueConfig().
 		WithLeaseDuration(time.Minute).
@@ -551,10 +523,8 @@ func TestLeasedQueue_Reaper_ExtendLeaseRace_NoStaleRequeue(t *testing.T) {
 	}
 }
 
-// nackWindowReaperCallback 在 OnPut 内触发 reaper 处理陈旧快照，确定性模拟
-// “Nack 已入队、租约尚未释放”的窗口交错（内层 Put 在释放内层锁后同步回调 OnPut，
-// 见 queue.go Put）。expired 为 nil 时不动作（跳过测试初始 Put）；fired 保证钩子
-// 只触发一次，避免 OnPut→Put→OnPut 无限递归。全部调用发生在测试单 goroutine 内。
+// nackWindowReaperCallback 在 OnPut 内触发 reaper 处理陈旧快照，模拟 Nack 窗口交错。
+// fired 保证钩子只触发一次，避免递归。
 type nackWindowReaperCallback struct {
 	leasedQueueCallbackImpl
 	q       *leasedQueueImpl
@@ -571,10 +541,7 @@ func (c *nackWindowReaperCallback) OnPut(value any) {
 }
 
 // TestLeasedQueue_Nack_ReaperRaceInPutWindow_NoDuplicate 复现 Nack 与 reaper 的
-// 第二个交错窗口：reaper 恰在 Nack 的“Put 成功后、removeLease 前”抢占。
-// 经 OnPut 钩子确定性注入该交错（此时 Nack 尚未释放租约）。
-// 修复前（Nack peek-first）：reaper 仍能 claim 到租约 → 二次 Put 产生重复元素、
-// 双重 Done；修复后（Nack claim-first）：Nack 在 Put 前已持有 claim，reaper 未命中跳过。
+// 第二个交错窗口：经 OnPut 钩子注入"Nack Put 后、removeLease 前"的抢占。
 func TestLeasedQueue_Nack_ReaperRaceInPutWindow_NoDuplicate(t *testing.T) {
 	cb := &nackWindowReaperCallback{}
 	config := NewLeasedQueueConfig().
@@ -585,13 +552,13 @@ func TestLeasedQueue_Nack_ReaperRaceInPutWindow_NoDuplicate(t *testing.T) {
 	cb.q = q
 	defer q.Shutdown()
 
-	assert.NoError(t, q.Put("v1")) // OnPut 触发但 expired==nil，钩子不动作
+	assert.NoError(t, q.Put("v1")) // expired==nil，钩子不动作
 	_, lease1, err := q.GetWithLease(time.Minute)
 	assert.NoError(t, err)
 
 	expired := q.collectExpired(time.Now().Add(2*time.Minute), nil)
 	assert.Len(t, expired, 1)
-	cb.expired = expired // 装填钩子：下一次 Put（即 Nack 的归还入队）时 reaper 抢占
+	cb.expired = expired // 装填钩子：Nack 归还入队时 reaper 抢占
 
 	assert.NoError(t, q.Nack(lease1, errors.New("retry")))
 	assert.True(t, cb.fired, "OnPut hook must have run the stale-snapshot reaper")
@@ -618,7 +585,7 @@ func TestLeasedQueue_Reaper_PutFail_ReregistersLease(t *testing.T) {
 	expired := q.collectExpired(time.Now().Add(2*time.Minute), nil)
 	assert.Len(t, expired, 1)
 
-	// 内层队列关停：requeueCollected 的 Put 必然失败（ErrQueueIsClosed）。
+	// 内层队列关停，requeueCollected 的 Put 必然失败。
 	q.Queue.Shutdown()
 
 	q.requeueCollected(expired)
@@ -660,9 +627,7 @@ func TestLeasedQueue_Nack_PutFail_KeepsLease(t *testing.T) {
 	}
 }
 
-// onGetReentrantCallback 在 OnGet 内重入租约队列 API（LeaseInfos/Ack/ExtendLease
-// 均需获取外层 q.lock）。LeasedQueueConfig.WithCallback 将同一回调注入内外两层，
-// 内层 Get 弹出元素后同步触发 OnGet：若外层持锁跨越内层 Get，重入即二次加锁自死锁。
+// onGetReentrantCallback 在 OnGet 内重入租约队列 API，验证外层持锁时重入不死锁。
 type onGetReentrantCallback struct {
 	leasedQueueCallbackImpl
 	q      LeasedQueue
@@ -677,11 +642,8 @@ func (c *onGetReentrantCallback) OnGet(value any) {
 	c.once.Do(func() { close(c.probed) })
 }
 
-// TestLeasedQueue_GetWithLease_OnGetReentrant_NoDeadlock 复现 P1 #3 死锁链：
-// GetWithLease 持 q.lock 跨越内层 Get → OnGet 回调内重入 LeaseInfos/Ack →
-// 二次加锁自死锁（sync.Mutex 不可重入）。测试以 goroutine + select 超时保护判定挂死。
-// 修复前：3 秒超时触发 t.Fatal（确定性，非 flaky）；修复后：GetWithLease 正常返回
-// 且探针回调全部完成。
+// TestLeasedQueue_GetWithLease_OnGetReentrant_NoDeadlock 复现 P1 #3：
+// OnGet 回调内重入 LeaseInfos/Ack 不得死锁。以超时保护判定挂死。
 func TestLeasedQueue_GetWithLease_OnGetReentrant_NoDeadlock(t *testing.T) {
 	cb := &onGetReentrantCallback{probed: make(chan struct{})}
 	config := NewLeasedQueueConfig().
@@ -715,19 +677,15 @@ func TestLeasedQueue_GetWithLease_OnGetReentrant_NoDeadlock(t *testing.T) {
 			t.Fatal("OnGet reentrant probe did not run")
 		}
 	case <-time.After(3 * time.Second):
-		// 死锁态下不调用 Shutdown：closeNow 需获取同一把 q.lock，会连带挂死测试进程。
+		// 死锁态下调 Shutdown 会挂死测试进程。
 		t.Fatal("GetWithLease deadlocked: OnGet re-entered lease APIs while q.lock was held")
 	}
 
 	q.Shutdown()
 }
 
-// TestLeasedQueue_Concurrent_MixedOps_ShutdownWithDrain 是 -race 并发回归：
-// 并发 GetWithLease/GetWithLeaseWithContext/Ack/Nack/持有任其过期（reaper 回收）
-// 与 ShutdownWithDrain 混合。断言无死锁（drain 限时完成、worker 全部退出——
-// ShutdownWithDrain 返回即隐含 reaper 已经 closeNow 的 wg.Wait 退出，无 goroutine 泄漏）、
-// 零丢失（drainTracking 下成功 Ack 总数恰为元素总数：drain 提前完成或元素
-// 丢失/复活都会破坏该等式）。
+// TestLeasedQueue_Concurrent_MixedOps_ShutdownWithDrain -race 并发回归：
+// 混合操作 + ShutdownWithDrain，断言无死锁、零丢失。
 func TestLeasedQueue_Concurrent_MixedOps_ShutdownWithDrain(t *testing.T) {
 	config := NewLeasedQueueConfig().
 		WithLeaseDuration(5 * time.Millisecond).
@@ -743,7 +701,7 @@ func TestLeasedQueue_Concurrent_MixedOps_ShutdownWithDrain(t *testing.T) {
 	var acked atomic.Int64
 	var workers sync.WaitGroup
 
-	// 非阻塞消费者：随机 Ack / Nack / 持有任其过期，队列关停后退出。
+	// 非阻塞消费者：随机 Ack/Nack/持有过期，关停后退出。
 	for w := 0; w < 4; w++ {
 		workers.Add(1)
 		go func(seed int64) {
@@ -755,12 +713,12 @@ func TestLeasedQueue_Concurrent_MixedOps_ShutdownWithDrain(t *testing.T) {
 					if errors.Is(err, ErrQueueIsClosed) {
 						return
 					}
-					// 队列暂空：过期项随时可能被 reaper 归还，短暂等待后重试。
+					// 队列暂空，短暂等待后重试。
 					time.Sleep(time.Millisecond)
 					continue
 				}
 				switch rnd.Intn(10) {
-				case 0, 1: // 持有不 Ack：租约过期后由 reaper 回收重入队
+				case 0, 1: // 持有不 Ack，由 reaper 回收
 				case 2, 3:
 					_ = q.Nack(leaseID, errors.New("stress"))
 				default:
@@ -772,7 +730,7 @@ func TestLeasedQueue_Concurrent_MixedOps_ShutdownWithDrain(t *testing.T) {
 		}(int64(w))
 	}
 
-	// 阻塞消费者：覆盖 GetWithLeaseWithContext 的 broadcast 唤醒/关停退出路径。
+	// 阻塞消费者：覆盖 GetWithLeaseWithContext 关停退出路径。
 	blocking := leasedBlockingOf(t, q)
 	for w := 0; w < 2; w++ {
 		workers.Add(1)

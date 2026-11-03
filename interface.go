@@ -8,26 +8,33 @@ import (
 	lst "github.com/shengyanli1982/workqueue/v2/internal/container/list"
 )
 
-// DrainableQueue 描述支持优雅关停的队列。仿照 io.Closer 惯例以可选接口提供：
-// 不并入 Queue 接口（保护外部 Queue 实现者的兼容性），调用方经类型断言使用。
+// DrainableQueue 支持优雅关停的可选接口（io.Closer 风格），调用方经类型断言使用。
 type DrainableQueue = interface {
 	ShutdownWithDrain(ctx context.Context) error
 }
 
-// BlockingGetQueue 描述支持阻塞式消费的队列。仿照 io.Closer 惯例以可选接口提供：
-// 不并入 Queue 接口（保护外部 Queue 实现者的兼容性），调用方经类型断言使用。
-// GetWithContext 阻塞直到“有值 / ctx 完成 / 队列关闭”三者之一，永不返回
-// ErrQueueIsEmpty；未使用阻塞消费的队列默认路径零开销（惰性广播机制）。
+// BlockingGetQueue 支持阻塞式消费的可选接口（io.Closer 风格），调用方经类型断言使用。
+// GetWithContext 阻塞直到有值、ctx 完成或队列关闭，永不返回 ErrQueueIsEmpty；
+// 未使用阻塞消费的队列默认路径零开销（惰性广播机制）。
 type BlockingGetQueue = interface {
 	GetWithContext(ctx context.Context) (value any, err error)
 }
 
-// InFlightQueue 描述能暴露处理中元素（已 Get 未 Done）的队列。仿照 io.Closer
-// 惯例以可选接口提供：不并入 Queue 接口（保护外部 Queue 实现者的兼容性），
-// 调用方经类型断言使用。仅幂等模式（WithValueIdempotent）维护 per-value 处理中
-// 集合；非幂等实现的 InFlight 返回 nil。
+// InFlightQueue 暴露处理中元素（已 Get 未 Done）的可选接口（io.Closer 风格），
+// 调用方经类型断言使用。仅幂等模式（WithValueIdempotent）维护 per-value 集合，
+// 非幂等实现的 InFlight 返回 nil。
 type InFlightQueue = interface {
 	InFlight() []any
+}
+
+// DrainingQueue 暴露排空状态的可选接口（io.Closer 风格），调用方经类型断言使用。
+//
+// 队列三态：open → draining → closed。drain 期间 IsClosed 保持 false：
+//   - IsDraining=true ∧ IsClosed=false：排空中，新 Put 被拒绝，Get/Done 正常；
+//   - 两者皆 true：排空完成已关闭；
+//   - Shutdown() 立即关闭的队列 IsDraining 恒为 false。
+type DrainingQueue = interface {
+	IsDraining() bool
 }
 
 // Queue 定义基础队列语义：消费端 Get 成功后应调用 Done。
@@ -55,8 +62,7 @@ type DelayingQueue = interface {
 
 	PutWithDelay(value any, delay int64) error
 
-	// CancelDelay 取消堆中尚未搬运的单个延迟项，命中并移除返回 true；
-	// 未命中（未入堆、已搬运、已取消或已关停清空）返回 false。
+	// CancelDelay 取消堆中尚未搬运的延迟项，命中返回 true，未命中返回 false。
 	CancelDelay(value any) bool
 
 	HeapRange(fn func(value any, delay int64) bool)
@@ -82,14 +88,15 @@ type RateLimitingQueue = interface {
 type RetryQueue = interface {
 	DelayingQueue
 
+	// Retry 按重试策略将 value 重新入队。成功时内部已完成 Done(value)，
+	// 调用方不得重复调用 Done（非幂等 + drainTracking 下会误减在途计数）。
 	Retry(value any, reason error) error
 
 	Forget(value any)
 
 	NumRequeues(value any) int
 
-	// RequeueCounts 返回当前重试计数表的快照副本，
-	// map key 为 RetryKeyFunc 产出的重试 key，详见实现文档。
+	// RequeueCounts 返回重试计数快照，key 为 RetryKeyFunc 产出的重试 key。
 	RequeueCounts() map[string]int
 }
 
@@ -131,8 +138,7 @@ type LeasedQueue = interface {
 
 	ExtendLease(leaseID string, timeout time.Duration) error
 
-	// LeaseInfos 返回当前全部在租租约的只读快照副本，
-	// 锁内拷贝、锁外返回；副本可安全修改，不影响内部状态。
+	// LeaseInfos 返回当前在租租约的快照副本，副本可安全修改。
 	LeaseInfos() []LeaseInfo
 }
 
@@ -184,6 +190,9 @@ type TimerQueueCallback = interface {
 
 	OnSchedule(value any, at int64)
 
+	// OnScheduleError 在调度项搬入内层队列失败时触发。幂等模式下同值去重
+	// （ErrElementAlreadyExist）也经本回调上报，实现方需自行区分。
+	// 关停窗口的 ErrQueueIsClosed 不触发本回调。
 	OnScheduleError(value any, reason error)
 }
 
@@ -235,9 +244,8 @@ type Limiter = interface {
 	When(value any) time.Duration
 }
 
-// LimiterForgetter 是 Limiter 的可选扩展接口（io.Closer 风格）：
-// 持有 per-item 状态的 Limiter 可实现该接口，由持有方通过类型断言联动清理。
-// item 处理成功后调用 Forget 移除其退避状态，防止内部表无限增长。
+// LimiterForgetter 是 Limiter 的可选扩展（io.Closer 风格），持有 per-item 状态的
+// Limiter 可实现此接口，item 处理成功后调用 Forget 清理退避状态。
 type LimiterForgetter = interface {
 	Forget(value any)
 }
@@ -285,33 +293,19 @@ type container = interface {
 }
 
 // wrapInternalList 适配 list.List 到 container。
-type wrapInternalList struct {
-	*lst.List
-}
+type wrapInternalList struct{ *lst.List }
 
-// Push 将节点追加到链表尾部。
-func (sl *wrapInternalList) Push(value any) { sl.List.PushBack(value.(*lst.Node)) }
-
-// Pop 弹出链表头部节点。
-func (sl *wrapInternalList) Pop() any { return sl.List.PopFront() }
-
-// Range 遍历链表全部节点，fn 返回 false 时提前终止。
+func (sl *wrapInternalList) Push(value any)                     { sl.List.PushBack(value.(*lst.Node)) }
+func (sl *wrapInternalList) Pop() any                           { return sl.List.PopFront() }
 func (sl *wrapInternalList) Range(fn func(value any) bool) {
 	sl.List.Range(func(node *lst.Node) bool { return fn(node) })
 }
 
 // wrapInternalHeap 适配 heap.RBTree 到 container。
-type wrapInternalHeap struct {
-	*hp.RBTree
-}
+type wrapInternalHeap struct{ *hp.RBTree }
 
-// Push 将节点按优先级插入红黑树。
-func (sh *wrapInternalHeap) Push(value any) { sh.RBTree.Push(value.(*lst.Node)) }
-
-// Pop 弹出红黑树中最小优先级节点。
-func (sh *wrapInternalHeap) Pop() any { return sh.RBTree.Pop() }
-
-// Range 遍历红黑树全部节点，fn 返回 false 时提前终止。
+func (sh *wrapInternalHeap) Push(value any)                     { sh.RBTree.Push(value.(*lst.Node)) }
+func (sh *wrapInternalHeap) Pop() any                           { return sh.RBTree.Pop() }
 func (sh *wrapInternalHeap) Range(fn func(value any) bool) {
 	sh.RBTree.Range(func(node *lst.Node) bool { return fn(node) })
 }
